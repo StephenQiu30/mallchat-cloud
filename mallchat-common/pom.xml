@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 
+         http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>com.stephen.cloud</groupId>
+        <artifactId>mallchat-cloud</artifactId>
+        <version>1.0.0</version>
+    </parent>
+
+    <artifactId>mallchat-common</artifactId>
+    <packaging>pom</packaging>
+
+    <name>mallchat-common</name>
+    <description>公共模块父工程</description>
+
+    <modules>
+        <module>mallchat-common-core</module>
+        <module>mallchat-common-cache</module>
+        <module>mallchat-common-mysql</module>
+        <module>mallchat-common-auth</module>
+        <module>mallchat-common-web</module>
+        <module>mallchat-common-rabbitmq</module>
+        <module>mallchat-common-websocket</module>
+        <module>mallchat-common-log</module>
+    </modules>
+
+</project>

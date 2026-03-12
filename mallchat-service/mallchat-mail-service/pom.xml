@@ -1,0 +1,78 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 
+         http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+    <parent>
+        <groupId>com.stephen.cloud</groupId>
+        <artifactId>mallchat-service</artifactId>
+        <version>1.0.0</version>
+    </parent>
+
+    <artifactId>mallchat-mail-service</artifactId>
+    <name>mallchat-mail-service</name>
+    <description>邮件服务 - 提供邮件发送功能，支持同步和异步（MQ）两种方式</description>
+
+    <dependencies>
+
+        <!-- Common Cache -->
+        <dependency>
+            <groupId>com.stephen.cloud</groupId>
+            <artifactId>mallchat-common-cache</artifactId>
+        </dependency>
+
+        <!-- Common RabbitMQ -->
+        <dependency>
+            <groupId>com.stephen.cloud</groupId>
+            <artifactId>mallchat-common-rabbitmq</artifactId>
+        </dependency>
+
+        <!-- API Mail -->
+        <dependency>
+            <groupId>com.stephen.cloud</groupId>
+            <artifactId>mallchat-api-mail</artifactId>
+        </dependency>
+
+        <!-- API Log -->
+        <dependency>
+            <groupId>com.stephen.cloud</groupId>
+            <artifactId>mallchat-api-log</artifactId>
+        </dependency>
+        
+        <!-- mallchat-common-auth -->
+        <dependency>
+            <groupId>com.stephen.cloud</groupId>
+            <artifactId>mallchat-common-auth</artifactId>
+        </dependency>
+
+
+        <!-- Lombok -->
+        <dependency>
+            <groupId>org.projectlombok</groupId>
+            <artifactId>lombok</artifactId>
+            <optional>true</optional>
+        </dependency>
+        <!-- Spring Mail -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-mail</artifactId>
+        </dependency>
+
+        <!-- Thymeleaf for Email Templates -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-thymeleaf</artifactId>
+        </dependency>
+
+    </dependencies>
+
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>org.springframework.boot</groupId>
+                <artifactId>spring-boot-maven-plugin</artifactId>
+            </plugin>
+        </plugins>
+    </build>
+</project>

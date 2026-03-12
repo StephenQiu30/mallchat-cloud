@@ -1,0 +1,42 @@
+# SQL 数据库初始化脚本
+
+本目录包含 `mallchat-cloud` 全系统所需的数据库定义（DDL）。为了简化部署，系统采用统一数据库设计。
+
+## 🗄️ 数据库说明
+
+目前全系统共用一个数据库：`mallchat_cloud`。
+
+| 数据库名 | 核心表 |
+| :--- | :--- |
+| `mallchat_cloud` | `user`, `notification`, `ai_chat_record`, `api_access_log`, `operation_log`, `user_login_log`, `email_record`, `file_upload_record` |
+
+## 🛠️ 初始化步骤
+
+### 1. 执行脚本
+
+使用 MySQL 命令行或其他数据库管理工具（如 Navicat, DataGrip）执行 `mallchat.sql` 脚本：
+
+```bash
+mysql -u root -p < mallchat.sql
+```
+
+该脚本会自动执行以下操作：
+1. 如果不存在则创建 `mallchat_cloud` 数据库。
+2. 切换到 `mallchat_cloud` 数据库。
+3. 按顺序创建所有必要的业务表。
+
+## 📝 表设计规范
+
+- **字符集**: 统一使用 `utf8mb4`，支持 Emoji 存储。
+- **公共字段**:
+    - `id`: 雪花算法 ID 或自增 ID。
+    - `create_time`: 创建时间，由数据库自动维护。
+    - `update_time`: 修改时间，由数据库自动维护。
+    - `is_delete`: 逻辑删除位（0-正常，1-删除）。
+- **SQL 标准**: 包含 `DROP TABLE IF EXISTS`，支持重复执行（幂等性）。
+
+## ⚠️ 注意事项
+
+1. **环境差异**: 开发环境与生产环境共用此表结构定义。
+2. **敏感信息**: 数据库连接信息（如密码）应在 Nacos 配置中心中安全管理，不要提交到代码库。
+3. **备份**: 在生产环境执行脚本前，请务必先备份现有数据。

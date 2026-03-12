@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0
+         http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+    <parent>
+        <groupId>com.stephen.cloud</groupId>
+        <artifactId>mallchat-common</artifactId>
+        <version>1.0.0</version>
+    </parent>
+
+    <artifactId>mallchat-common-log</artifactId>
+    <name>mallchat-common-log</name>
+    <description>通用日志模块 - AOP操作日志注解</description>
+
+    <dependencies>
+        <!-- mallchat-api-log -->
+        <dependency>
+            <groupId>com.stephen.cloud</groupId>
+            <artifactId>mallchat-api-log</artifactId>
+        </dependency>
+
+        <!-- mallchat-common-core -->
+        <dependency>
+            <groupId>com.stephen.cloud</groupId>
+            <artifactId>mallchat-common-core</artifactId>
+        </dependency>
+
+        <!-- Spring Boot Starter AOP -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-aop</artifactId>
+        </dependency>
+
+        <!-- Spring Boot Starter Web (for HttpServletRequest) -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-web</artifactId>
+        </dependency>
+
+        <!-- Hutool (for JSONUtil) -->
+        <dependency>
+            <groupId>cn.hutool</groupId>
+            <artifactId>hutool-all</artifactId>
+        </dependency>
+
+        <!-- Lombok -->
+        <dependency>
+            <groupId>org.projectlombok</groupId>
+            <artifactId>lombok</artifactId>
+            <optional>true</optional>
+        </dependency>
+    </dependencies>
+</project>

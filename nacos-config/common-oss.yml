@@ -1,0 +1,11 @@
+# COS 对象存储配置
+spring:
+  config:
+    activate:
+      on-profile: default
+cos:
+  client:
+    accessKey: ${dev.cos.client.accessKey}
+    secretKey: ${dev.cos.client.secretKey}
+    region: ${dev.cos.client.region}
+    bucket: ${dev.cos.client.bucket}

@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+    <parent>
+        <groupId>com.stephen.cloud</groupId>
+        <artifactId>mallchat-cloud</artifactId>
+        <version>1.0.0</version>
+    </parent>
+
+    <artifactId>mallchat-api</artifactId>
+    <packaging>pom</packaging>
+    <name>mallchat-api</name>
+    <description>API 接口定义父工程</description>
+
+    <modules>
+        <module>mallchat-api-user</module>
+        <module>mallchat-api-file</module>
+        <module>mallchat-api-notification</module>
+        <module>mallchat-api-mail</module>
+        <module>mallchat-api-log</module>
+        <module>mallchat-api-ai</module>
+    </modules>
+    <dependencies>
+        <!-- MyBatis Plus Extension -->
+        <dependency>
+            <groupId>com.baomidou</groupId>
+            <artifactId>mybatis-plus-extension</artifactId>
+        </dependency>
+    </dependencies>
+
+    <dependencyManagement>
+        <dependencies>
+
+        </dependencies>
+    </dependencyManagement>
+
+</project>

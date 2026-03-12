@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+    <parent>
+        <groupId>com.stephen.cloud</groupId>
+        <artifactId>mallchat-common</artifactId>
+        <version>1.0.0</version>
+    </parent>
+
+    <artifactId>mallchat-common-websocket</artifactId>
+    <name>mallchat-common-websocket</name>
+    <description>WebSocket 共通组件</description>
+
+    <dependencies>
+        <!-- mallchat-common-core -->
+        <dependency>
+            <groupId>com.stephen.cloud</groupId>
+            <artifactId>mallchat-common-core</artifactId>
+        </dependency>
+
+        <!-- mallchat-common-cache -->
+        <dependency>
+            <groupId>com.stephen.cloud</groupId>
+            <artifactId>mallchat-common-cache</artifactId>
+        </dependency>
+
+        <!-- mallchat-common-auth -->
+        <dependency>
+            <groupId>com.stephen.cloud</groupId>
+            <artifactId>mallchat-common-auth</artifactId>
+        </dependency>
+
+        <!-- mallchat-common-rabbitmq -->
+        <dependency>
+            <groupId>com.stephen.cloud</groupId>
+            <artifactId>mallchat-common-rabbitmq</artifactId>
+        </dependency>
+
+        <!-- Netty -->
+        <dependency>
+            <groupId>io.netty</groupId>
+            <artifactId>netty-all</artifactId>
+        </dependency>
+    </dependencies>
+
+</project>

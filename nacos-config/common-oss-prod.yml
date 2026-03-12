@@ -1,0 +1,11 @@
+# COS 对象存储配置 (Production)
+spring:
+  config:
+    activate:
+      on-profile: prod
+cos:
+  client:
+    accessKey: ${prod.cos.client.accessKey}
+    secretKey: ${prod.cos.client.secretKey}
+    region: ${prod.cos.client.region}
+    bucket: ${prod.cos.client.bucket}

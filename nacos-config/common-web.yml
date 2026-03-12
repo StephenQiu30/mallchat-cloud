@@ -1,0 +1,101 @@
+# 公共Web/业务配置文件 (Default)
+
+server:
+  servlet:
+    context-path: /api
+
+spring:
+  config:
+    activate:
+      on-profile: default
+  # MVC 配置
+  mvc:
+    pathmatch:
+      matching-strategy: ant_path_matcher
+  # Session 配置
+  session:
+    store-type: redis
+    timeout: 2592000
+  # 缓存配置
+  cache:
+    type: caffeine
+    caffeine:
+      spec: maximumSize=500,expireAfterAccess=600s
+
+# springdoc 相关配置
+springdoc:
+  swagger-ui:
+    path: /swagger-ui.html
+    tags-sorter: alpha
+    operations-sorter: alpha
+  api-docs:
+    path: /v3/api-docs
+    enabled: true
+  group-configs:
+    - group: 'default'
+      paths-to-match: '/**'
+      packages-to-scan: com.stephen.cloud
+
+# 接口文档配置
+knife4j:
+  enable: true
+  setting:
+    language: zh_cn
+    enable-swagger-models: true
+    enable-document-manage: true
+
+# 统一日志配置
+logging:
+  config: classpath:logback-spring.xml
+
+# Logstash 配置
+logstash:
+  host: localhost
+  port: 5000
+
+# Sa-Token 配置 (Dev)
+sa-token:
+  enable-sa: true
+  enable-jwt: true
+  token-name: Authorization
+  timeout: 2592000
+  active-timeout: 604800
+  is-concurrent: false
+  is-share: true
+  token-style: uuid
+  is-log: true
+  token-prefix: Bearer
+  jwt-secret-key: ${dev.sa-token.jwt-secret-key}
+
+# 请求参数加密校验配置
+encrypt:
+  enable: true
+  rsa-key-length: length4096
+  aes-key-length: length32
+
+# 登录验证码配置
+login:
+  email:
+    code:
+      expire-time: 300
+      length: 6
+      send-limit: 60
+
+# 监控配置: Actuator & Prometheus
+management:
+  endpoints:
+    web:
+      exposure:
+        include: 'health,info'
+  endpoint:
+    health:
+      show-details: always
+  health:
+    redis:
+      enabled: true
+    rabbit:
+      enabled: true
+  metrics:
+    tags:
+      application: ${spring.application.name}
+    export:

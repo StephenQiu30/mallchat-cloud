@@ -1,0 +1,46 @@
+# AI 服务配置
+server:
+  port: 8086
+
+spring:
+  application:
+    name: mallchat-ai-service
+  profiles:
+    active: default
+  config:
+    activate:
+      on-profile: default
+    import:
+      - nacos:common-secret.properties?group=DEFAULT_GROUP&refresh=true
+      - nacos:common-web.yml?group=DEFAULT_GROUP&refresh=true
+      - nacos:common-cache.yml?group=DEFAULT_GROUP&refresh=true
+      - nacos:common-mysql.yml?group=DEFAULT_GROUP&refresh=true
+      - nacos:common-rabbitmq.yml?group=DEFAULT_GROUP&refresh=true
+  cloud:
+    nacos:
+      discovery:
+        server-addr: localhost:8848
+        namespace: mallchat-cloud
+        group: DEFAULT_GROUP
+        username: nacos
+        password: nacos
+      config:
+        server-addr: localhost:8848
+        namespace: mallchat-cloud
+        group: DEFAULT_GROUP
+        file-extension: yml
+        username: nacos
+        password: nacos
+
+# AI 模型配置
+ai:
+  dashscope:
+    apiKey: ${dev.aliyun.dashscope.api-key}
+    modelName: ${dev.aliyun.dashscope.model-name}
+  ollama:
+    baseUrl: ${dev.ollama.base-url}
+    modelName: ${dev.ollama.model-name}
+
+# MyBatis-Plus 业务配置
+mybatis-plus:
+  type-aliases-package: com.stephen.cloud.ai.model.entity
