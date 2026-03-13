@@ -84,23 +84,6 @@ public interface KeyPrefixConstants {
      */
     String CAPTCHA_PREFIX = "CAPTCHA:";
 
-    // 邮箱相关键前缀
-
-    /**
-     * 邮箱Key前缀
-     */
-    String EMAIL_PREFIX = "EMAIL:";
-
-    /**
-     * 找回密码邮箱Key前缀
-     */
-    String EMAIL_RETRIEVE_PASSWORD_PREFIX = EMAIL_PREFIX + "RETRIEVE_PASSWORD:";
-
-    /**
-     * 注册激活邮箱Key前缀
-     */
-    String EMAIL_REGISTER_ACTIVATE_PREFIX = EMAIL_PREFIX + "REGISTER_ACTIVATE:";
-
     // 登录相关键前缀
 
     /**
@@ -112,16 +95,6 @@ public interface KeyPrefixConstants {
      * 微信扫码登录 State Key 前缀
      */
     String WX_QRCODE_STATE = "wx:qrcode:state:";
-
-    /**
-     * 邮箱验证码 Key 前缀
-     */
-    String LOGIN_CODE_EMAIL = "login:code:email:";
-
-    /**
-     * 邮箱发送限制 Key 前缀
-     */
-    String LOGIN_LIMIT_EMAIL = "login:limit:email:";
 
     /**
      * IP 发送限制 Key 前缀

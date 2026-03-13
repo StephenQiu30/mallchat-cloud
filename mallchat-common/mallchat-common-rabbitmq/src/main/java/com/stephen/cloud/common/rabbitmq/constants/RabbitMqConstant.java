@@ -7,37 +7,6 @@ package com.stephen.cloud.common.rabbitmq.constants;
  */
 public interface RabbitMqConstant {
 
-    // ==================== 邮件相关 ====================
-
-    /**
-     * 邮件交换机
-     */
-    String EMAIL_EXCHANGE = "email.exchange";
-
-    /**
-     * 邮件队列
-     */
-    String EMAIL_QUEUE = "email.queue";
-
-    /**
-     * 邮件路由键
-     */
-    String EMAIL_ROUTING_KEY = "email.send";
-
-    /**
-     * 邮件死信交换机
-     */
-    String EMAIL_DLX_EXCHANGE = "email.dlx.exchange";
-
-    /**
-     * 邮件死信队列
-     */
-    String EMAIL_DLX_QUEUE = "email.dlx.queue";
-
-    /**
-     * 邮件死信路由键
-     */
-    String EMAIL_DLX_ROUTING_KEY = "email.dlx";
 
     // ==================== WebSocket 相关 ====================
 

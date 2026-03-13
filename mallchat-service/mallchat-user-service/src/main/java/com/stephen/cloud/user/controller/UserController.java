@@ -9,10 +9,8 @@ import com.stephen.cloud.api.user.model.vo.WxLoginResponse;
 import com.stephen.cloud.common.common.*;
 import com.stephen.cloud.common.constants.UserConstant;
 import com.stephen.cloud.common.log.annotation.OperationLog;
-import com.stephen.cloud.common.utils.IpUtils;
 import com.stephen.cloud.user.convert.UserConvert;
 import com.stephen.cloud.user.model.entity.User;
-import com.stephen.cloud.user.service.UserEmailService;
 import com.stephen.cloud.user.service.UserService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -39,8 +37,6 @@ public class UserController {
     @Resource
     private UserService userService;
 
-    @Resource
-    private UserEmailService userEmailService;
 
 
     /**
@@ -63,43 +59,6 @@ public class UserController {
         String state = gitHubLoginRequest.getState();
         LoginUserVO loginUserVO = userService.userLoginByGitHub(code, state, request);
         return ResultUtils.success(loginUserVO);
-    }
-
-    /**
-     * 用户邮箱登录
-     *
-     * @param userEmailLoginRequest 邮箱登录请求参数
-     * @param request               HTTP 请求
-     * @return 登录成功的用户信息
-     */
-    @PostMapping("/login/email")
-    @Operation(summary = "用户邮箱登录", description = "使用邮箱 and 验证码进行登录")
-    @OperationLog(module = "用户认证", action = "邮箱登录")
-    public BaseResponse<LoginUserVO> userLoginByEmail(
-            @Validated @RequestBody UserEmailLoginRequest userEmailLoginRequest,
-            HttpServletRequest request) {
-        LoginUserVO loginUserVO = userService.userLoginByEmail(userEmailLoginRequest, request);
-        return ResultUtils.success(loginUserVO);
-    }
-
-    /**
-     * 发送邮箱验证码
-     * <p>
-     * 向指定邮箱发送登录或注册所需的验证码。
-     *
-     * @param request     发送邮箱验证码请求
-     * @param httpRequest HTTP 请求
-     * @return 验证码过期时间（秒）
-     */
-    @PostMapping("/login/email/code")
-    @Operation(summary = "发送邮箱验证码", description = "向指定邮箱发送登录或注册所需的验证码")
-    @OperationLog(module = "用户认证", action = "发送邮箱验证码")
-    public BaseResponse<Integer> sendEmailLoginCode(@Validated @RequestBody UserEmailCodeSendRequest request,
-            HttpServletRequest httpRequest) {
-        ThrowUtils.throwIf(request == null, ErrorCode.PARAMS_ERROR);
-        String clientIp = IpUtils.getClientIp(httpRequest);
-        Integer expireSeconds = userEmailService.sendEmailCode(request.getEmail(), clientIp);
-        return ResultUtils.success(expireSeconds);
     }
 
     /**

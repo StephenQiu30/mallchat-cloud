@@ -3,7 +3,6 @@ package com.stephen.cloud.user.service;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.IService;
-import com.stephen.cloud.api.user.model.dto.UserEmailLoginRequest;
 import com.stephen.cloud.api.user.model.dto.UserQueryRequest;
 import com.stephen.cloud.api.user.model.vo.LoginUserVO;
 import com.stephen.cloud.api.user.model.vo.UserVO;
@@ -11,7 +10,6 @@ import com.stephen.cloud.api.user.model.vo.WxLoginResponse;
 import com.stephen.cloud.user.model.entity.User;
 import jakarta.servlet.http.HttpServletRequest;
 
-import java.util.Date;
 import java.util.List;
 
 /**
@@ -119,14 +117,6 @@ public interface UserService extends IService<User> {
      */
     String getGitHubAuthorizeUrl();
 
-    /**
-     * 邮箱登录
-     *
-     * @param userEmailLoginRequest 邮箱登录请求
-     * @param request               HTTP请求
-     * @return {@link LoginUserVO}
-     */
-    LoginUserVO userLoginByEmail(UserEmailLoginRequest userEmailLoginRequest, HttpServletRequest request);
 
     /**
      * 根据查询请求构建 MyBatis Plus 的查询条件封装

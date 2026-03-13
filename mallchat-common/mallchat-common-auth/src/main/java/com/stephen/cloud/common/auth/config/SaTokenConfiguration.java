@@ -49,7 +49,6 @@ public class SaTokenConfiguration implements WebMvcConfigurer {
             add("/user/login");
             add("/user/login/**");
             add("/user/wx/login");
-            add("/mail/email/code/**");
             add("/swagger-ui.html");
             add("/webjars/**");
             add("/swagger-ui/**");

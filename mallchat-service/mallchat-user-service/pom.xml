@@ -45,27 +45,16 @@
             <groupId>com.stephen.cloud</groupId>
             <artifactId>mallchat-common-rabbitmq</artifactId>
         </dependency>
-
-
         <!-- Stephen Common Log (包含AOP依赖) -->
         <dependency>
             <groupId>com.stephen.cloud</groupId>
             <artifactId>mallchat-common-log</artifactId>
         </dependency>
-
-
-        <!-- API Mail -->
-        <dependency>
-            <groupId>com.stephen.cloud</groupId>
-            <artifactId>mallchat-api-mail</artifactId>
-        </dependency>
-
         <!-- API Log -->
         <dependency>
             <groupId>com.stephen.cloud</groupId>
             <artifactId>mallchat-api-log</artifactId>
         </dependency>
-
 
         <!-- weixin-java-mp -->
         <dependency>

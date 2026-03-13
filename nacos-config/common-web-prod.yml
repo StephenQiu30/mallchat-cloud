@@ -51,13 +51,6 @@ encrypt:
   rsa-key-length: length4096
   aes-key-length: length32
 
-# 登录验证码配置
-login:
-  email:
-    code:
-      expire-time: 300
-      length: 6
-      send-limit: 60
 
 # 监控配置: Actuator & Prometheus
 management:

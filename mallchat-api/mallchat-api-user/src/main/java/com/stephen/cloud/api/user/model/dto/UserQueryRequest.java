@@ -63,12 +63,6 @@ public class UserQueryRequest extends PageRequest implements Serializable {
     @Schema(description = "用户角色")
     private String userRole;
 
-    /**
-     * 用户邮箱
-     * 支持模糊查询
-     */
-    @Schema(description = "用户邮箱")
-    private String userEmail;
 
     /**
      * 用户电话

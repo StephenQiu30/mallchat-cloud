@@ -12,8 +12,6 @@
         <result property="userAvatar" column="user_avatar" jdbcType="VARCHAR"/>
         <result property="userProfile" column="user_profile" jdbcType="VARCHAR"/>
         <result property="userRole" column="user_role" jdbcType="VARCHAR"/>
-        <result property="userEmail" column="user_email" jdbcType="VARCHAR"/>
-        <result property="emailVerified" column="email_verified" jdbcType="INTEGER"/>
         <result property="githubId" column="github_id" jdbcType="VARCHAR"/>
         <result property="githubLogin" column="github_login" jdbcType="VARCHAR"/>
         <result property="githubUrl" column="github_url" jdbcType="VARCHAR"/>
@@ -28,8 +26,7 @@
         id
         ,
         union_id,mp_open_id,user_name,
-        user_avatar,user_profile,user_role,user_email,
-        email_verified,github_id,github_login,
+        github_id,github_login,
         github_url,wx_open_id,
         user_phone,create_time,update_time,is_delete
     </sql>

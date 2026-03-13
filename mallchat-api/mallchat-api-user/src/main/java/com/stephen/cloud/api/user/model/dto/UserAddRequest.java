@@ -36,9 +36,4 @@ public class UserAddRequest implements Serializable {
     @Schema(description = "用户角色")
     private String userRole;
 
-    /**
-     * 用户邮箱
-     */
-    @Schema(description = "用户邮箱")
-    private String userEmail;
 }

@@ -18,7 +18,6 @@
         <module>mallchat-api-user</module>
         <module>mallchat-api-file</module>
         <module>mallchat-api-notification</module>
-        <module>mallchat-api-mail</module>
         <module>mallchat-api-log</module>
         <module>mallchat-api-ai</module>
     </modules>

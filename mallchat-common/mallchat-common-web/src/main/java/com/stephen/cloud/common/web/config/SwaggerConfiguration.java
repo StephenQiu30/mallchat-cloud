@@ -26,8 +26,7 @@ public class SwaggerConfiguration {
                         .version("1.0.0")
                         .description("MallChat Cloud 微服务接口文档")
                         .contact(new Contact()
-                                .name("StephenQiu30")
-                                .email("stephen@example.com"))
+                                .name("StephenQiu30"))
                         .license(new License()
                                 .name("Apache 2.0")
                                 .url("https://www.apache.org/licenses/LICENSE-2.0.html")));

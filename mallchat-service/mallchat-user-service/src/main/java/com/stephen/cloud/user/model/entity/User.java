@@ -14,7 +14,7 @@ import java.util.Date;
 /**
  * 用户实体
  * <p>
- * 支持多种登录方式：邮箱、GitHub、微信公众号、微信扫码登录
+ * 支持多种登录方式：GitHub、微信公众号、微信扫码登录
  * 用户角色包含：普通用户、管理员、封禁用户
  * </p>
  *
@@ -58,18 +58,6 @@ public class User implements Serializable {
      */
     @Schema(description = "用户角色：user/admin/ban")
     private String userRole;
-
-    /**
-     * 用户邮箱
-     */
-    @Schema(description = "用户邮箱")
-    private String userEmail;
-
-    /**
-     * 邮箱是否验证：0-未验证，1-已验证
-     */
-    @Schema(description = "邮箱是否验证：0-未验证，1-已验证")
-    private Integer emailVerified;
 
     /**
      * 用户手机号

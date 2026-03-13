@@ -49,17 +49,6 @@ public class LoginUserVO implements Serializable {
     @Schema(description = "用户简介")
     private String userProfile;
 
-    /**
-     * 用户邮箱
-     */
-    @Schema(description = "用户邮箱")
-    private String userEmail;
-
-    /**
-     * 邮箱是否验证：0-未验证，1-已验证
-     */
-    @Schema(description = "邮箱是否验证")
-    private Integer emailVerified;
 
     /**
      * GitHub 用户名

@@ -56,20 +56,6 @@ public class LogConvert {
         return vo;
     }
 
-    /**
-     * 邮件记录转视图
-     *
-     * @param emailRecord 邮件记录
-     * @return 视图对象
-     */
-    public static EmailRecordVO emailRecordToVO(EmailRecord emailRecord) {
-        if (emailRecord == null) {
-            return null;
-        }
-        EmailRecordVO vo = new EmailRecordVO();
-        BeanUtils.copyProperties(emailRecord, vo);
-        return vo;
-    }
 
     /**
      * 文件上传记录转视图

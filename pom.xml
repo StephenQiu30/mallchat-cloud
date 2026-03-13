@@ -413,22 +413,11 @@
                 <artifactId>mallchat-api-file</artifactId>
                 <version>${mallchat-cloud.version}</version>
             </dependency>
-
-
-
             <dependency>
                 <groupId>com.stephen.cloud</groupId>
                 <artifactId>mallchat-api-notification</artifactId>
                 <version>${mallchat-cloud.version}</version>
             </dependency>
-
-
-            <dependency>
-                <groupId>com.stephen.cloud</groupId>
-                <artifactId>mallchat-api-mail</artifactId>
-                <version>${mallchat-cloud.version}</version>
-            </dependency>
-
             <dependency>
                 <groupId>com.stephen.cloud</groupId>
                 <artifactId>mallchat-api-log</artifactId>
@@ -467,11 +456,6 @@
             </dependency>
 
 
-            <dependency>
-                <groupId>com.stephen.cloud</groupId>
-                <artifactId>mallchat-mail-service</artifactId>
-                <version>${mallchat-cloud.version}</version>
-            </dependency>
 
             <dependency>
                 <groupId>com.stephen.cloud</groupId>

@@ -18,7 +18,6 @@
         <module>mallchat-user-service</module>
         <module>mallchat-notification-service</module>
         <module>mallchat-file-service</module>
-        <module>mallchat-mail-service</module>
         <module>mallchat-log-service</module>
         <module>mallchat-ai-service</module>
     </modules>

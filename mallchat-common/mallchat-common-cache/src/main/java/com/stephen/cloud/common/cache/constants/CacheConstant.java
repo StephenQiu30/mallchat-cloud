@@ -13,16 +13,6 @@ public interface CacheConstant {
     String FILE_NAME = "stephen:cloud:";
 
     /**
-     * 邮箱验证码 Key 前缀
-     */
-    String LOGIN_CODE_EMAIL = "login:code:email:";
-
-    /**
-     * 邮箱发送频率限制 Key 前缀
-     */
-    String LOGIN_LIMIT_EMAIL = "login:limit:email:";
-
-    /**
      * IP 发送频率限制 Key 前缀
      */
     String LOGIN_LIMIT_IP = "login:limit:ip:";

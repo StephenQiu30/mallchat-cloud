@@ -39,12 +39,6 @@ public class UserEditRequest implements Serializable {
     @Schema(description = "用户简介")
     private String userProfile;
 
-    /**
-     * 用户邮箱
-     * 可选，用于登录和接收通知
-     */
-    @Schema(description = "用户邮箱")
-    private String userEmail;
 
     /**
      * 用户电话

@@ -9,10 +9,6 @@ import java.util.regex.Pattern;
  */
 public class RegexUtils {
 
-    /**
-     * 邮箱正则表达式
-     */
-    public static final String EMAIL_REGEX = "^[A-Za-z0-9\\u4e00-\\u9fa5]+@[a-zA-Z0-9_-]+(\\.[a-zA-Z0-9_-]+)+$";
 
     /**
      * 手机号正则表达式
@@ -39,15 +35,6 @@ public class RegexUtils {
      */
     public static final String PASSWORD_REGEX = "^(?=.*[0-9])(?=.*[a-zA-Z]).{6,20}$";
 
-    /**
-     * 校验邮箱
-     *
-     * @param email 邮箱
-     * @return 是否符合正则
-     */
-    public static boolean checkEmail(String email) {
-        return Pattern.matches(EMAIL_REGEX, email);
-    }
 
     /**
      * 校验手机号

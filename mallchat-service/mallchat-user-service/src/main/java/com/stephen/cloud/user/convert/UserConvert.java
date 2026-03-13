@@ -4,7 +4,6 @@ import cn.hutool.core.util.DesensitizedUtil;
 import com.stephen.cloud.api.user.model.dto.UserAddRequest;
 import com.stephen.cloud.api.user.model.dto.UserEditRequest;
 import com.stephen.cloud.api.user.model.dto.UserUpdateRequest;
-import com.stephen.cloud.api.user.model.enums.EmailVerifiedEnum;
 import com.stephen.cloud.api.user.model.vo.LoginUserVO;
 import com.stephen.cloud.api.user.model.vo.UserVO;
 import com.stephen.cloud.common.constants.UserConstant;
@@ -35,7 +34,6 @@ public class UserConvert {
         UserVO userVO = new UserVO();
         BeanUtils.copyProperties(user, userVO);
         // 敏感字段脱敏处理
-        userVO.setUserEmail(DesensitizedUtil.email(userVO.getUserEmail()));
         userVO.setUserPhone(DesensitizedUtil.mobilePhone(userVO.getUserPhone()));
         return userVO;
     }
@@ -80,9 +78,6 @@ public class UserConvert {
         BeanUtils.copyProperties(userAddRequest, user);
         // 填充默认值
         user.setUserAvatar(Optional.ofNullable(user.getUserAvatar()).orElse(UserConstant.USER_AVATAR));
-        if (user.getEmailVerified() == null) {
-            user.setEmailVerified(EmailVerifiedEnum.UNVERIFIED.getValue());
-        }
         return user;
     }
 

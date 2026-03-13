@@ -3,16 +3,13 @@ package com.stephen.cloud.user.service.impl;
 import cn.dev33.satoken.stp.StpUtil;
 import cn.hutool.core.collection.CollUtil;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
-import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.stephen.cloud.api.log.client.LogFeignClient;
 import com.stephen.cloud.api.log.model.dto.login.UserLoginLogAddRequest;
 import com.stephen.cloud.api.log.model.enums.LoginStatusEnum;
 import com.stephen.cloud.api.log.model.enums.LoginTypeEnum;
-import com.stephen.cloud.api.user.model.dto.UserEmailLoginRequest;
 import com.stephen.cloud.api.user.model.dto.UserQueryRequest;
-import com.stephen.cloud.api.user.model.enums.EmailVerifiedEnum;
 import com.stephen.cloud.api.user.model.enums.UserRoleEnum;
 import com.stephen.cloud.api.user.model.vo.GitHubUserVO;
 import com.stephen.cloud.api.user.model.vo.LoginUserVO;
@@ -27,7 +24,6 @@ import com.stephen.cloud.common.constants.CommonConstant;
 import com.stephen.cloud.common.constants.UserConstant;
 import com.stephen.cloud.common.exception.BusinessException;
 import com.stephen.cloud.common.mysql.utils.SqlUtils;
-import com.stephen.cloud.common.rabbitmq.enums.MqBizTypeEnum;
 import com.stephen.cloud.common.rabbitmq.producer.RabbitMqSender;
 import com.stephen.cloud.common.auth.utils.SecurityUtils;
 import com.stephen.cloud.common.utils.IpUtils;
@@ -38,7 +34,6 @@ import com.stephen.cloud.user.model.dto.UserLoginLogRecordRequest;
 import com.stephen.cloud.user.model.entity.User;
 import com.stephen.cloud.user.service.GitHubOAuthService;
 import com.stephen.cloud.user.service.GitHubService;
-import com.stephen.cloud.user.service.UserEmailService;
 import com.stephen.cloud.user.service.UserService;
 import jakarta.annotation.Resource;
 import jakarta.servlet.http.HttpServletRequest;
@@ -71,8 +66,6 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User>
     @Resource
     private GitHubService gitHubService;
 
-    @Resource
-    private UserEmailService userEmailService;
 
     @Resource
     private WxMpService wxMpService;
@@ -104,24 +97,11 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User>
             throw new BusinessException(ErrorCode.PARAMS_ERROR);
         }
         String userName = user.getUserName();
-        String userEmail = user.getUserEmail();
         String userPhone = user.getUserPhone();
         String userProfile = user.getUserProfile();
 
         if (add) {
             ThrowUtils.throwIf(StringUtils.isBlank(userName), ErrorCode.PARAMS_ERROR, "用户名称不能为空");
-            ThrowUtils.throwIf(StringUtils.isBlank(userEmail), ErrorCode.PARAMS_ERROR, "用户邮箱不能为空");
-        }
-        if (StringUtils.isNotBlank(userName)) {
-            ThrowUtils.throwIf(userName.length() < 2 || userName.length() > 30, ErrorCode.PARAMS_ERROR, "用户昵称过短或过长");
-        }
-        if (StringUtils.isNotBlank(userEmail)) {
-            ThrowUtils.throwIf(!RegexUtils.checkEmail(userEmail), ErrorCode.PARAMS_ERROR, "用户邮箱格式有误");
-            LambdaQueryWrapper<User> queryWrapper = new LambdaQueryWrapper<>();
-            queryWrapper.eq(User::getUserEmail, userEmail);
-            queryWrapper.ne(user.getId() != null, User::getId, user.getId());
-            long count = this.count(queryWrapper);
-            ThrowUtils.throwIf(count > 0, ErrorCode.PARAMS_ERROR, "该邮箱已被占用");
         }
         if (StringUtils.isNotBlank(userPhone)) {
             ThrowUtils.throwIf(!RegexUtils.checkPhone(userPhone), ErrorCode.PARAMS_ERROR, "用户手机号格式有误");
@@ -272,7 +252,6 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User>
         String mpOpenId = userQueryRequest.getMpOpenId();
         String userName = userQueryRequest.getUserName();
         String userRole = userQueryRequest.getUserRole();
-        String userEmail = userQueryRequest.getUserEmail();
         String userPhone = userQueryRequest.getUserPhone();
         String sortField = userQueryRequest.getSortField();
         String sortOrder = userQueryRequest.getSortOrder();
@@ -286,7 +265,6 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User>
                 .eq(StringUtils.isNotBlank(mpOpenId), User::getMpOpenId, mpOpenId)
                 .eq(StringUtils.isNotBlank(userRole), User::getUserRole, userRole)
                 .like(StringUtils.isNotBlank(userName), User::getUserName, userName)
-                .like(StringUtils.isNotBlank(userEmail), User::getUserEmail, userEmail)
                 .like(StringUtils.isNotBlank(userPhone), User::getUserPhone, userPhone);
 
         if (StringUtils.isNotBlank(searchText)) {
@@ -333,129 +311,64 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User>
         String githubId = gitHubUserVO.getId();
         User user = this.getOne(new LambdaQueryWrapper<User>().eq(User::getGithubId, githubId));
 
-        if (user == null && StringUtils.isNotBlank(gitHubUserVO.getEmail())) {
-            user = this.getOne(new LambdaQueryWrapper<User>().eq(User::getUserEmail, gitHubUserVO.getEmail()));
-            if (user != null) {
-                user.setGithubId(githubId);
-                user.setGithubLogin(gitHubUserVO.getLogin());
-                user.setGithubUrl(gitHubUserVO.getHtmlUrl());
-                if (StringUtils.isNotBlank(gitHubUserVO.getAvatarUrl()) && StringUtils.isBlank(user.getUserAvatar())) {
-                    user.setUserAvatar(gitHubUserVO.getAvatarUrl());
+        if (user == null) {
+            String lockKey = "user:register:github:" + githubId;
+            return lockUtils.lockEvent(lockKey, new TimeModel(5L, TimeUnit.SECONDS), () -> {
+                User lockedUser = this.getOne(new LambdaQueryWrapper<User>().eq(User::getGithubId, githubId));
+                if (lockedUser == null) {
+                    lockedUser = new User();
+                    lockedUser.setGithubId(githubId);
+                    lockedUser.setUserName(gitHubUserVO.getName() != null ? gitHubUserVO.getName() : gitHubUserVO.getLogin());
+                    lockedUser.setUserAvatar(gitHubUserVO.getAvatarUrl());
+                    lockedUser.setGithubLogin(gitHubUserVO.getLogin());
+                    lockedUser.setGithubUrl(gitHubUserVO.getHtmlUrl());
+                    lockedUser.setUserRole(UserRoleEnum.USER.getValue());
+                    boolean result = this.save(lockedUser);
+                    ThrowUtils.throwIf(!result, ErrorCode.OPERATION_ERROR, "GitHub 注册失败");
                 }
-                boolean result = this.updateById(user);
-                ThrowUtils.throwIf(!result, ErrorCode.OPERATION_ERROR, "关联 GitHub 账号失败");
-            }
+                User finalUser = lockedUser;
+
+                finalUser.setLastLoginTime(new Date());
+                finalUser.setLastLoginIp(IpUtils.getClientIp(request));
+                this.updateById(finalUser);
+
+                StpUtil.login(finalUser.getId());
+
+                UserLoginLogRecordRequest logRecordRequest = new UserLoginLogRecordRequest();
+                logRecordRequest.setUser(finalUser);
+                logRecordRequest.setLoginType(LoginTypeEnum.GITHUB);
+                logRecordRequest.setAccount(gitHubUserVO.getLogin());
+                logRecordRequest.setHttpRequest(request);
+                recordLoginLogAsync(logRecordRequest);
+
+                LoginUserVO loginUserVO = getLoginUserVO(finalUser);
+                UserVO userVO = UserConvert.objToVo(finalUser);
+                StpUtil.getSession().set(UserConstant.USER_LOGIN_STATE, userVO);
+                return loginUserVO;
+            }, () -> {
+                throw new BusinessException(ErrorCode.OPERATION_ERROR, "登录人数过多，请稍后再试");
+            });
         }
 
-        String lockKey = "user:register:github:" + githubId;
-        return lockUtils.lockEvent(lockKey, new TimeModel(5L, TimeUnit.SECONDS), () -> {
-            User lockedUser = this.getOne(new LambdaQueryWrapper<User>().eq(User::getGithubId, githubId));
-            if (lockedUser == null) {
-                lockedUser = new User();
-                lockedUser.setGithubId(githubId);
-                lockedUser
-                        .setUserName(gitHubUserVO.getName() != null ? gitHubUserVO.getName() : gitHubUserVO.getLogin());
-                lockedUser.setUserAvatar(gitHubUserVO.getAvatarUrl());
-                lockedUser.setGithubLogin(gitHubUserVO.getLogin());
-                lockedUser.setGithubUrl(gitHubUserVO.getHtmlUrl());
-                if (StringUtils.isNotBlank(gitHubUserVO.getEmail())) {
-                    lockedUser.setUserEmail(gitHubUserVO.getEmail());
-                    lockedUser.setEmailVerified(EmailVerifiedEnum.VERIFIED.getValue());
-                }
-                lockedUser.setUserRole(UserRoleEnum.USER.getValue());
-                boolean result = this.save(lockedUser);
-                ThrowUtils.throwIf(!result, ErrorCode.OPERATION_ERROR, "GitHub 注册失败");
-            }
-            User finalUser = lockedUser;
+        user.setLastLoginTime(new Date());
+        user.setLastLoginIp(IpUtils.getClientIp(request));
+        this.updateById(user);
 
-            finalUser.setLastLoginTime(new Date());
-            finalUser.setLastLoginIp(IpUtils.getClientIp(request));
-            this.updateById(finalUser);
+        StpUtil.login(user.getId());
 
-            StpUtil.login(finalUser.getId());
+        UserLoginLogRecordRequest logRecordRequest = new UserLoginLogRecordRequest();
+        logRecordRequest.setUser(user);
+        logRecordRequest.setLoginType(LoginTypeEnum.GITHUB);
+        logRecordRequest.setAccount(gitHubUserVO.getLogin());
+        logRecordRequest.setHttpRequest(request);
+        recordLoginLogAsync(logRecordRequest);
 
-            UserLoginLogRecordRequest logRecordRequest = new UserLoginLogRecordRequest();
-            logRecordRequest.setUser(finalUser);
-            logRecordRequest.setLoginType(LoginTypeEnum.GITHUB);
-            logRecordRequest.setAccount(gitHubUserVO.getLogin());
-            logRecordRequest.setHttpRequest(request);
-            recordLoginLogAsync(logRecordRequest);
-
-            LoginUserVO loginUserVO = getLoginUserVO(finalUser);
-            UserVO userVO = UserConvert.objToVo(finalUser);
-            StpUtil.getSession().set(UserConstant.USER_LOGIN_STATE, userVO);
-            return loginUserVO;
-        }, () -> {
-            throw new BusinessException(ErrorCode.OPERATION_ERROR, "登录人数过多，请稍后再试");
-        });
+        LoginUserVO loginUserVO = getLoginUserVO(user);
+        UserVO userVO = UserConvert.objToVo(user);
+        StpUtil.getSession().set(UserConstant.USER_LOGIN_STATE, userVO);
+        return loginUserVO;
     }
 
-    /**
-     * 邮箱登录
-     *
-     * @param userEmailLoginRequest 邮箱登录请求
-     * @param request               HTTP请求
-     * @return {@link LoginUserVO}
-     */
-    @Override
-    public LoginUserVO userLoginByEmail(UserEmailLoginRequest userEmailLoginRequest, HttpServletRequest request) {
-        if (userEmailLoginRequest == null) {
-            throw new BusinessException(ErrorCode.PARAMS_ERROR);
-        }
-        String email = StringUtils.trimToEmpty(userEmailLoginRequest.getEmail());
-        String code = userEmailLoginRequest.getCode();
-        if (StringUtils.isAnyBlank(email, code)) {
-            throw new BusinessException(ErrorCode.PARAMS_ERROR);
-        }
-        ThrowUtils.throwIf(!RegexUtils.checkEmail(email), ErrorCode.PARAMS_ERROR, "用户邮箱格式有误");
-
-        boolean verifyResult = userEmailService.verifyEmailCode(email, code);
-        ThrowUtils.throwIf(!verifyResult, ErrorCode.PARAMS_ERROR, "验证码错误或已过期");
-
-        String lockKey = "user:register:email:" + email;
-        return lockUtils.lockEvent(lockKey, new TimeModel(5L, TimeUnit.SECONDS), () -> {
-            User user = this.getOne(new LambdaQueryWrapper<User>().eq(User::getUserEmail, email));
-
-            if (user == null) {
-                user = new User();
-                user.setUserEmail(email);
-                user.setEmailVerified(EmailVerifiedEnum.VERIFIED.getValue());
-                String userName = email.split("@")[0];
-                user.setUserName(userName);
-                user.setUserRole(UserRoleEnum.USER.getValue());
-                boolean result = this.save(user);
-                ThrowUtils.throwIf(!result, ErrorCode.OPERATION_ERROR, "用户注册失败");
-            } else {
-                if (user.getEmailVerified() == null
-                        || user.getEmailVerified().equals(EmailVerifiedEnum.UNVERIFIED.getValue())) {
-                    user.setEmailVerified(EmailVerifiedEnum.VERIFIED.getValue());
-                    this.updateById(user);
-                }
-            }
-
-            user.setLastLoginTime(new Date());
-            user.setLastLoginIp(IpUtils.getClientIp(request));
-            this.updateById(user);
-
-            StpUtil.login(user.getId());
-
-            userEmailService.deleteEmailCode(email);
-
-            UserLoginLogRecordRequest logRecordRequest = new UserLoginLogRecordRequest();
-            logRecordRequest.setUser(user);
-            logRecordRequest.setLoginType(LoginTypeEnum.EMAIL);
-            logRecordRequest.setAccount(email);
-            logRecordRequest.setHttpRequest(request);
-            recordLoginLogAsync(logRecordRequest);
-
-            LoginUserVO loginUserVO = getLoginUserVO(user);
-            UserVO userVO = UserConvert.objToVo(user);
-            StpUtil.getSession().set(UserConstant.USER_LOGIN_STATE, userVO);
-            return loginUserVO;
-        }, () -> {
-            throw new BusinessException(ErrorCode.OPERATION_ERROR, "登录人数过多，请稍后再试");
-        });
-    }
 
     /**
      * 异步记录登录日志
