@@ -430,6 +430,12 @@
                 <version>${mallchat-cloud.version}</version>
             </dependency>
 
+            <dependency>
+                <groupId>com.stephen.cloud</groupId>
+                <artifactId>mallchat-api-chat</artifactId>
+                <version>${mallchat-cloud.version}</version>
+            </dependency>
+
             <!-- Service 模块 -->
             <dependency>
                 <groupId>com.stephen.cloud</groupId>
@@ -466,6 +472,12 @@
             <dependency>
                 <groupId>com.stephen.cloud</groupId>
                 <artifactId>mallchat-ai-service</artifactId>
+                <version>${mallchat-cloud.version}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>com.stephen.cloud</groupId>
+                <artifactId>mallchat-chat-service</artifactId>
                 <version>${mallchat-cloud.version}</version>
             </dependency>
 

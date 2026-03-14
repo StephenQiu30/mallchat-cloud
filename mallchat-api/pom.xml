@@ -20,6 +20,7 @@
         <module>mallchat-api-notification</module>
         <module>mallchat-api-log</module>
         <module>mallchat-api-ai</module>
+        <module>mallchat-api-chat</module>
     </modules>
     <dependencies>
         <!-- MyBatis Plus Extension -->

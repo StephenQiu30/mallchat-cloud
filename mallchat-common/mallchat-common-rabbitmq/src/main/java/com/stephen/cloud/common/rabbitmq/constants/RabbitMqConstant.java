@@ -36,6 +36,16 @@ public interface RabbitMqConstant {
     String WEBSOCKET_BROADCAST_ROUTING_KEY = "websocket.broadcast";
 
     /**
+     * 聊天消息推送队列
+     */
+    String CHAT_MESSAGE_PUSH_QUEUE = "chat.message.push.queue";
+
+    /**
+     * 聊天消息推送路由键
+     */
+    String CHAT_MESSAGE_PUSH_ROUTING_KEY = "chat.message.push";
+
+    /**
      * WebSocket 死信交换机
      */
     String WEBSOCKET_DLX_EXCHANGE = "websocket.dlx.exchange";

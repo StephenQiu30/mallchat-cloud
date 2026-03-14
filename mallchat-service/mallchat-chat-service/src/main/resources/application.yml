@@ -1,9 +1,9 @@
 server:
-  port: 8085
+  port: 8086
 
 spring:
   application:
-    name: mallchat-ai-service
+    name: mallchat-chat-service
   profiles:
     active: default
   config:
@@ -31,15 +31,9 @@ spring:
         username: nacos
         password: nacos
 
-# AI 模型配置
-ai:
-  dashscope:
-    apiKey: ${dev.aliyun.dashscope.api-key}
-    modelName: ${dev.aliyun.dashscope.model-name}
-  ollama:
-    baseUrl: ${dev.ollama.base-url}
-    modelName: ${dev.ollama.model-name}
-
 # MyBatis-Plus 业务配置
 mybatis-plus:
-  type-aliases-package: com.stephen.cloud.ai.model.entity
+  type-aliases-package: com.stephen.cloud.chat.model.entity
+  mapper-locations: classpath*:/mapper/**/*.xml
+  configuration:
+    map-underscore-to-camel-case: true

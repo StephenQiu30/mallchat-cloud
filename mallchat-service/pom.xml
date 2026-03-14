@@ -20,6 +20,7 @@
         <module>mallchat-file-service</module>
         <module>mallchat-log-service</module>
         <module>mallchat-ai-service</module>
+        <module>mallchat-chat-service</module>
     </modules>
 
     <dependencies>

@@ -1,0 +1,75 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+    <parent>
+        <groupId>com.stephen.cloud</groupId>
+        <artifactId>mallchat-service</artifactId>
+        <version>1.0.0</version>
+    </parent>
+
+    <artifactId>mallchat-chat-service</artifactId>
+    <name>mallchat-chat-service</name>
+    <description>聊天服务</description>
+
+    <dependencies>
+        <!-- mallchat-api-chat -->
+        <dependency>
+            <groupId>com.stephen.cloud</groupId>
+            <artifactId>mallchat-api-chat</artifactId>
+        </dependency>
+
+        <!-- mallchat-api-user -->
+        <dependency>
+            <groupId>com.stephen.cloud</groupId>
+            <artifactId>mallchat-api-user</artifactId>
+        </dependency>
+
+        <!-- mallchat-api-log -->
+        <dependency>
+            <groupId>com.stephen.cloud</groupId>
+            <artifactId>mallchat-api-log</artifactId>
+        </dependency>
+
+        <!-- Common Auth -->
+        <dependency>
+            <groupId>com.stephen.cloud</groupId>
+            <artifactId>mallchat-common-auth</artifactId>
+        </dependency>
+
+        <!-- Common Log -->
+        <dependency>
+            <groupId>com.stephen.cloud</groupId>
+            <artifactId>mallchat-common-log</artifactId>
+        </dependency>
+
+        <!-- Common MySQL -->
+        <dependency>
+            <groupId>com.stephen.cloud</groupId>
+            <artifactId>mallchat-common-mysql</artifactId>
+        </dependency>
+
+        <!-- Common Cache -->
+        <dependency>
+            <groupId>com.stephen.cloud</groupId>
+            <artifactId>mallchat-common-cache</artifactId>
+        </dependency>
+
+        <!-- Common RabbitMQ -->
+        <dependency>
+            <groupId>com.stephen.cloud</groupId>
+            <artifactId>mallchat-common-rabbitmq</artifactId>
+        </dependency>
+    </dependencies>
+
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>org.springframework.boot</groupId>
+                <artifactId>spring-boot-maven-plugin</artifactId>
+            </plugin>
+        </plugins>
+    </build>
+
+</project>

@@ -114,6 +114,17 @@ spring:
                     redis-rate-limiter.replenishRate: 10
                     redis-rate-limiter.burstCapacity: 20
                     key-resolver: "#{@userKeyResolver}"
+
+            - id: mallchat-chat-service
+              uri: lb://mallchat-chat-service
+              predicates:
+                - Path=/api/chat/**
+              filters:
+                - name: RequestRateLimiter
+                  args:
+                    redis-rate-limiter.replenishRate: 20
+                    redis-rate-limiter.burstCapacity: 40
+                    key-resolver: "#{@userKeyResolver}"
           
           # 全局跨域配置
           globalcors:
