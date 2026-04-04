@@ -13,52 +13,52 @@ public interface RabbitMqConstant {
     /**
      * WebSocket 交换机
      */
-    String WEBSOCKET_EXCHANGE = "websocket.exchange";
+    String WEBSOCKET_EXCHANGE = "mallchat.websocket.exchange";
 
     /**
      * WebSocket 推送队列
      */
-    String WEBSOCKET_PUSH_QUEUE = "websocket.push.queue";
+    String WEBSOCKET_PUSH_QUEUE = "mallchat.websocket.push.queue";
 
     /**
      * WebSocket 推送路由键
      */
-    String WEBSOCKET_PUSH_ROUTING_KEY = "websocket.push";
+    String WEBSOCKET_PUSH_ROUTING_KEY = "mallchat.websocket.push";
 
     /**
      * WebSocket 广播队列
      */
-    String WEBSOCKET_BROADCAST_QUEUE = "websocket.broadcast.queue";
+    String WEBSOCKET_BROADCAST_QUEUE = "mallchat.websocket.broadcast.queue";
 
     /**
      * WebSocket 广播路由键
      */
-    String WEBSOCKET_BROADCAST_ROUTING_KEY = "websocket.broadcast";
+    String WEBSOCKET_BROADCAST_ROUTING_KEY = "mallchat.websocket.broadcast";
 
     /**
      * 聊天消息推送队列
      */
-    String CHAT_MESSAGE_PUSH_QUEUE = "chat.message.push.queue";
+    String CHAT_MESSAGE_PUSH_QUEUE = "mallchat.chat.message.push.queue";
 
     /**
      * 聊天消息推送路由键
      */
-    String CHAT_MESSAGE_PUSH_ROUTING_KEY = "chat.message.push";
+    String CHAT_MESSAGE_PUSH_ROUTING_KEY = "mallchat.chat.message.push";
 
     /**
      * WebSocket 死信交换机
      */
-    String WEBSOCKET_DLX_EXCHANGE = "websocket.dlx.exchange";
+    String WEBSOCKET_DLX_EXCHANGE = "mallchat.websocket.dlx.exchange";
 
     /**
      * WebSocket 死信队列
      */
-    String WEBSOCKET_DLX_QUEUE = "websocket.dlx.queue";
+    String WEBSOCKET_DLX_QUEUE = "mallchat.websocket.dlx.queue";
 
     /**
      * WebSocket 死信路由键
      */
-    String WEBSOCKET_DLX_ROUTING_KEY = "websocket.dlx";
+    String WEBSOCKET_DLX_ROUTING_KEY = "mallchat.websocket.dlx";
 
 
     // ==================== Notification 相关 ====================
@@ -66,43 +66,43 @@ public interface RabbitMqConstant {
     /**
      * 通知交换机
      */
-    String NOTIFICATION_EXCHANGE = "notification.exchange";
+    String NOTIFICATION_EXCHANGE = "mallchat.notification.exchange";
 
     /**
      * 通知队列
      */
-    String NOTIFICATION_QUEUE = "notification.queue";
+    String NOTIFICATION_QUEUE = "mallchat.notification.queue";
 
     /**
      * 通知路由键
      */
-    String NOTIFICATION_ROUTING_KEY = "notification.create";
+    String NOTIFICATION_ROUTING_KEY = "mallchat.notification.create";
 
     /**
      * 通知死信交换机
      */
-    String NOTIFICATION_DLX_EXCHANGE = "notification.dlx.exchange";
+    String NOTIFICATION_DLX_EXCHANGE = "mallchat.notification.dlx.exchange";
 
     /**
      * 通知死信队列
      */
-    String NOTIFICATION_DLX_QUEUE = "notification.dlx.queue";
+    String NOTIFICATION_DLX_QUEUE = "mallchat.notification.dlx.queue";
 
     /**
      * 通知死信路由键
      */
-    String NOTIFICATION_DLX_ROUTING_KEY = "notification.dlx";
+    String NOTIFICATION_DLX_ROUTING_KEY = "mallchat.notification.dlx";
 
 
     /**
      * 关注事件队列
      */
-    String FOLLOW_EVENT_QUEUE = "notification.follow.queue";
+    String FOLLOW_EVENT_QUEUE = "mallchat.notification.follow.queue";
 
     /**
      * 关注事件路由键
      */
-    String FOLLOW_EVENT_ROUTING_KEY = "event.follow.create";
+    String FOLLOW_EVENT_ROUTING_KEY = "mallchat.event.follow.create";
 
 
 
@@ -111,15 +111,15 @@ public interface RabbitMqConstant {
     /**
      * AI 对话记录交换机
      */
-    String AI_CHAT_RECORD_EXCHANGE = "ai.chat.record.exchange";
+    String AI_CHAT_RECORD_EXCHANGE = "mallchat.ai.chat.record.exchange";
 
     /**
      * AI 对话记录队列
      */
-    String AI_CHAT_RECORD_QUEUE = "ai.chat.record.queue";
+    String AI_CHAT_RECORD_QUEUE = "mallchat.ai.chat.record.queue";
 
     /**
      * AI 对话记录路由键
      */
-    String AI_CHAT_RECORD_ROUTING_KEY = "ai.chat.record.create";
+    String AI_CHAT_RECORD_ROUTING_KEY = "mallchat.ai.chat.record.create";
 }

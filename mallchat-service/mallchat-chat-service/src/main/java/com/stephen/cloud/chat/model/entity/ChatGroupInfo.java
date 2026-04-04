@@ -7,16 +7,16 @@ import java.io.Serializable;
 import java.util.Date;
 
 /**
- * 聊天消息表
+ * 群组详情实体
  *
  * @author StephenQiu30
- * @TableName chat_message
+ * @TableName chat_group_info
  */
-@TableName(value = "chat_message")
+@TableName(value = "chat_group_info")
 @Data
-public class ChatMessage implements Serializable {
+public class ChatGroupInfo implements Serializable {
     /**
-     * 消息ID
+     * 主键
      */
     @TableId(type = IdType.AUTO)
     private Long id;
@@ -27,27 +27,27 @@ public class ChatMessage implements Serializable {
     private Long roomId;
 
     /**
-     * 发送者ID
+     * 群聊名称
      */
-    private Long fromUserId;
+    private String groupName;
 
     /**
-     * 消息内容
+     * 群聊头像
      */
-    private String content;
+    private String groupAvatar;
 
     /**
-     * 消息扩展内容（JSON 字符串）
+     * 群公告
      */
-    private String extra;
+    private String announcement;
 
     /**
-     * 消息类型：1-文本，2-图片，3-文件
+     * 创建者用户ID
      */
-    private Integer type;
+    private Long createUser;
 
     /**
-     * 发送时间
+     * 创建时间
      */
     private Date createTime;
 

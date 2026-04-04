@@ -1,6 +1,10 @@
 package com.stephen.cloud.api.chat.client;
 
+import com.stephen.cloud.api.chat.model.dto.ChatFriendAddRequest;
+import com.stephen.cloud.api.chat.model.dto.ChatMessageReadRequest;
 import com.stephen.cloud.api.chat.model.dto.ChatMessageSendRequest;
+import com.stephen.cloud.api.chat.model.dto.ChatPrivateRoomRequest;
+import com.stephen.cloud.api.chat.model.vo.ChatFriendUserVO;
 import com.stephen.cloud.api.chat.model.vo.ChatMessageVO;
 import com.stephen.cloud.api.chat.model.vo.ChatRoomVO;
 import com.stephen.cloud.common.common.BaseResponse;
@@ -53,4 +57,16 @@ public interface ChatFeignClient {
             @RequestParam("roomId") Long roomId,
             @RequestParam(value = "lastMessageId", required = false) Long lastMessageId,
             @RequestParam(value = "limit", defaultValue = "20") Integer limit);
+
+    @PostMapping("/friend/add")
+    BaseResponse<Boolean> addFriend(@RequestBody ChatFriendAddRequest request);
+
+    @GetMapping("/friend/list")
+    BaseResponse<List<ChatFriendUserVO>> listFriends();
+
+    @PostMapping("/room/private")
+    BaseResponse<Long> getOrCreatePrivateRoom(@RequestBody ChatPrivateRoomRequest request);
+
+    @PostMapping("/message/read")
+    BaseResponse<Boolean> markMessageRead(@RequestBody ChatMessageReadRequest request);
 }

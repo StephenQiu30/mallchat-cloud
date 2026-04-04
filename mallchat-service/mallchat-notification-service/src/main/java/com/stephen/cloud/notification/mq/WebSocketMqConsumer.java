@@ -52,6 +52,18 @@ public class WebSocketMqConsumer {
     }
 
     /**
+     * 监听聊天消息推送，向房间成员下行 WebSocket
+     *
+     * @param rabbitMessage RabbitMessage 对象
+     * @param channel       RabbitMQ 通道
+     * @param msg           Spring AMQP 消息对象
+     */
+    @RabbitListener(bindings = @QueueBinding(value = @Queue(value = "", autoDelete = "true", exclusive = "true"), exchange = @Exchange(value = RabbitMqConstant.WEBSOCKET_EXCHANGE, type = "topic"), key = RabbitMqConstant.CHAT_MESSAGE_PUSH_ROUTING_KEY), ackMode = "MANUAL")
+    public void handleChatMessagePush(RabbitMessage rabbitMessage, Channel channel, Message msg) throws IOException {
+        mqConsumerDispatcher.dispatch(rabbitMessage, channel, msg);
+    }
+
+    /**
      * 监听通知创建队列，实时推送通知给在线用户
      *
      * @param rabbitMessage RabbitMessage 对象

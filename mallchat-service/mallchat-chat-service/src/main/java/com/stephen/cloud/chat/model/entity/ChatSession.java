@@ -7,19 +7,24 @@ import java.io.Serializable;
 import java.util.Date;
 
 /**
- * 聊天消息表
+ * 会话列表实体
  *
  * @author StephenQiu30
- * @TableName chat_message
+ * @TableName chat_session
  */
-@TableName(value = "chat_message")
+@TableName(value = "chat_session")
 @Data
-public class ChatMessage implements Serializable {
+public class ChatSession implements Serializable {
     /**
-     * 消息ID
+     * 主键
      */
     @TableId(type = IdType.AUTO)
     private Long id;
+
+    /**
+     * 所属用户ID
+     */
+    private Long userId;
 
     /**
      * 房间ID
@@ -27,27 +32,32 @@ public class ChatMessage implements Serializable {
     private Long roomId;
 
     /**
-     * 发送者ID
+     * 最后一条消息ID
      */
-    private Long fromUserId;
+    private Long lastMessageId;
 
     /**
-     * 消息内容
+     * 最后一条已读消息ID
      */
-    private String content;
+    private Long lastReadMessageId;
 
     /**
-     * 消息扩展内容（JSON 字符串）
+     * 未读数
      */
-    private String extra;
+    private Integer unreadCount;
 
     /**
-     * 消息类型：1-文本，2-图片，3-文件
+     * 置顶状态：0-否，1-是
      */
-    private Integer type;
+    private Integer topStatus;
 
     /**
-     * 发送时间
+     * 最后活跃时间
+     */
+    private Date activeTime;
+
+    /**
+     * 创建时间
      */
     private Date createTime;
 

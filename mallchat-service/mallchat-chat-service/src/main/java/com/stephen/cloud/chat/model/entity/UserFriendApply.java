@@ -7,47 +7,42 @@ import java.io.Serializable;
 import java.util.Date;
 
 /**
- * 聊天消息表
+ * 好友申请表
  *
  * @author StephenQiu30
- * @TableName chat_message
+ * @TableName user_friend_apply
  */
-@TableName(value = "chat_message")
+@TableName(value = "user_friend_apply")
 @Data
-public class ChatMessage implements Serializable {
+public class UserFriendApply implements Serializable {
     /**
-     * 消息ID
+     * 申请ID
      */
     @TableId(type = IdType.AUTO)
     private Long id;
 
     /**
-     * 房间ID
+     * 发起用户ID
      */
-    private Long roomId;
+    private Long userId;
 
     /**
-     * 发送者ID
+     * 目标用户ID
      */
-    private Long fromUserId;
+    private Long targetId;
 
     /**
-     * 消息内容
+     * 申请消息
      */
-    private String content;
+    private String msg;
 
     /**
-     * 消息扩展内容（JSON 字符串）
+     * 状态：1-待处理，2-已同意，3-已忽略
      */
-    private String extra;
+    private Integer status;
 
     /**
-     * 消息类型：1-文本，2-图片，3-文件
-     */
-    private Integer type;
-
-    /**
-     * 发送时间
+     * 申请时间
      */
     private Date createTime;
 

@@ -1,6 +1,8 @@
 package com.stephen.cloud.api.chat.model.dto;
 
 import io.swagger.v3.oas.annotations.media.Schema;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
 import lombok.Data;
 
 import java.io.Serializable;
@@ -18,12 +20,14 @@ public class ChatRoomAddRequest implements Serializable {
      * 房间名称
      */
     @Schema(description = "房间名称", requiredMode = Schema.RequiredMode.REQUIRED, example = "技术交流群")
+    @NotBlank(message = "房间名称不能为空")
     private String name;
 
     /**
      * 房间类型：1-群聊，2-私聊
      */
     @Schema(description = "房间类型：1-群聊，2-私聊", requiredMode = Schema.RequiredMode.REQUIRED, example = "1")
+    @NotNull(message = "房间类型不能为空")
     private Integer type;
 
     /**

@@ -63,6 +63,11 @@ public enum WebSocketMessageTypeEnum {
     ONLINE_STATUS(8, "在线状态"),
 
     /**
+     * 好友申请通过
+     */
+    FRIEND_APPROVE(10, "好友申请通过"),
+
+    /**
      * 错误消息
      */
     ERROR(99, "错误");

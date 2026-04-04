@@ -10,7 +10,7 @@ services:
       - "3306:3306"
     environment:
       MYSQL_ROOT_PASSWORD: root
-      MYSQL_DATABASE: mallchat_cloud
+      MYSQL_DATABASE: mallchat
       TZ: Asia/Shanghai
     volumes:
       - mysql-data:/var/lib/mysql

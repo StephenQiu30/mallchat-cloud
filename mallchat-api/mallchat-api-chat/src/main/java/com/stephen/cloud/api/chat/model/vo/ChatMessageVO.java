@@ -1,8 +1,10 @@
 package com.stephen.cloud.api.chat.model.vo;
 
 import io.swagger.v3.oas.annotations.media.Schema;
+import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
+import lombok.NoArgsConstructor;
 
 import java.io.Serializable;
 import java.util.Date;
@@ -14,6 +16,8 @@ import java.util.Date;
  */
 @Data
 @Builder
+@NoArgsConstructor
+@AllArgsConstructor
 @Schema(description = "聊天消息视图对象")
 public class ChatMessageVO implements Serializable {
 
@@ -58,6 +62,12 @@ public class ChatMessageVO implements Serializable {
      */
     @Schema(description = "消息类型：1-文本，2-图片，3-文件", example = "1")
     private Integer type;
+
+    /**
+     * 消息扩展内容
+     */
+    @Schema(description = "消息扩展内容", example = "{\"url\":\"...\"}")
+    private String extra;
 
     /**
      * 发送时间

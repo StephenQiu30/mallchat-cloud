@@ -15,4 +15,9 @@ import org.springframework.stereotype.Service;
 public class ChatRoomMemberServiceImpl extends ServiceImpl<ChatRoomMemberMapper, ChatRoomMember>
     implements ChatRoomMemberService {
 
+    @Override
+    public java.util.List<ChatRoomMember> listByRoomId(Long roomId) {
+        return this.list(new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<ChatRoomMember>()
+                .eq(ChatRoomMember::getRoomId, roomId));
+    }
 }
