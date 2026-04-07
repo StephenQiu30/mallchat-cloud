@@ -7,6 +7,7 @@ import com.stephen.cloud.common.websocket.manager.ChannelManager;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.SimpleChannelInboundHandler;
 import io.netty.handler.codec.http.websocketx.TextWebSocketFrame;
+import io.netty.handler.codec.http.websocketx.WebSocketServerProtocolHandler;
 import io.netty.handler.timeout.IdleState;
 import io.netty.handler.timeout.IdleStateEvent;
 import io.netty.util.AttributeKey;
@@ -43,13 +44,12 @@ public class TextWebSocketFrameHandler extends SimpleChannelInboundHandler<TextW
 
     /**
      * 当有新的客户端连接时被调用
-     * 暂不处理，等待客户端发送认证消息
      *
      * @param ctx ChannelHandlerContext
      */
     @Override
     public void handlerAdded(ChannelHandlerContext ctx) {
-        log.info("新的 WebSocket 连接建立：{}", ctx.channel().id().asLongText());
+        log.info("WebSocket 连接尝试建立：{}", ctx.channel().id().asLongText());
     }
 
     /**
@@ -63,10 +63,10 @@ public class TextWebSocketFrameHandler extends SimpleChannelInboundHandler<TextW
     protected void channelRead0(ChannelHandlerContext ctx, TextWebSocketFrame msg) {
         try {
             String text = msg.text();
-            log.info("收到 WebSocket 消息：{}", text);
+            log.debug("收到 WebSocket 消息：{}", text);
 
             // 解析消息
-            WebSocketMessage message = JSONUtil.toBean(text, WebSocketMessage.class);
+            WebSocketMessage message = JSONUtil.parseObj(text).toBean(WebSocketMessage.class);
 
             // 根据消息类型处理
             if (message.getType() == null) {
@@ -81,17 +81,13 @@ public class TextWebSocketFrameHandler extends SimpleChannelInboundHandler<TextW
             }
 
             String authedUserId = ctx.channel().attr(ATTR_USER_ID).get();
-            if (typeEnum != WebSocketMessageTypeEnum.AUTH && authedUserId == null) {
+            if (authedUserId == null) {
                 sendErrorMessage(ctx, "未认证连接，禁止发送业务消息");
                 ctx.close();
                 return;
             }
 
             switch (typeEnum) {
-                case AUTH:
-                    // 认证消息
-                    handleAuth(ctx, message);
-                    break;
                 case HEARTBEAT:
                     // 心跳消息
                     handleHeartbeat(ctx, authedUserId);
@@ -101,7 +97,7 @@ public class TextWebSocketFrameHandler extends SimpleChannelInboundHandler<TextW
                     handleMessage(ctx, authedUserId, message);
                     break;
                 default:
-                    log.warn("不支持的消息类型：{}", typeEnum);
+                    log.warn("不支持的消息类型或该消息应由握手阶段处理：{}", typeEnum);
             }
         } catch (Exception e) {
             log.error("处理 WebSocket 消息失败", e);
@@ -109,84 +105,6 @@ public class TextWebSocketFrameHandler extends SimpleChannelInboundHandler<TextW
         }
     }
 
-    /**
-     * 处理认证消息
-     */
-    private void handleAuth(ChannelHandlerContext ctx, WebSocketMessage message) {
-        try {
-            String existingUserId = ctx.channel().attr(ATTR_USER_ID).get();
-            if (existingUserId != null) {
-                log.warn("连接已认证，忽略重复认证请求, userId: {}", existingUserId);
-                return;
-            }
-
-            // 从消息中获取用户 I D和 Token
-            Long userId = message.getUserId();
-            String token = message.getToken();
-
-            if (userId == null || token == null) {
-                sendErrorMessage(ctx, "认证失败：用户ID或Token不能为空");
-                ctx.close();
-                return;
-            }
-
-            // 验证 Token（使用 Sa-Token）
-            if (!validateToken(token, userId)) {
-                sendErrorMessage(ctx, "认证失败：Token 无效或已过期");
-                ctx.close();
-                return;
-            }
-
-            // 将用户与Channel绑定（转换为String）
-            channelManager.addChannel(String.valueOf(userId), ctx.channel());
-            ctx.channel().attr(ATTR_USER_ID).set(String.valueOf(userId));
-
-            // 发送认证成功消息
-            WebSocketMessage response = new WebSocketMessage();
-            response.setType(WebSocketMessageTypeEnum.AUTH.getCode());
-            response.setData("认证成功");
-            ctx.channel().writeAndFlush(new TextWebSocketFrame(JSONUtil.toJsonStr(response)));
-
-            log.info("用户 {} 认证成功", userId);
-        } catch (Exception e) {
-            log.error("处理认证消息失败", e);
-            sendErrorMessage(ctx, "认证失败：" + e.getMessage());
-            ctx.close();
-        }
-    }
-
-    /**
-     * 验证 Token 的有效性
-     *
-     * @param token  Token
-     * @param userId 用户ID
-     * @return 是否有效
-     */
-    private boolean validateToken(String token, Long userId) {
-        try {
-            Object loginId = cn.dev33.satoken.stp.StpUtil.getLoginIdByToken(token);
-
-            // 验证 Token 对应的用户ID是否匹配
-            if (loginId == null) {
-                log.warn("Token 无效：未找到登录信息");
-                return false;
-            }
-
-            // 比较用户ID
-            String loginIdStr = String.valueOf(loginId);
-            String userIdStr = String.valueOf(userId);
-
-            if (!loginIdStr.equals(userIdStr)) {
-                log.warn("Token 验证失败：用户ID不匹配，Token对应用户：{}，请求用户：{}", loginIdStr, userIdStr);
-                return false;
-            }
-
-            return true;
-        } catch (Exception e) {
-            log.error("Token 验证异常", e);
-            return false;
-        }
-    }
 
     /**
      * 处理心跳消息
@@ -238,7 +156,7 @@ public class TextWebSocketFrameHandler extends SimpleChannelInboundHandler<TextW
     }
 
     /**
-     * 处理空闲状态事件（心跳检测）
+     * 处理用户事件（心跳检测及握手完成）
      */
     @Override
     public void userEventTriggered(ChannelHandlerContext ctx, Object evt) throws Exception {
@@ -255,6 +173,17 @@ public class TextWebSocketFrameHandler extends SimpleChannelInboundHandler<TextW
                 heartbeat.setData("ping");
                 ctx.channel().writeAndFlush(new TextWebSocketFrame(JSONUtil.toJsonStr(heartbeat)));
                 log.debug("发送服务器心跳到连接 {}", ctx.channel().id().asShortText());
+            }
+        } else if (evt instanceof WebSocketServerProtocolHandler.HandshakeComplete) {
+            // 握手完成事件
+            String userId = ctx.channel().attr(ATTR_USER_ID).get();
+            if (userId != null) {
+                // 此时在 HttpHeadersHandler 已经认证并将 userId 存入 attr
+                channelManager.addChannel(userId, ctx.channel());
+                log.info("用户 {} WebSocket 握手完成并注册成功", userId);
+            } else {
+                log.warn("握手完成但未发现绑定的用户ID，可能未经过认证处理器，关闭连接");
+                ctx.close();
             }
         } else {
             super.userEventTriggered(ctx, evt);

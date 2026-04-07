@@ -25,6 +25,8 @@ public class ChannelManager {
     @Resource
     private CacheUtils cacheUtils;
 
+    private String serverId; // 当前服务器实例标识 (IP:Port)
+
     /**
      * 本地连接映射：userId -> Channel
      */
@@ -57,6 +59,9 @@ public class ChannelManager {
      * @param channel Channel
      */
     public void addChannel(String userId, Channel channel) {
+        if (serverId == null) {
+            log.warn("serverId 未设置，分布式推送可能受限");
+        }
         // 先检查是否存在旧连接，如果存在则关闭
         Channel oldChannel = userChannelMap.get(userId);
         if (oldChannel != null && oldChannel.isActive()) {
@@ -77,6 +82,7 @@ public class ChannelManager {
         String key = REDIS_KEY_PREFIX + userId;
         Map<String, String> connectionInfo = new HashMap<>();
         connectionInfo.put("channelId", channel.id().asLongText());
+        connectionInfo.put("serverId", serverId); // 存储服务器标识
         connectionInfo.put("connectTime", String.valueOf(System.currentTimeMillis()));
 
         // 使用 CacheUtils 存储（设置过期时间，由心跳机制续期）
@@ -171,5 +177,20 @@ public class ChannelManager {
                 cacheUtils.setHash(key, connectionInfo, EXPIRE_TIME);
             }
         }
+    }
+
+    /**
+     * 设置当前服务器实例标识
+     */
+    public void setServerId(String serverId) {
+        this.serverId = serverId;
+    }
+
+    /**
+     * 获取用户连接的服务器 ID
+     */
+    public String getUserServerId(String userId) {
+        String key = REDIS_KEY_PREFIX + userId;
+        return cacheUtils.getHashField(key, "serverId");
     }
 }

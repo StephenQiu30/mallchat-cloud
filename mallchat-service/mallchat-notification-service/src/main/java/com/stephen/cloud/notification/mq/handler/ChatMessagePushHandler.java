@@ -49,8 +49,14 @@ public class ChatMessagePushHandler implements RabbitMqHandler<WebSocketMessage>
         log.info("[ChatMessagePushHandler] 收到聊天消息推送, 目标用户数: {}, msgId: {}", 
                 userIds != null ? userIds.size() : 0, msgId);
 
+        if ("broadcast".equalsIgnoreCase(wsMessage.getPushType())) {
+            log.info("[ChatMessagePushHandler] 收到广播消息推送, msgId: {}", msgId);
+            broadcast(wsMessage);
+            return;
+        }
+
         if (userIds == null || userIds.isEmpty()) {
-            log.warn("[ChatMessagePushHandler] 消息中没有指定用户ID，忽略推送, msgId: {}", msgId);
+            log.warn("[ChatMessagePushHandler] 消息中没有指定用户ID且非广播，忽略推送, msgId: {}", msgId);
             return;
         }
 
@@ -74,9 +80,7 @@ public class ChatMessagePushHandler implements RabbitMqHandler<WebSocketMessage>
 
         for (Long userId : userIds) {
             String userIdStr = String.valueOf(userId);
-            if (!channelManager.isOnline(userIdStr)) {
-                continue;
-            }
+            // 只推送到本地在线的用户
             io.netty.channel.Channel channel = channelManager.getChannel(userIdStr);
             if (channel != null && channel.isActive()) {
                 channel.writeAndFlush(new TextWebSocketFrame(messageJson));
@@ -84,7 +88,19 @@ public class ChatMessagePushHandler implements RabbitMqHandler<WebSocketMessage>
             }
         }
 
-        log.info("[ChatMessagePushHandler] 成功向 {} 个本地在线用户推送聊天消息 (目标用户总数: {})",
-                successCount, userIds.size());
+        if (successCount > 0) {
+            log.info("[ChatMessagePushHandler] 成功向 {} 个本地在线用户推送聊天消息", successCount);
+        }
+    }
+
+    /**
+     * 广播消息给本地服务器上的所有在线用户
+     *
+     * @param wsMessage WebSocket 包装消息
+     */
+    private void broadcast(WebSocketMessage wsMessage) {
+        String messageJson = JSONUtil.toJsonStr(wsMessage);
+        channelManager.getAllChannels().writeAndFlush(new TextWebSocketFrame(messageJson));
+        log.info("[ChatMessagePushHandler] 已完成本地全量广播推送");
     }
 }

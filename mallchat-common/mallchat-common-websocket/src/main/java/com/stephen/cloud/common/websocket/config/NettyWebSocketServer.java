@@ -1,5 +1,6 @@
 package com.stephen.cloud.common.websocket.config;
 
+import com.stephen.cloud.common.websocket.handler.HttpHeadersHandler;
 import com.stephen.cloud.common.websocket.handler.TextWebSocketFrameHandler;
 import com.stephen.cloud.common.websocket.manager.ChannelManager;
 import io.netty.bootstrap.ServerBootstrap;
@@ -61,6 +62,16 @@ public class NettyWebSocketServer {
             webSocketProperties.setPort(39999);
         }
 
+        // 设置 ChannelManager 的 serverId (IP:Port)
+        try {
+            // 这里简单取本地 IP，也可以从 Spring Cloud 环境获取
+            String ip = java.net.InetAddress.getLocalHost().getHostAddress();
+            channelManager.setServerId(ip + ":" + webSocketProperties.getPort());
+        } catch (Exception e) {
+            log.warn("获取本地 IP 失败，serverId 可能不完整", e);
+            channelManager.setServerId("unknown:" + webSocketProperties.getPort());
+        }
+
         // 初始化 Boss 和 Worker 线程组
         bossGroup = new NioEventLoopGroup(webSocketProperties.getBossThread());
         workerGroup = new NioEventLoopGroup(webSocketProperties.getWorkerThread());
@@ -113,6 +124,7 @@ public class NettyWebSocketServer {
                                 .checkStartsWith(true)
                                 .allowExtensions(true)
                                 .build();
+                        pipeline.addLast(new HttpHeadersHandler()); // 在升级前认证
                         pipeline.addLast(new WebSocketServerProtocolHandler(wsConfig));
                         // 添加自定义的WebSocket数据处理器，处理具体的消息逻辑
                         // 每个连接创建新的handler实例
