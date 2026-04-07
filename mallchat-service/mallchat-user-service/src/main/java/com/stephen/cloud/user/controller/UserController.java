@@ -4,6 +4,7 @@ import cn.dev33.satoken.annotation.SaCheckRole;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.stephen.cloud.api.user.model.dto.*;
 import com.stephen.cloud.api.user.model.vo.LoginUserVO;
+import com.stephen.cloud.common.exception.BusinessException;
 import com.stephen.cloud.api.user.model.vo.UserVO;
 import com.stephen.cloud.api.user.model.vo.WxLoginResponse;
 import com.stephen.cloud.common.common.*;
@@ -18,7 +19,6 @@ import jakarta.annotation.Resource;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
-import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -36,59 +36,6 @@ public class UserController {
 
     @Resource
     private UserService userService;
-
-
-
-    /**
-     * GitHub 登录
-     * <p>
-     * 通过 GitHub 授权码进行登录或注册。
-     *
-     * @param gitHubLoginRequest GitHub 登录请求参数
-     * @param request            HTTP 请求
-     * @return 登录成功的用户信息
-     */
-    @PostMapping("/login/github")
-    @Operation(summary = "GitHub 登录", description = "通过 GitHub 授权码进行登录或注册")
-    @OperationLog(module = "用户认证", action = "GitHub登录")
-    public BaseResponse<LoginUserVO> userLoginByGitHub(@RequestBody GitHubLoginRequest gitHubLoginRequest,
-            HttpServletRequest request) {
-        ThrowUtils.throwIf(gitHubLoginRequest == null || StringUtils.isBlank(gitHubLoginRequest.getCode())
-                || StringUtils.isBlank(gitHubLoginRequest.getState()), ErrorCode.PARAMS_ERROR);
-        String code = gitHubLoginRequest.getCode();
-        String state = gitHubLoginRequest.getState();
-        LoginUserVO loginUserVO = userService.userLoginByGitHub(code, state, request);
-        return ResultUtils.success(loginUserVO);
-    }
-
-    /**
-     * 获取 GitHub 授权 URL
-     * <p>
-     * 获取跳转到 GitHub 授权页面的 URL。
-     *
-     * @return GitHub 授权 URL
-     */
-    @GetMapping("/login/github")
-    @Operation(summary = "获取 GitHub 授权 URL", description = "获取跳转到 GitHub 授权页面的 URL")
-    public BaseResponse<String> getGitHubAuthorizeUrl() {
-        String authorizeUrl = userService.getGitHubAuthorizeUrl();
-        return ResultUtils.success(authorizeUrl);
-    }
-
-    /**
-     * GitHub 登录回调
-     *
-     * @param request GitHub 回调请求
-     * @return BaseResponse<LoginUserVO>
-     */
-    @GetMapping("/login/github/callback")
-    public BaseResponse<LoginUserVO> gitHubLoginCallback(@ModelAttribute GitHubCallbackRequest request,
-            HttpServletRequest httpRequest) {
-        ThrowUtils.throwIf(request == null, ErrorCode.PARAMS_ERROR);
-        ThrowUtils.throwIf(StringUtils.isAnyBlank(request.getCode(), request.getState()), ErrorCode.PARAMS_ERROR);
-        LoginUserVO loginUserVO = userService.userLoginByGitHub(request.getCode(), request.getState(), httpRequest);
-        return ResultUtils.success(loginUserVO);
-    }
 
     /**
      * 用户注销
@@ -143,8 +90,44 @@ public class UserController {
     @OperationLog(module = "用户认证", action = "检查微信登录状态")
     @Operation(summary = "检查微信登录状态", description = "轮询检查微信扫码登录状态")
     public BaseResponse<LoginUserVO> checkWxLoginStatus(String sceneId) {
-        ThrowUtils.throwIf(StringUtils.isBlank(sceneId), ErrorCode.PARAMS_ERROR);
+        if (StringUtils.isBlank(sceneId)) {
+            throw new BusinessException(ErrorCode.PARAMS_ERROR);
+        }
         LoginUserVO loginUserVO = userService.checkWxLoginStatus(sceneId);
+        return ResultUtils.success(loginUserVO);
+    }
+
+    /**
+     * 发送邮箱验证码
+     *
+     * @param emailCodeRequest 发送验证码请求
+     * @return 是否发送成功
+     */
+    @PostMapping("/login/email/code")
+    @Operation(summary = "发送邮箱验证码", description = "向指定邮箱发送 6 位验证码")
+    @OperationLog(module = "用户认证", action = "发送邮箱验证码")
+    public BaseResponse<Boolean> sendEmailCode(@RequestBody UserEmailCodeRequest emailCodeRequest) {
+        if (emailCodeRequest == null) {
+            throw new BusinessException(ErrorCode.PARAMS_ERROR);
+        }
+        userService.sendEmailCode(emailCodeRequest.getEmail());
+        return ResultUtils.success(true);
+    }
+
+    /**
+     * 邮箱登录
+     *
+     * @param loginRequest 登录请求
+     * @return 登录用户信息
+     */
+    @PostMapping("/login/email")
+    @Operation(summary = "邮箱登录", description = "通过邮箱验证码进行登录或注册")
+    @OperationLog(module = "用户认证", action = "邮箱登录")
+    public BaseResponse<LoginUserVO> userLoginByEmail(@RequestBody UserEmailLoginRequest loginRequest) {
+        if (loginRequest == null) {
+            throw new BusinessException(ErrorCode.PARAMS_ERROR);
+        }
+        LoginUserVO loginUserVO = userService.userLoginByEmail(loginRequest.getEmail(), loginRequest.getCode());
         return ResultUtils.success(loginUserVO);
     }
 
@@ -160,9 +143,11 @@ public class UserController {
     @PostMapping("/add")
     @SaCheckRole(UserConstant.ADMIN_ROLE)
     @OperationLog(module = "用户管理", action = "创建用户")
-    public BaseResponse<Long> addUser(@Validated @RequestBody UserAddRequest userAddRequest,
+    public BaseResponse<Long> addUser(@RequestBody UserAddRequest userAddRequest,
             HttpServletRequest request) {
-        ThrowUtils.throwIf(userAddRequest == null, ErrorCode.PARAMS_ERROR);
+        if (userAddRequest == null) {
+            throw new BusinessException(ErrorCode.PARAMS_ERROR);
+        }
         User user = UserConvert.addRequestToObj(userAddRequest);
         // 数据校验
         userService.validUser(user, true);
@@ -171,7 +156,6 @@ public class UserController {
         ThrowUtils.throwIf(!result, ErrorCode.OPERATION_ERROR);
         // 返回新写入的数据 id
         long newTagId = user.getId();
-
 
         return ResultUtils.success(newTagId);
     }
@@ -185,20 +169,27 @@ public class UserController {
      */
     @PostMapping("/delete")
     @OperationLog(module = "用户管理", action = "删除用户")
-    public BaseResponse<Boolean> deleteUser(@Validated @RequestBody DeleteRequest deleteRequest,
+    @SaCheckRole(UserConstant.ADMIN_ROLE)
+    public BaseResponse<Boolean> deleteUser(@RequestBody DeleteRequest deleteRequest,
             HttpServletRequest request) {
-        ThrowUtils.throwIf(deleteRequest == null || deleteRequest.getId() <= 0, ErrorCode.PARAMS_ERROR);
+        if (deleteRequest == null || deleteRequest.getId() <= 0) {
+            throw new BusinessException(ErrorCode.PARAMS_ERROR);
+        }
         User user = userService.getLoginUser(request);
         long id = deleteRequest.getId();
         User oldUser = userService.getById(id);
-        ThrowUtils.throwIf(oldUser == null, ErrorCode.NOT_FOUND_ERROR);
+        if (oldUser == null) {
+            throw new BusinessException(ErrorCode.NOT_FOUND_ERROR);
+        }
         // 仅本人或管理员可删除
-        ThrowUtils.throwIf(!oldUser.getId().equals(user.getId()) && !userService.isAdmin(request),
-                ErrorCode.NO_AUTH_ERROR);
+        if (!oldUser.getId().equals(user.getId()) && !userService.isAdmin(request)) {
+            throw new BusinessException(ErrorCode.NO_AUTH_ERROR);
+        }
         // 操作数据库
         boolean result = userService.removeById(id);
-        ThrowUtils.throwIf(!result, ErrorCode.OPERATION_ERROR);
-
+        if (!result) {
+            throw new BusinessException(ErrorCode.OPERATION_ERROR);
+        }
 
         return ResultUtils.success(true);
     }
@@ -212,17 +203,23 @@ public class UserController {
      */
     @PostMapping("/update")
     @OperationLog(module = "用户管理", action = "更新用户")
-    public BaseResponse<Boolean> updateUser(@Validated @RequestBody UserUpdateRequest userUpdateRequest,
+    @SaCheckRole(UserConstant.ADMIN_ROLE)
+    public BaseResponse<Boolean> updateUser(@RequestBody UserUpdateRequest userUpdateRequest,
             HttpServletRequest request) {
-        ThrowUtils.throwIf(userUpdateRequest == null || userUpdateRequest.getId() <= 0, ErrorCode.PARAMS_ERROR);
+        if (userUpdateRequest == null || userUpdateRequest.getId() == null || userUpdateRequest.getId() <= 0) {
+            throw new BusinessException(ErrorCode.PARAMS_ERROR);
+        }
         User user = UserConvert.updateRequestToObj(userUpdateRequest);
         userService.validUser(user, false);
         long id = userUpdateRequest.getId();
         User oldUser = userService.getById(id);
-        ThrowUtils.throwIf(oldUser == null, ErrorCode.NOT_FOUND_ERROR);
+        if (oldUser == null) {
+            throw new BusinessException(ErrorCode.NOT_FOUND_ERROR);
+        }
         boolean result = userService.updateById(user);
-        ThrowUtils.throwIf(!result, ErrorCode.OPERATION_ERROR);
-
+        if (!result) {
+            throw new BusinessException(ErrorCode.OPERATION_ERROR);
+        }
 
         return ResultUtils.success(true);
     }
@@ -315,16 +312,20 @@ public class UserController {
      * 分页获取用户封装列表
      *
      * @param userQueryRequest 用户查询请求
-     * @param request          request
+     * @param request          requestbbash
      * @return BaseResponse<Page < UserVO>>
      */
     @PostMapping("/list/page/vo")
     public BaseResponse<Page<UserVO>> listUserVOByPage(@RequestBody UserQueryRequest userQueryRequest,
             HttpServletRequest request) {
-        ThrowUtils.throwIf(userQueryRequest == null, ErrorCode.PARAMS_ERROR);
+        if (userQueryRequest == null) {
+            throw new BusinessException(ErrorCode.PARAMS_ERROR);
+        }
         long current = userQueryRequest.getCurrent();
         long size = userQueryRequest.getPageSize();
-        ThrowUtils.throwIf(size > 20, ErrorCode.PARAMS_ERROR);
+        if (size > 20) {
+            throw new BusinessException(ErrorCode.PARAMS_ERROR);
+        }
         Page<User> userPage = userService.page(new Page<>(current, size),
                 userService.getQueryWrapper(userQueryRequest));
         Page<UserVO> userVOPage = new Page<>(current, size, userPage.getTotal());
@@ -342,16 +343,19 @@ public class UserController {
      */
     @PostMapping("/edit")
     @OperationLog(module = "用户管理", action = "编辑个人信息")
-    public BaseResponse<Boolean> editUser(@Validated @RequestBody UserEditRequest userEditRequest,
+    public BaseResponse<Boolean> editUser(@RequestBody UserEditRequest userEditRequest,
             HttpServletRequest request) {
-        ThrowUtils.throwIf(userEditRequest == null, ErrorCode.PARAMS_ERROR);
+        if (userEditRequest == null) {
+            throw new BusinessException(ErrorCode.PARAMS_ERROR);
+        }
         User loginUser = userService.getLoginUser(request);
         User user = UserConvert.editRequestToObj(userEditRequest);
         user.setId(loginUser.getId());
         userService.validUser(user, false);
         boolean result = userService.updateById(user);
-        ThrowUtils.throwIf(!result, ErrorCode.OPERATION_ERROR);
-
+        if (!result) {
+            throw new BusinessException(ErrorCode.OPERATION_ERROR);
+        }
 
         return ResultUtils.success(true);
     }

@@ -101,24 +101,6 @@ public interface UserService extends IService<User> {
     Page<UserVO> getUserVOPage(Page<User> userPage, HttpServletRequest request);
 
     /**
-     * GitHub 登录
-     *
-     * @param code    授权码
-     * @param state   状态码
-     * @param request HTTP请求
-     * @return {@link LoginUserVO}
-     */
-    LoginUserVO userLoginByGitHub(String code, String state, HttpServletRequest request);
-
-    /**
-     * 获取 GitHub 授权 URL（包含 state）
-     *
-     * @return 授权 URL
-     */
-    String getGitHubAuthorizeUrl();
-
-
-    /**
      * 根据查询请求构建 MyBatis Plus 的查询条件封装
      *
      * @param userQueryRequest 用户查询请求对象
@@ -148,5 +130,21 @@ public interface UserService extends IService<User> {
      * @return {@link LoginUserVO}
      */
     LoginUserVO userLoginByWxOpenId(String openId);
+
+    /**
+     * 发送邮箱验证码
+     *
+     * @param email 邮箱
+     */
+    void sendEmailCode(String email);
+
+    /**
+     * 用户邮箱登录
+     *
+     * @param email 邮箱账号
+     * @param code  验证码
+     * @return {@link LoginUserVO}
+     */
+    LoginUserVO userLoginByEmail(String email, String code);
 
 }

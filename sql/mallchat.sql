@@ -21,23 +21,22 @@ CREATE TABLE `user`
     `user_profile`    varchar(512)          DEFAULT NULL COMMENT '用户简介',
     `user_role`       varchar(256) NOT NULL DEFAULT 'user' COMMENT '用户角色：user/admin/ban',
     `user_phone`      varchar(128)          DEFAULT NULL COMMENT '用户手机号',
+    `user_email`      varchar(256)          DEFAULT NULL COMMENT '用户邮箱',
     `mp_open_id`      varchar(256)          DEFAULT NULL COMMENT '微信公众号 OpenID',
     `wx_union_id`     varchar(256)          DEFAULT NULL COMMENT '微信 UnionID',
     `wx_open_id`      varchar(256)          DEFAULT NULL COMMENT '微信开放平台 OpenID',
-    `github_id`       varchar(256)          DEFAULT NULL COMMENT 'GitHub ID',
-    `github_login`    varchar(256)          DEFAULT NULL COMMENT 'GitHub 账号',
-    `github_url`      varchar(512)          DEFAULT NULL COMMENT 'GitHub 主页',
     `last_login_time` datetime              DEFAULT NULL COMMENT '最后登录时间',
     `last_login_ip`   varchar(128)          DEFAULT NULL COMMENT '最后登录IP',
     `create_time`     datetime     NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
     `update_time`     datetime     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
     `is_delete`       tinyint      NOT NULL DEFAULT 0 COMMENT '是否删除',
     PRIMARY KEY (`id`),
-    KEY `idx_github_id` (`github_id`),
     KEY `idx_wx_union_id` (`wx_union_id`),
     KEY `idx_user_phone` (`user_phone`),
-    KEY `idx_github_id_is_delete` (`github_id`, `is_delete`),
-    KEY `idx_wx_union_id_is_delete` (`wx_union_id`, `is_delete`)
+    KEY `idx_wx_union_id_is_delete` (`wx_union_id`, `is_delete`),
+    KEY `idx_mp_open_id` (`mp_open_id`),
+    KEY `idx_wx_open_id` (`wx_open_id`),
+    UNIQUE KEY `uk_user_email` (`user_email`)
 ) ENGINE = InnoDB
   DEFAULT CHARSET = utf8mb4
   COLLATE = utf8mb4_unicode_ci COMMENT = '用户表';
@@ -302,6 +301,8 @@ CREATE TABLE `chat_message`
   DEFAULT CHARSET = utf8mb4
   COLLATE = utf8mb4_unicode_ci COMMENT = '聊天消息表';
 
+-- 私聊房间映射表
+DROP TABLE IF EXISTS `chat_private_room`;
 CREATE TABLE `chat_private_room`
 (
     `id`          bigint   NOT NULL AUTO_INCREMENT COMMENT '主键',
@@ -318,6 +319,8 @@ CREATE TABLE `chat_private_room`
   DEFAULT CHARSET = utf8mb4
   COLLATE = utf8mb4_unicode_ci COMMENT = '私聊房间映射表';
 
+-- 好友申请表
+DROP TABLE IF EXISTS `user_friend_apply`;
 CREATE TABLE `user_friend_apply`
 (
     `id`            bigint       NOT NULL AUTO_INCREMENT COMMENT '申请ID',
@@ -335,6 +338,8 @@ CREATE TABLE `user_friend_apply`
   DEFAULT CHARSET = utf8mb4
   COLLATE = utf8mb4_unicode_ci COMMENT = '好友申请表';
 
+-- 会话列表
+DROP TABLE IF EXISTS `chat_session`;
 CREATE TABLE `chat_session`
 (
     `id`                   bigint   NOT NULL AUTO_INCREMENT COMMENT '主键',
@@ -355,6 +360,8 @@ CREATE TABLE `chat_session`
   DEFAULT CHARSET = utf8mb4
   COLLATE = utf8mb4_unicode_ci COMMENT = '会话列表';
 
+-- 群组详情表
+DROP TABLE IF EXISTS `chat_group_info`;
 CREATE TABLE `chat_group_info`
 (
     `id`            bigint       NOT NULL AUTO_INCREMENT COMMENT '主键',

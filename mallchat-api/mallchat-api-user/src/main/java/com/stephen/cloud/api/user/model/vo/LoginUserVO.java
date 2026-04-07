@@ -49,24 +49,17 @@ public class LoginUserVO implements Serializable {
     @Schema(description = "用户简介")
     private String userProfile;
 
-
-    /**
-     * GitHub 用户名
-     */
-    @Schema(description = "GitHub用户名")
-    private String githubLogin;
-
-    /**
-     * GitHub 主页
-     */
-    @Schema(description = "GitHub主页")
-    private String githubUrl;
-
     /**
      * 用户电话
      */
     @Schema(description = "用户电话")
     private String userPhone;
+
+    /**
+     * 用户邮箱
+     */
+    @Schema(description = "用户邮箱")
+    private String userEmail;
 
     /**
      * 最后登录时间

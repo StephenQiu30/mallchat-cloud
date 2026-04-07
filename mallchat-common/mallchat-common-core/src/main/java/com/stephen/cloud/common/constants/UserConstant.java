@@ -13,22 +13,14 @@ public interface UserConstant {
     String USER_LOGIN_STATE = "user_login";
 
     /**
-     * 用户默认登录密码
-     */
-    String DEFAULT_PASSWORD = "12345678";
-
-    /**
-     * 用户默认头像地址
-     */
-    String USER_AVATAR = "https://butterfly-1318299170.cos.ap-shanghai.myqcloud.com/logo/avatar/default_avatar.png";
-
-
-    //  region 权限
-
-    /**
      * 默认角色
      */
     String DEFAULT_ROLE = "user";
+
+    /**
+     * 用户邮箱登录验证码前缀
+     */
+    String USER_LOGIN_EMAIL_CODE = "user:login:email:code:";
 
     /**
      * 管理员角色

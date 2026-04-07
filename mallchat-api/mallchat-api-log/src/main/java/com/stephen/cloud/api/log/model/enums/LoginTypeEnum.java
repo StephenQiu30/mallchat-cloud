@@ -13,11 +13,6 @@ import lombok.Getter;
 public enum LoginTypeEnum {
 
     /**
-     * GitHub 登录
-     */
-    GITHUB("GITHUB", "GitHub 登录"),
-
-    /**
      * 邮箱登录
      */
     EMAIL("EMAIL", "邮箱登录"),

@@ -16,7 +16,22 @@ public class RegexUtils {
     public static final String PHONE_REGEX = "^1[3-9]\\d{9}$";
 
     /**
-     * URL 正则表达式
+     * 邮箱正则表达式
+     */
+    public static final String EMAIL_REGEX = "^[a-zA-Z0-9+_.-]+@[a-zA-Z0-9.-]+$";
+
+    /**
+     * 校验邮箱
+     *
+     * @param email 邮箱地址
+     * @return 是否符合正则
+     */
+    public static boolean checkEmail(String email) {
+        return Pattern.matches(EMAIL_REGEX, email);
+    }
+
+    /**
+     * 校验 URL
      */
     public static final String URL_REGEX = "^(https?|ftp|file)://[-a-zA-Z0-9+&@#/%?=~_|!:,.;]*[-a-zA-Z0-9+&@#/%=~_|]$";
 

@@ -54,4 +54,10 @@ public class UserUpdateRequest implements Serializable {
      */
     @Schema(description = "用户电话")
     private String userPhone;
+
+    /**
+     * 用户邮箱
+     */
+    @Schema(description = "用户邮箱")
+    private String userEmail;
 }

@@ -6,12 +6,10 @@ import com.stephen.cloud.api.user.model.dto.UserEditRequest;
 import com.stephen.cloud.api.user.model.dto.UserUpdateRequest;
 import com.stephen.cloud.api.user.model.vo.LoginUserVO;
 import com.stephen.cloud.api.user.model.vo.UserVO;
-import com.stephen.cloud.common.constants.UserConstant;
 import com.stephen.cloud.user.model.entity.User;
 import org.springframework.beans.BeanUtils;
 
 import java.util.List;
-import java.util.Optional;
 import java.util.stream.Collectors;
 
 /**
@@ -76,8 +74,7 @@ public class UserConvert {
         }
         User user = new User();
         BeanUtils.copyProperties(userAddRequest, user);
-        // 填充默认值
-        user.setUserAvatar(Optional.ofNullable(user.getUserAvatar()).orElse(UserConstant.USER_AVATAR));
+        user.setUserEmail(userAddRequest.getUserEmail());
         return user;
     }
 
@@ -93,6 +90,7 @@ public class UserConvert {
         }
         User user = new User();
         BeanUtils.copyProperties(userUpdateRequest, user);
+        user.setUserEmail(userUpdateRequest.getUserEmail());
         return user;
     }
 
@@ -108,6 +106,7 @@ public class UserConvert {
         }
         User user = new User();
         BeanUtils.copyProperties(userEditRequest, user);
+        user.setUserEmail(userEditRequest.getUserEmail());
         return user;
     }
 }

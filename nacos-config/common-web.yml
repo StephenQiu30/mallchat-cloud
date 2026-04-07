@@ -21,6 +21,26 @@ spring:
     type: caffeine
     caffeine:
       spec: maximumSize=500,expireAfterAccess=600s
+  # 邮件配置
+  mail:
+    host: ${dev.mail.host}
+    port: ${dev.mail.port}
+    username: ${dev.mail.username}
+    password: ${dev.mail.password}
+    default-encoding: UTF-8
+    properties:
+      mail:
+        smtp:
+          auth: true
+          starttls:
+            enable: true
+            required: true
+          ssl:
+            enable: true
+          socketFactory:
+            port: 465
+            class: javax.net.ssl.SSLSocketFactory
+            fallback: false
 
 # springdoc 相关配置
 springdoc:

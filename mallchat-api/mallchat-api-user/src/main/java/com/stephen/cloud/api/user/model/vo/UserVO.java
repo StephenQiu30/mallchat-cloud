@@ -50,7 +50,6 @@ public class UserVO implements Serializable {
     @Schema(description = "用户角色")
     private String userRole;
 
-
     /**
      * 用户电话
      */
@@ -58,16 +57,10 @@ public class UserVO implements Serializable {
     private String userPhone;
 
     /**
-     * GitHub 登录账号
+     * 用户邮箱
      */
-    @Schema(description = "GitHub 登录账号")
-    private String githubLogin;
-
-    /**
-     * GitHub 主页
-     */
-    @Schema(description = "GitHub 主页")
-    private String githubUrl;
+    @Schema(description = "用户邮箱")
+    private String userEmail;
 
     /**
      * 创建时间

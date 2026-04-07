@@ -14,7 +14,7 @@ import java.util.Date;
 /**
  * 用户实体
  * <p>
- * 支持多种登录方式：GitHub、微信公众号、微信扫码登录
+ * 支持多种登录方式：微信公众号、微信扫码登录
  * 用户角色包含：普通用户、管理员、封禁用户
  * </p>
  *
@@ -66,6 +66,12 @@ public class User implements Serializable {
     private String userPhone;
 
     /**
+     * 用户邮箱
+     */
+    @Schema(description = "用户邮箱")
+    private String userEmail;
+
+    /**
      * 微信公众号 OpenID
      */
     @Schema(description = "微信公众号 OpenID")
@@ -82,24 +88,6 @@ public class User implements Serializable {
      */
     @Schema(description = "微信开放平台 OpenID")
     private String wxOpenId;
-
-    /**
-     * GitHub ID
-     */
-    @Schema(description = "GitHub ID")
-    private String githubId;
-
-    /**
-     * GitHub 账号
-     */
-    @Schema(description = "GitHub 账号")
-    private String githubLogin;
-
-    /**
-     * GitHub 主页
-     */
-    @Schema(description = "GitHub 主页")
-    private String githubUrl;
 
     /**
      * 最后登录时间
