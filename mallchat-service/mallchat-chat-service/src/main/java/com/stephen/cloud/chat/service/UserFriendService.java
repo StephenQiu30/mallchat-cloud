@@ -87,4 +87,12 @@ public interface UserFriendService extends IService<UserFriend> {
      * @return 是否互为好友
      */
     boolean isMutualFriend(Long userId, Long friendUserId);
+
+    /**
+     * 移除好友（双向记录，并同步清除缓存）
+     *
+     * @param userId       当前用户 ID
+     * @param friendUserId 好友用户 ID
+     */
+    void removeFriend(Long userId, Long friendUserId);
 }

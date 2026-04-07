@@ -45,6 +45,16 @@ public class ChatMessage implements Serializable {
      * 消息类型：1-文本，2-图片，3-文件
      */
     private Integer type;
+    
+    /**
+     * 回复的消息ID
+     */
+    private Long replyMsgId;
+
+    /**
+     * 消息状态：0-正常，1-已撤回，2-已删除
+     */
+    private Integer status;
 
     /**
      * 发送时间

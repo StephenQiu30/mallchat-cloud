@@ -1,10 +1,11 @@
 package com.stephen.cloud.notification.mq.handler;
 
 import cn.hutool.json.JSONUtil;
+import com.stephen.cloud.common.cache.utils.CacheUtils;
+import com.stephen.cloud.common.rabbitmq.consumer.RabbitMqHandler;
 import com.stephen.cloud.common.rabbitmq.enums.MqBizTypeEnum;
 import com.stephen.cloud.common.rabbitmq.model.RabbitMessage;
 import com.stephen.cloud.common.rabbitmq.model.WebSocketMessage;
-import com.stephen.cloud.common.rabbitmq.consumer.RabbitMqHandler;
 import com.stephen.cloud.common.websocket.manager.ChannelManager;
 import io.netty.handler.codec.http.websocketx.TextWebSocketFrame;
 import jakarta.annotation.Resource;
@@ -12,6 +13,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
+import java.util.Set;
 
 /**
  * 聊天消息推送处理器
@@ -29,6 +31,9 @@ public class ChatMessagePushHandler implements RabbitMqHandler<WebSocketMessage>
     @Resource
     private ChannelManager channelManager;
 
+    @Resource
+    private CacheUtils cacheUtils;
+
     @Override
     public String getBizType() {
         return MqBizTypeEnum.CHAT_MESSAGE_PUSH.getValue();
@@ -44,17 +49,24 @@ public class ChatMessagePushHandler implements RabbitMqHandler<WebSocketMessage>
     @Override
     public void onMessage(WebSocketMessage wsMessage, RabbitMessage rabbitMessage) throws Exception {
         String msgId = rabbitMessage.getMsgId();
-        List<Long> userIds = wsMessage.getUserIds();
+        String pushType = wsMessage.getPushType();
 
-        log.info("[ChatMessagePushHandler] 收到聊天消息推送, 目标用户数: {}, msgId: {}", 
-                userIds != null ? userIds.size() : 0, msgId);
+        log.info("[ChatMessagePushHandler] 收到推送请求, type: {}, roomId: {}, msgId: {}",
+                pushType, wsMessage.getRoomId(), msgId);
 
-        if ("broadcast".equalsIgnoreCase(wsMessage.getPushType())) {
-            log.info("[ChatMessagePushHandler] 收到广播消息推送, msgId: {}", msgId);
-            broadcast(wsMessage);
+        if ("broadcast".equalsIgnoreCase(pushType)) {
+            // 如果指定了房间 ID，进行房间级别的准广播 (只推送到房间成员)
+            if (wsMessage.getRoomId() != null) {
+                pushToRoomMembers(wsMessage);
+            } else {
+                // 如果没有房间 ID，进行全量广播 (系统级通知)
+                broadcast(wsMessage);
+            }
             return;
         }
 
+        // 定点单发或多发模式 (MULTIPLE / SINGLE)
+        List<Long> userIds = wsMessage.getUserIds();
         if (userIds == null || userIds.isEmpty()) {
             log.warn("[ChatMessagePushHandler] 消息中没有指定用户ID且非广播，忽略推送, msgId: {}", msgId);
             return;
@@ -79,8 +91,41 @@ public class ChatMessagePushHandler implements RabbitMqHandler<WebSocketMessage>
         int successCount = 0;
 
         for (Long userId : userIds) {
-            String userIdStr = String.valueOf(userId);
             // 只推送到本地在线的用户
+            io.netty.channel.Channel channel = channelManager.getChannel(String.valueOf(userId));
+            if (channel != null && channel.isActive()) {
+                channel.writeAndFlush(new TextWebSocketFrame(messageJson));
+                successCount++;
+            }
+        }
+
+        if (successCount > 0) {
+            log.debug("[ChatMessagePushHandler] 向 {} 个本地用户推送成功", successCount);
+        }
+    }
+
+    /**
+     * 定向推送给房间内的本地在线成员
+     * 逻辑：从 Redis 获取房间成员，然后在本地 ChannelManager 中寻找匹配的活跃连接进行发送
+     *
+     * @param wsMessage WebSocket 包装消息
+     */
+    private void pushToRoomMembers(WebSocketMessage wsMessage) {
+        Long roomId = wsMessage.getRoomId();
+        String messageJson = JSONUtil.toJsonStr(wsMessage);
+
+        // 拼接 Redis Key (必须与 chat-service 保持一致)
+        String key = "mallchat:chat:room:members:" + roomId;
+        // 获取所有成员 ID
+        java.util.Set<String> memberIds = cacheUtils.sMembers(key);
+
+        if (memberIds == null || memberIds.isEmpty()) {
+            log.warn("[ChatMessagePushHandler] 房间 {} 缓存中没有成员，跳过推送", roomId);
+            return;
+        }
+
+        int successCount = 0;
+        for (String userIdStr : memberIds) {
             io.netty.channel.Channel channel = channelManager.getChannel(userIdStr);
             if (channel != null && channel.isActive()) {
                 channel.writeAndFlush(new TextWebSocketFrame(messageJson));
@@ -89,12 +134,12 @@ public class ChatMessagePushHandler implements RabbitMqHandler<WebSocketMessage>
         }
 
         if (successCount > 0) {
-            log.info("[ChatMessagePushHandler] 成功向 {} 个本地在线用户推送聊天消息", successCount);
+            log.info("[ChatMessagePushHandler] 房间 {} 推送成功, 本地在线接收者: {}/{}", roomId, successCount, memberIds.size());
         }
     }
 
     /**
-     * 广播消息给本地服务器上的所有在线用户
+     * 广播消息给本地服务器上的所有在线用户 (全量广播)
      *
      * @param wsMessage WebSocket 包装消息
      */

@@ -94,4 +94,20 @@ public class ChatMessageController {
         List<ChatMessageVO> history = chatMessageService.listHistoryMessages(roomId, lastMessageId, limit, userId);
         return ResultUtils.success(history);
     }
+
+    /**
+     * 撤回消息
+     *
+     * @param id 消息 ID
+     * @return 是否成功
+     */
+    @PutMapping("/recall/{id}")
+    @OperationLog(module = "消息管理", action = "撤回消息")
+    @Operation(summary = "撤回消息", description = "撤回指定消息（限时 2 分钟内）")
+    public BaseResponse<Boolean> recallMessage(@PathVariable("id") Long id) {
+        ThrowUtils.throwIf(id == null, ErrorCode.PARAMS_ERROR);
+        Long userId = SecurityUtils.getLoginUserId();
+        boolean ok = chatMessageService.recallMessage(id, userId);
+        return ResultUtils.success(ok);
+    }
 }

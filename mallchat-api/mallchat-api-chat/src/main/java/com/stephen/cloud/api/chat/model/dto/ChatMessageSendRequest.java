@@ -43,5 +43,11 @@ public class ChatMessageSendRequest implements Serializable {
     @Schema(description = "消息扩展内容（JSON 字符串）", example = "{\"url\":\"...\"}")
     private String extra;
 
+    /**
+     * 被回复的消息ID
+     */
+    @Schema(description = "被回复的消息ID", example = "100")
+    private Long replyMsgId;
+
     private static final long serialVersionUID = 1L;
 }

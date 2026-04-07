@@ -9,7 +9,10 @@ import org.redisson.client.codec.StringCodec;
 import org.springframework.stereotype.Component;
 
 import java.time.Duration;
+import java.util.Arrays;
+import java.util.Collection;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * CacheUtils: 基于 Redisson 的 Redis 缓存工具类，提供通用的缓存管理功能。
@@ -269,6 +272,76 @@ public class CacheUtils {
                 ? redissonClient.getBucket(prefixedKey(key))
                 : redissonClient.getBucket(prefixedKey(key), codec);
         return bucket.get();
+    }
+
+    // ==================== Set 操作 ====================
+
+    /**
+     * 向 Set 中添加元素
+     *
+     * @param key    缓存键
+     * @param values 元素列表
+     * @param <T>    元素类型
+     */
+    @SafeVarargs
+    public final <T> void sAdd(String key, T... values) {
+        redissonClient.<T>getSet(prefixedKey(key)).addAll(Arrays.asList(values));
+    }
+
+    /**
+     * 向 Set 中添加集合所有的元素
+     *
+     * @param key    缓存键
+     * @param values 元素集合
+     * @param <T>    元素类型
+     */
+    public <T> void sAddAll(String key, Collection<T> values) {
+        redissonClient.<T>getSet(prefixedKey(key)).addAll(values);
+    }
+
+    /**
+     * 判断元素是否在 Set 中
+     *
+     * @param key   缓存键
+     * @param value 元素值
+     * @param <T>   元素类型
+     * @return true 如果元素存在；否则 false
+     */
+    public <T> boolean sIsMember(String key, T value) {
+        return redissonClient.<T>getSet(prefixedKey(key)).contains(value);
+    }
+
+    /**
+     * 从 Set 中移除元素
+     *
+     * @param key    缓存键
+     * @param values 元素列表
+     * @param <T>    元素类型
+     */
+    @SafeVarargs
+    public final <T> void sRemove(String key, T... values) {
+        redissonClient.<T>getSet(prefixedKey(key)).removeAll(Arrays.asList(values));
+    }
+
+    /**
+     * 获取 Set 中的所有元素
+     *
+     * @param key 缓存键
+     * @param <T> 元素类型
+     * @return 元素集合
+     */
+    public <T> Set<T> sMembers(String key) {
+        return redissonClient.<T>getSet(prefixedKey(key)).readAll();
+    }
+
+    /**
+     * 设置过期时间
+     *
+     * @param key     缓存键
+     * @param expired 过期时间（秒）
+     */
+    public void expire(String key, long expired) {
+        redissonClient.getBucket(prefixedKey(key)).expire(Duration.ofSeconds(expired));
     }
 
     /**

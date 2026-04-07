@@ -59,6 +59,16 @@ public class WebSocketMessage implements Serializable {
     private String bizId;
 
     /**
+     * 目标房间ID (用于房间广播)
+     */
+    private Long roomId;
+
+    /**
+     * 目标群组ID (用于群组广播)
+     */
+    private Long groupId;
+
+    /**
      * 认证 Token（用于 WebSocket 连接认证）
      */
     private String token;

@@ -28,7 +28,7 @@ public class ChatMqProducer {
     private RabbitMqSender mqSender;
 
     /**
-     * 发送聊天内容推送
+     * 发送聊天内容推送 (定向推送到指定用户列表)
      *
      * @param userIds       接收用户 ID 列表
      * @param chatMessageVO 聊天消息视图对象
@@ -42,14 +42,42 @@ public class ChatMqProducer {
         try {
             WebSocketMessage wsMessage = WebSocketMessage.builder()
                     .userIds(userIds)
+                    .pushType(WebSocketPushTypeEnum.MULTIPLE.getValue())
                     .data(chatMessageVO)
                     .build();
 
             String bizId = "chat_msg:" + chatMessageVO.getId();
             mqSender.send(MqBizTypeEnum.CHAT_MESSAGE_PUSH, bizId, wsMessage);
-            log.info("[ChatMqProducer] 发送聊天推送消息成功, msgId: {}, members: {}", chatMessageVO.getId(), userIds.size());
+            log.info("[ChatMqProducer] 发送聊天推送消息成功 (多用户模式), msgId: {}, members: {}", chatMessageVO.getId(), userIds.size());
         } catch (Exception e) {
             log.error("[ChatMqProducer] 发送聊天推送消息失败, msgId: {}", chatMessageVO.getId(), e);
+        }
+    }
+
+    /**
+     * 发送房间内全体成员推送 (广播模式)
+     *
+     * @param roomId        房间ID
+     * @param chatMessageVO 聊天消息视图对象
+     */
+    public void sendChatMessageGroupPush(Long roomId, ChatMessageVO chatMessageVO) {
+        if (chatMessageVO == null || chatMessageVO.getId() == null || roomId == null) {
+            log.warn("[ChatMqProducer] 房间ID或消息对象为空，跳过广播发送");
+            return;
+        }
+
+        try {
+            WebSocketMessage wsMessage = WebSocketMessage.builder()
+                    .roomId(roomId)
+                    .pushType(WebSocketPushTypeEnum.BROADCAST.getValue())
+                    .data(chatMessageVO)
+                    .build();
+
+            String bizId = "chat_group_msg:" + chatMessageVO.getId();
+            mqSender.send(MqBizTypeEnum.CHAT_MESSAGE_PUSH, bizId, wsMessage);
+            log.info("[ChatMqProducer] 发送群聊广播推送成功, roomId: {}, msgId: {}", roomId, chatMessageVO.getId());
+        } catch (Exception e) {
+            log.error("[ChatMqProducer] 发送群聊广播推送失败, roomId: {}, msgId: {}", roomId, chatMessageVO.getId(), e);
         }
     }
 

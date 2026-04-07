@@ -82,4 +82,13 @@ public interface ChatMessageService extends IService<ChatMessage> {
      * @return 是否更新成功
      */
     boolean markMessageRead(Long roomId, Long lastReadMessageId, Long userId);
+
+    /**
+     * 撤回消息
+     *
+     * @param messageId 消息 ID
+     * @param userId    发送者用户 ID
+     * @return 是否撤回成功
+     */
+    boolean recallMessage(Long messageId, Long userId);
 }

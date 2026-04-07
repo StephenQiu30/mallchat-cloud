@@ -291,12 +291,15 @@ CREATE TABLE `chat_message`
     `content`      text     NOT NULL COMMENT '消息内容',
     `extra`        json              DEFAULT NULL COMMENT '消息扩展内容（如图片/文件详细信息）',
     `type`         tinyint  NOT NULL DEFAULT 1 COMMENT '消息类型：1-文本，2-图片，3-文件',
+    `reply_msg_id` bigint            DEFAULT NULL COMMENT '回复的消息ID',
+    `status`       tinyint  NOT NULL DEFAULT 0 COMMENT '消息状态：0-正常，1-已撤回，2-已删除',
     `create_time`  datetime NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '发送时间',
     `update_time`  datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
     `is_delete`    tinyint  NOT NULL DEFAULT 0 COMMENT '是否删除',
     PRIMARY KEY (`id`),
     KEY `idx_from_user_id` (`from_user_id`),
-    KEY `idx_room_id_id` (`room_id`, `id` DESC)
+    KEY `idx_room_id_id` (`room_id`, `id` DESC),
+    KEY `idx_reply_msg_id` (`reply_msg_id`)
 ) ENGINE = InnoDB
   DEFAULT CHARSET = utf8mb4
   COLLATE = utf8mb4_unicode_ci COMMENT = '聊天消息表';

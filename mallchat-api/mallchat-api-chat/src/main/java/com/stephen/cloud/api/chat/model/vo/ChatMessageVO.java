@@ -70,6 +70,18 @@ public class ChatMessageVO implements Serializable {
     private String extra;
 
     /**
+     * 被回复的消息信息
+     */
+    @Schema(description = "被回复的消息信息")
+    private ReplyMsgVO replyMsg;
+
+    /**
+     * 消息状态：0-正常，1-已撤回，2-已删除
+     */
+    @Schema(description = "消息状态：0-正常，1-已撤回，2-已删除", example = "0")
+    private Integer status;
+
+    /**
      * 发送时间
      */
     @Schema(description = "发送时间")

@@ -2,16 +2,17 @@ package com.stephen.cloud.chat.service.impl;
 
 import cn.hutool.core.collection.CollUtil;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
+import com.stephen.cloud.api.chat.model.enums.MessageStatusEnum;
 import com.stephen.cloud.api.chat.model.vo.ChatMessageVO;
+import com.stephen.cloud.api.chat.model.vo.ReplyMsgVO;
 import com.stephen.cloud.chat.convert.ChatMessageConvert;
 import com.stephen.cloud.chat.event.ChatMessageSentEvent;
 import com.stephen.cloud.chat.mapper.ChatMessageMapper;
-import com.stephen.cloud.chat.model.entity.ChatMessage;
-import com.stephen.cloud.chat.model.entity.ChatRoomMember;
-import com.stephen.cloud.chat.service.ChatMessageService;
-import com.stephen.cloud.chat.service.ChatRoomMemberService;
+import com.stephen.cloud.chat.model.entity.*;
+import com.stephen.cloud.chat.service.*;
 import com.stephen.cloud.common.common.ErrorCode;
 import com.stephen.cloud.common.common.ThrowUtils;
 import com.stephen.cloud.common.exception.BusinessException;
@@ -21,11 +22,13 @@ import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Collections;
 import java.util.List;
+import java.util.Objects;
 import java.util.stream.Collectors;
 
 /**
@@ -46,6 +49,19 @@ public class ChatMessageServiceImpl extends ServiceImpl<ChatMessageMapper, ChatM
 
     @Resource
     private ApplicationEventPublisher eventPublisher;
+
+    @Resource
+    private ChatRoomService chatRoomService;
+
+    @Resource
+    private ChatPrivateRoomService chatPrivateRoomService;
+
+    @Resource
+    @Lazy
+    private ChatSessionService chatSessionService;
+
+    @Resource
+    private UserFriendService userFriendService;
 
     /**
      * 校验数据
@@ -86,7 +102,53 @@ public class ChatMessageServiceImpl extends ServiceImpl<ChatMessageMapper, ChatM
         if (chatMessage == null) {
             return null;
         }
-        return ChatMessageConvert.objToVo(chatMessage);
+        ChatMessageVO vo = ChatMessageConvert.objToVo(chatMessage);
+        
+        // 1. 消息撤回内容脱敏
+        if (Objects.equals(chatMessage.getStatus(), MessageStatusEnum.RECALL.getCode())) {
+            vo.setContent("该消息已被撤回");
+        }
+
+        // 2. 填充回复消息内容
+        if (chatMessage.getReplyMsgId() != null) {
+            ChatMessage replyMsg = this.getById(chatMessage.getReplyMsgId());
+            if (replyMsg != null) {
+                vo.setReplyMsg(buildReplyMsgVO(replyMsg));
+            }
+        }
+        
+        return vo;
+    }
+
+    /**
+     * 构建回复消息视图
+     */
+    private ReplyMsgVO buildReplyMsgVO(ChatMessage replyMsg) {
+        if (replyMsg == null) return null;
+        
+        String content = replyMsg.getContent();
+        // 如果是撤回状态，脱敏内容
+        if (Objects.equals(replyMsg.getStatus(), MessageStatusEnum.RECALL.getCode())) {
+            content = "该消息已被撤回";
+        } else if (!Objects.equals(replyMsg.getType(), 1)) {
+            // 如果不是文本，显示占位符
+            content = getMessagePlaceholder(replyMsg.getType());
+        }
+        
+        return ReplyMsgVO.builder()
+                .id(replyMsg.getId())
+                .content(content)
+                .type(replyMsg.getType())
+                .build();
+    }
+
+    private String getMessagePlaceholder(Integer type) {
+        if (type == null) return "[消息]";
+        return switch (type) {
+            case 2 -> "[图片]";
+            case 3 -> "[文件]";
+            default -> "[消息]";
+        };
     }
 
     /**
@@ -101,7 +163,34 @@ public class ChatMessageServiceImpl extends ServiceImpl<ChatMessageMapper, ChatM
         if (CollUtil.isEmpty(chatMessageList)) {
             return Collections.emptyList();
         }
-        return chatMessageList.stream().map(chatMessage -> getChatMessageVO(chatMessage, request)).collect(Collectors.toList());
+
+        // 1. 批量获取被回复的消息内容 (解决 N+1 问题)
+        List<Long> replyIds = chatMessageList.stream()
+                .map(ChatMessage::getReplyMsgId)
+                .filter(Objects::nonNull)
+                .distinct()
+                .toList();
+        
+        java.util.Map<Long, ChatMessage> replyMsgMap = CollUtil.isEmpty(replyIds) ? 
+                Collections.emptyMap() : 
+                this.listByIds(replyIds).stream().collect(Collectors.toMap(ChatMessage::getId, m -> m));
+
+        // 2. 转换并填充 VO
+        return chatMessageList.stream().map(msg -> {
+            ChatMessageVO vo = ChatMessageConvert.objToVo(msg);
+            
+            // 撤回脱敏
+            if (Objects.equals(msg.getStatus(), MessageStatusEnum.RECALL.getCode())) {
+                vo.setContent("该消息已被撤回");
+            }
+            
+            // 填充回复
+            if (msg.getReplyMsgId() != null) {
+                vo.setReplyMsg(buildReplyMsgVO(replyMsgMap.get(msg.getReplyMsgId())));
+            }
+            
+            return vo;
+        }).collect(Collectors.toList());
     }
 
     /**
@@ -134,24 +223,53 @@ public class ChatMessageServiceImpl extends ServiceImpl<ChatMessageMapper, ChatM
 
         Long roomId = chatMessage.getRoomId();
 
-        // 1. 校验用户是否在房间中
-        long count = chatRoomMemberService.count(
-                new LambdaQueryWrapper<ChatRoomMember>()
-                        .eq(ChatRoomMember::getRoomId, roomId)
-                        .eq(ChatRoomMember::getUserId, userId)
-        );
-        ThrowUtils.throwIf(count == 0, ErrorCode.NO_AUTH_ERROR, "您不在此聊天室中");
+        // 1. 校验会话权限
+        ChatRoom chatRoom = chatRoomService.getById(roomId);
+        if (chatRoom == null) {
+            throw new BusinessException(ErrorCode.NOT_FOUND_ERROR, "聊天室不存在");
+        }
 
-        // 2. 保存消息到数据库
+        // 2. 私聊权限校验 (双方互为好友)
+        if (Objects.equals(chatRoom.getType(), 2)) { // 2 为私聊
+            ChatPrivateRoom privateRoom = chatPrivateRoomService.getOne(
+                    new LambdaQueryWrapper<ChatPrivateRoom>()
+                            .eq(ChatPrivateRoom::getRoomId, roomId)
+                            .last("LIMIT 1"));
+            if (privateRoom == null) {
+                throw new BusinessException(ErrorCode.SYSTEM_ERROR, "私聊房间映射不存在");
+            }
+            
+            Long peerUserId = Objects.equals(userId, privateRoom.getUserLow()) ? privateRoom.getUserHigh() : privateRoom.getUserLow();
+            boolean isFriend = userFriendService.isMutualFriend(userId, peerUserId);
+            ThrowUtils.throwIf(!isFriend, ErrorCode.NO_AUTH_ERROR, "非好友无法发送消息");
+        } else {
+            // 3. 群聊权限校验 (是否在房间中)
+            boolean isMember = chatRoomMemberService.isMember(roomId, userId);
+            ThrowUtils.throwIf(!isMember, ErrorCode.NO_AUTH_ERROR, "您不在此聊天室中");
+        }
+
+        // 3. 回复消息校验
+        if (chatMessage.getReplyMsgId() != null) {
+            ChatMessage replyMsg = this.getById(chatMessage.getReplyMsgId());
+            if (replyMsg == null) {
+                throw new BusinessException(ErrorCode.NOT_FOUND_ERROR, "回复的消息不存在");
+            }
+            if (!Objects.equals(replyMsg.getRoomId(), roomId)) {
+                throw new BusinessException(ErrorCode.PARAMS_ERROR, "不能跨房间回复消息");
+            }
+        }
+
+        // 4. 保存消息到数据库
         chatMessage.setFromUserId(userId);
+        chatMessage.setStatus(MessageStatusEnum.NORMAL.getCode()); // 正常状态
         boolean result = this.save(chatMessage);
         ThrowUtils.throwIf(!result, ErrorCode.OPERATION_ERROR, "发送消息失败");
 
-        // 3. 异步推送消息到所有房间成员 (RabbitMQ) 并更新会话列表
+        // 5. 异步推送消息到所有房间成员 (RabbitMQ) 并更新会话列表
         List<ChatRoomMember> members = chatRoomMemberService.listByRoomId(roomId);
         pushMessageToRoomMembers(chatMessage, members);
 
-        // 4. 发布消息发送事件 (异步更新会话等操作)
+        // 6. 发布消息发送事件 (异步更新会话等操作)
         eventPublisher.publishEvent(new ChatMessageSentEvent(this, chatMessage, userId));
 
         return chatMessage.getId();
@@ -182,58 +300,104 @@ public class ChatMessageServiceImpl extends ServiceImpl<ChatMessageMapper, ChatM
                         .last("limit " + limit)
         );
 
-        return messages.stream()
-                .map(ChatMessageConvert::objToVo)
-                .collect(Collectors.toList());
+        return getChatMessageVO(messages, null);
     }
 
     @Override
+    @Transactional(rollbackFor = Exception.class)
     public boolean markMessageRead(Long roomId, Long lastReadMessageId, Long userId) {
-        ThrowUtils.throwIf(roomId == null || lastReadMessageId == null || userId == null, ErrorCode.PARAMS_ERROR);
-        long memberCount = chatRoomMemberService.count(
-                new LambdaQueryWrapper<ChatRoomMember>()
-                        .eq(ChatRoomMember::getRoomId, roomId)
-                        .eq(ChatRoomMember::getUserId, userId));
-        ThrowUtils.throwIf(memberCount == 0, ErrorCode.NO_AUTH_ERROR, "您不在此聊天室中");
+        if (roomId == null || lastReadMessageId == null || userId == null) {
+            throw new BusinessException(ErrorCode.PARAMS_ERROR);
+        }
+        
+        // 1. 权限校验
+        boolean isMember = chatRoomMemberService.isMember(roomId, userId);
+        if (!isMember) {
+            throw new BusinessException(ErrorCode.NO_AUTH_ERROR, "您不在此聊天室中");
+        }
 
+        // 2. 校验消息是否属于该房间
         ChatMessage msg = this.getById(lastReadMessageId);
-        ThrowUtils.throwIf(msg == null, ErrorCode.NOT_FOUND_ERROR, "消息不存在");
-        if (msg == null) return false;
-        if (roomId == null) return false;
-        ThrowUtils.throwIf(!roomId.equals(msg.getRoomId()), ErrorCode.PARAMS_ERROR, "消息不属于该房间");
+        if (msg == null) {
+            throw new BusinessException(ErrorCode.NOT_FOUND_ERROR, "消息不存在");
+        }
+        if (!roomId.equals(msg.getRoomId())) {
+            throw new BusinessException(ErrorCode.PARAMS_ERROR, "消息不属于该房间");
+        }
 
+        // 3. 更新成员已读游标
         ChatRoomMember member = chatRoomMemberService.getOne(
                 new LambdaQueryWrapper<ChatRoomMember>()
                         .eq(ChatRoomMember::getRoomId, roomId)
                         .eq(ChatRoomMember::getUserId, userId)
                         .last("LIMIT 1"));
-        ThrowUtils.throwIf(member == null, ErrorCode.NOT_FOUND_ERROR);
         if (member == null) return false;
 
         Long oldRead = member.getLastReadMessageId();
-        if (oldRead != null && lastReadMessageId != null && lastReadMessageId < oldRead) {
+        if (oldRead != null && lastReadMessageId <= oldRead) {
             return true;
         }
         member.setLastReadMessageId(lastReadMessageId);
-        return chatRoomMemberService.updateById(member);
+        chatRoomMemberService.updateById(member);
+
+        // 4. 同步更新会话未读数 (重置为0)
+        chatSessionService.update(new LambdaUpdateWrapper<ChatSession>()
+                .set(ChatSession::getUnreadCount, 0)
+                .set(ChatSession::getLastReadMessageId, lastReadMessageId)
+                .eq(ChatSession::getUserId, userId)
+                .eq(ChatSession::getRoomId, roomId));
+
+        return true;
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public boolean recallMessage(Long messageId, Long userId) {
+        log.info("[ChatMessageServiceImpl] 撤回消息请求, messageId: {}, userId: {}", messageId, userId);
+        
+        // 1. 获取并检查消息
+        ChatMessage msg = this.getById(messageId);
+        ThrowUtils.throwIf(msg == null, ErrorCode.NOT_FOUND_ERROR, "消息不存在");
+        
+        // 2. 权限校验：只能撤回自己的消息
+        if (msg == null || !Objects.equals(msg.getFromUserId(), userId)) {
+            throw new BusinessException(ErrorCode.NO_AUTH_ERROR, "只能撤回自己的消息");
+        }
+        
+        // 3. 时限校验：2 分钟内可撤回
+        long now = System.currentTimeMillis();
+        long createTime = msg.getCreateTime().getTime();
+        if (now - createTime > 2 * 60 * 1000) {
+            throw new BusinessException(ErrorCode.OPERATION_ERROR, "消息发送超过 2 分钟，无法撤回");
+        }
+        
+        // 4. 更新状态为已撤回 (status = 1)
+        if (Objects.equals(msg.getStatus(), MessageStatusEnum.RECALL.getCode())) {
+            return true;
+        }
+        msg.setStatus(MessageStatusEnum.RECALL.getCode());
+        boolean ok = this.updateById(msg);
+        if (!ok) return false;
+        
+        // 5. 广播撤回信令 (MQ)
+        ChatMessageVO vo = ChatMessageConvert.objToVo(msg);
+        chatMqProducer.sendChatMessageGroupPush(msg.getRoomId(), vo);
+        
+        return true;
     }
 
     /**
      * 推送消息给房间所有成员
      */
     private void pushMessageToRoomMembers(ChatMessage chatMessage, List<ChatRoomMember> members) {
-        if (members == null || members.isEmpty()) {
+        if (chatMessage == null || chatMessage.getRoomId() == null) {
             return;
         }
-
-        List<Long> memberIds = members.stream()
-                .map(ChatRoomMember::getUserId)
-                .collect(Collectors.toList());
 
         // 构建推送消息内容
         ChatMessageVO vo = ChatMessageConvert.objToVo(chatMessage);
 
-        // 包装为 WebSocketMessage 进行集群分发
-        chatMqProducer.sendChatMessagePush(memberIds, vo);
+        // 优化：不再发送成员列表，而是发送房间广播信令
+        chatMqProducer.sendChatMessageGroupPush(chatMessage.getRoomId(), vo);
     }
 }

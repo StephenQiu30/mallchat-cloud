@@ -12,6 +12,7 @@ import com.stephen.cloud.chat.convert.ChatFriendConvert;
 import com.stephen.cloud.chat.mapper.UserFriendMapper;
 import com.stephen.cloud.chat.model.entity.UserFriend;
 import com.stephen.cloud.chat.service.UserFriendService;
+import com.stephen.cloud.common.cache.utils.CacheUtils;
 import com.stephen.cloud.common.common.ErrorCode;
 import com.stephen.cloud.common.common.ThrowUtils;
 import com.stephen.cloud.common.constants.CommonConstant;
@@ -25,6 +26,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
@@ -39,6 +41,11 @@ public class UserFriendServiceImpl extends ServiceImpl<UserFriendMapper, UserFri
 
     @Resource
     private UserFeignClient userFeignClient;
+
+    @Resource
+    private CacheUtils cacheUtils;
+
+    private static final String USER_FRIEND_CACHE_KEY = "chat:user:friends:";
 
     /**
      * 校验好友数据
@@ -180,6 +187,9 @@ public class UserFriendServiceImpl extends ServiceImpl<UserFriendMapper, UserFri
                 .eq(UserFriend::getUserId, userId)
                 .eq(UserFriend::getFriendUserId, friendUserId));
         if (exists > 0) {
+            // Ensure cache is in sync even if it's already in DB
+            syncFriendToCache(userId, friendUserId);
+            syncFriendToCache(friendUserId, userId);
             return;
         }
 
@@ -191,6 +201,28 @@ public class UserFriendServiceImpl extends ServiceImpl<UserFriendMapper, UserFri
         b.setFriendUserId(userId);
         boolean ok = this.save(a) && this.save(b);
         ThrowUtils.throwIf(!ok, ErrorCode.OPERATION_ERROR, "添加好友失败");
+
+        // Sync to Redis
+        syncFriendToCache(userId, friendUserId);
+        syncFriendToCache(friendUserId, userId);
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void removeFriend(Long userId, Long friendUserId) {
+        log.info("移除好友: userId={}, friendUserId={}", userId, friendUserId);
+        ThrowUtils.throwIf(userId == null || friendUserId == null, ErrorCode.PARAMS_ERROR);
+
+        boolean ok = this.remove(new LambdaQueryWrapper<UserFriend>()
+                .and(wrapper -> wrapper.eq(UserFriend::getUserId, userId).eq(UserFriend::getFriendUserId, friendUserId)
+                        .or()
+                        .eq(UserFriend::getUserId, friendUserId).eq(UserFriend::getFriendUserId, userId)));
+        
+        if (ok) {
+            // Remove from Redis
+            cacheUtils.sRemove(USER_FRIEND_CACHE_KEY + userId, String.valueOf(friendUserId));
+            cacheUtils.sRemove(USER_FRIEND_CACHE_KEY + friendUserId, String.valueOf(userId));
+        }
     }
 
     @Override
@@ -207,12 +239,36 @@ public class UserFriendServiceImpl extends ServiceImpl<UserFriendMapper, UserFri
         if (userId == null || friendUserId == null) {
             return false;
         }
-        long ab = this.count(new LambdaQueryWrapper<UserFriend>()
-                .eq(UserFriend::getUserId, userId)
-                .eq(UserFriend::getFriendUserId, friendUserId));
-        long ba = this.count(new LambdaQueryWrapper<UserFriend>()
-                .eq(UserFriend::getUserId, friendUserId)
-                .eq(UserFriend::getFriendUserId, userId));
-        return ab > 0 && ba > 0;
+        String key = USER_FRIEND_CACHE_KEY + userId;
+        // Try Cache first
+        if (cacheUtils.exists(key)) {
+            return cacheUtils.sIsMember(key, String.valueOf(friendUserId));
+        }
+        
+        // Fallback to DB and load cache
+        loadFriendCache(userId);
+        return cacheUtils.sIsMember(key, String.valueOf(friendUserId));
+    }
+
+    private void syncFriendToCache(Long userId, Long friendUserId) {
+        String key = USER_FRIEND_CACHE_KEY + userId;
+        cacheUtils.sAdd(key, String.valueOf(friendUserId));
+        cacheUtils.expire(key, 86400 * 7); // 7 days
+    }
+
+    private void loadFriendCache(Long userId) {
+        List<UserFriend> friends = this.list(new LambdaQueryWrapper<UserFriend>()
+                .eq(UserFriend::getUserId, userId));
+        String key = USER_FRIEND_CACHE_KEY + userId;
+        if (CollUtil.isNotEmpty(friends)) {
+            Set<String> friendIds = friends.stream()
+                    .map(f -> String.valueOf(f.getFriendUserId()))
+                    .collect(Collectors.toSet());
+            cacheUtils.sAddAll(key, friendIds);
+        } else {
+            // Add a placeholder or just set expiration to avoid penetration
+            cacheUtils.putString(key, "EMPTY", 60); 
+        }
+        cacheUtils.expire(key, 86400 * 7);
     }
 }
