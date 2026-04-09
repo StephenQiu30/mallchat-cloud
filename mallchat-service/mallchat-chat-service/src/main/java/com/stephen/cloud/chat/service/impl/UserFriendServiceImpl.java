@@ -209,7 +209,7 @@ public class UserFriendServiceImpl extends ServiceImpl<UserFriendMapper, UserFri
                 .and(wrapper -> wrapper.eq(UserFriend::getUserId, userId).eq(UserFriend::getFriendUserId, friendUserId)
                         .or()
                         .eq(UserFriend::getUserId, friendUserId).eq(UserFriend::getFriendUserId, userId)));
-        
+
         if (ok) {
             // Remove from Redis
             cacheUtils.sRemove(USER_FRIEND_CACHE_KEY + userId, String.valueOf(friendUserId));
@@ -236,7 +236,7 @@ public class UserFriendServiceImpl extends ServiceImpl<UserFriendMapper, UserFri
         if (cacheUtils.exists(key)) {
             return cacheUtils.sIsMember(key, String.valueOf(friendUserId));
         }
-        
+
         // Fallback to DB and load cache
         loadFriendCache(userId);
         return cacheUtils.sIsMember(key, String.valueOf(friendUserId));

@@ -13,7 +13,6 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
-import java.util.Set;
 
 /**
  * 聊天消息推送处理器
@@ -42,9 +41,9 @@ public class ChatMessagePushHandler implements RabbitMqHandler<WebSocketMessage>
     /**
      * 处理 MQ 消息回调
      *
-     * @param wsMessage      WebSocket 包装消息
-     * @param rabbitMessage  MQ 原始消息 (含元数据)
-     * @throws Exception     处理异常
+     * @param wsMessage     WebSocket 包装消息
+     * @param rabbitMessage MQ 原始消息 (含元数据)
+     * @throws Exception 处理异常
      */
     @Override
     public void onMessage(WebSocketMessage wsMessage, RabbitMessage rabbitMessage) throws Exception {

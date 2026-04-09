@@ -32,7 +32,6 @@
         </dependency>
 
 
-
         <!-- LangChain4j -->
         <dependency>
             <groupId>dev.langchain4j</groupId>

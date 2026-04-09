@@ -40,7 +40,7 @@ public class ChatFriendController {
     /**
      * 添加好友（双向关系，幂等）
      *
-     * @param request 好友用户 ID
+     * @param request        好友用户 ID
      * @param servletRequest HTTP 请求
      * @return 是否成功
      */

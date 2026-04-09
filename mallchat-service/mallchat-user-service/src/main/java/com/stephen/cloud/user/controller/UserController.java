@@ -4,10 +4,10 @@ import cn.dev33.satoken.annotation.SaCheckRole;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.stephen.cloud.api.user.model.dto.*;
 import com.stephen.cloud.api.user.model.vo.LoginUserVO;
-import com.stephen.cloud.common.exception.BusinessException;
 import com.stephen.cloud.api.user.model.vo.UserVO;
 import com.stephen.cloud.common.common.*;
 import com.stephen.cloud.common.constants.UserConstant;
+import com.stephen.cloud.common.exception.BusinessException;
 import com.stephen.cloud.common.log.annotation.OperationLog;
 import com.stephen.cloud.user.convert.UserConvert;
 import com.stephen.cloud.user.model.entity.User;
@@ -133,7 +133,7 @@ public class UserController {
     @Operation(summary = "创建用户", description = "管理员手动创建新用户")
     @OperationLog(module = "用户管理", action = "创建用户")
     public BaseResponse<Long> addUser(@RequestBody UserAddRequest userAddRequest,
-            HttpServletRequest request) {
+                                      HttpServletRequest request) {
         // 请求参数非空校验
         if (userAddRequest == null) {
             throw new BusinessException(ErrorCode.PARAMS_ERROR);
@@ -163,7 +163,7 @@ public class UserController {
     @OperationLog(module = "用户管理", action = "删除用户")
     @SaCheckRole(UserConstant.ADMIN_ROLE)
     public BaseResponse<Boolean> deleteUser(@RequestBody DeleteRequest deleteRequest,
-            HttpServletRequest request) {
+                                            HttpServletRequest request) {
         // 参数校验：ID 必须大于 0
         if (deleteRequest == null || deleteRequest.getId() <= 0) {
             throw new BusinessException(ErrorCode.PARAMS_ERROR);
@@ -201,7 +201,7 @@ public class UserController {
     @OperationLog(module = "用户管理", action = "更新用户")
     @SaCheckRole(UserConstant.ADMIN_ROLE)
     public BaseResponse<Boolean> updateUser(@RequestBody UserUpdateRequest userUpdateRequest,
-            HttpServletRequest request) {
+                                            HttpServletRequest request) {
         // 基本参数校验
         if (userUpdateRequest == null || userUpdateRequest.getId() == null || userUpdateRequest.getId() <= 0) {
             throw new BusinessException(ErrorCode.PARAMS_ERROR);
@@ -281,7 +281,7 @@ public class UserController {
     /**
      * 批量根据 id 获取用户包装类（Feign 调用）
      *
-     * @param ids     用户id列表
+     * @param ids 用户id列表
      * @return 查询得到的用户包装类列表
      */
     @GetMapping("/get/vo/batch")
@@ -308,7 +308,7 @@ public class UserController {
     @SaCheckRole(UserConstant.ADMIN_ROLE)
     @Operation(summary = "分页获取用户列表", description = "管理员分页查询原始用户信息")
     public BaseResponse<Page<User>> listUserByPage(@RequestBody UserQueryRequest userQueryRequest,
-            HttpServletRequest request) {
+                                                   HttpServletRequest request) {
         // 获取当前页码和每页大小
         long current = userQueryRequest.getCurrent();
         long size = userQueryRequest.getPageSize();
@@ -328,7 +328,7 @@ public class UserController {
     @PostMapping("/list/page/vo")
     @Operation(summary = "分页获取用户封装列表", description = "分页获取脱敏后的用户信息列表")
     public BaseResponse<Page<UserVO>> listUserVOByPage(@RequestBody UserQueryRequest userQueryRequest,
-            HttpServletRequest request) {
+                                                       HttpServletRequest request) {
         if (userQueryRequest == null) {
             throw new BusinessException(ErrorCode.PARAMS_ERROR);
         }
@@ -356,7 +356,7 @@ public class UserController {
     @Operation(summary = "编辑个人信息", description = "当前登录用户编辑自己的个人资料")
     @OperationLog(module = "用户管理", action = "编辑个人信息")
     public BaseResponse<Boolean> editUser(@RequestBody UserEditRequest userEditRequest,
-            HttpServletRequest request) {
+                                          HttpServletRequest request) {
         if (userEditRequest == null) {
             throw new BusinessException(ErrorCode.PARAMS_ERROR);
         }

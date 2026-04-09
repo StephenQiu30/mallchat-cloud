@@ -6,8 +6,8 @@
 
 目前全系统共用一个数据库：`mallchat`。
 
-| 数据库名 | 核心表 |
-| :--- | :--- |
+| 数据库名       | 核心表                                                                                                                                 |
+|:-----------|:------------------------------------------------------------------------------------------------------------------------------------|
 | `mallchat` | `user`, `notification`, `ai_chat_record`, `api_access_log`, `operation_log`, `user_login_log`, `email_record`, `file_upload_record` |
 
 ## 🛠️ 初始化步骤
@@ -21,6 +21,7 @@ mysql -u root -p < mallchat.sql
 ```
 
 该脚本会自动执行以下操作：
+
 1. 如果不存在则创建 `mallchat` 数据库。
 2. 切换到 `mallchat` 数据库。
 3. 按顺序创建所有必要的业务表。

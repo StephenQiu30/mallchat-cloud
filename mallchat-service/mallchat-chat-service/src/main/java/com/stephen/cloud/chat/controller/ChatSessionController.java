@@ -3,11 +3,7 @@ package com.stephen.cloud.chat.controller;
 import com.stephen.cloud.api.chat.model.vo.ChatSessionVO;
 import com.stephen.cloud.chat.service.ChatSessionService;
 import com.stephen.cloud.common.auth.utils.SecurityUtils;
-import com.stephen.cloud.common.common.BaseResponse;
-import com.stephen.cloud.common.common.DeleteRequest;
-import com.stephen.cloud.common.common.ErrorCode;
-import com.stephen.cloud.common.common.ResultUtils;
-import com.stephen.cloud.common.common.ThrowUtils;
+import com.stephen.cloud.common.common.*;
 import com.stephen.cloud.common.log.annotation.OperationLog;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -58,7 +54,7 @@ public class ChatSessionController {
     @OperationLog(module = "会话管理", action = "置顶会话")
     @Operation(summary = "置顶会话", description = "修改会话置顶状态")
     public BaseResponse<Boolean> topSession(@Parameter(description = "房间ID", required = true) @RequestParam Long roomId,
-                                         @Parameter(description = "置顶状态：0-取消置顶, 1-置顶", required = true) @RequestParam Integer status) {
+                                            @Parameter(description = "置顶状态：0-取消置顶, 1-置顶", required = true) @RequestParam Integer status) {
         // 参数非空校验
         ThrowUtils.throwIf(roomId == null || status == null, ErrorCode.PARAMS_ERROR);
         // 获取当前用户 ID

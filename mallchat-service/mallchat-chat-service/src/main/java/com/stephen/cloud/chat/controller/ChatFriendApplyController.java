@@ -21,7 +21,10 @@ import jakarta.annotation.Resource;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.validation.annotation.Validated;
-import org.springframework.web.bind.annotation.*;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
 
 /**
  * 聊天好友申请接口
@@ -43,7 +46,7 @@ public class ChatFriendApplyController {
     /**
      * 申请添加好友
      *
-     * @param request 申请请求
+     * @param request        申请请求
      * @param servletRequest HTTP 请求
      * @return 申请ID
      */
@@ -51,7 +54,7 @@ public class ChatFriendApplyController {
     @OperationLog(module = "好友申请管理", action = "申请好友")
     @Operation(summary = "申请好友", description = "向目标用户发起好友添加申请")
     public BaseResponse<Long> applyFriend(@Validated @RequestBody ChatFriendApplyRequest request,
-                                           HttpServletRequest servletRequest) {
+                                          HttpServletRequest servletRequest) {
         // 参数非空校验 (目标用户 ID)
         ThrowUtils.throwIf(request == null || request.getTargetId() == null, ErrorCode.PARAMS_ERROR);
         // 获取当前登录用户 ID
@@ -66,7 +69,7 @@ public class ChatFriendApplyController {
     /**
      * 审核好友申请
      *
-     * @param request 审核请求
+     * @param request        审核请求
      * @param servletRequest HTTP 请求
      * @return 是否成功
      */
@@ -87,8 +90,8 @@ public class ChatFriendApplyController {
     /**
      * 获取好友申请列表 (分页)
      *
-     * @param current 页码
-     * @param size    每页大小
+     * @param current        页码
+     * @param size           每页大小
      * @param servletRequest HTTP 请求
      * @return 申请列表
      */

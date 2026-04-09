@@ -1,7 +1,13 @@
 package com.stephen.cloud.log.convert;
 
-import com.stephen.cloud.api.log.model.vo.*;
-import com.stephen.cloud.log.model.entity.*;
+import com.stephen.cloud.api.log.model.vo.ApiAccessLogVO;
+import com.stephen.cloud.api.log.model.vo.FileUploadRecordVO;
+import com.stephen.cloud.api.log.model.vo.OperationLogVO;
+import com.stephen.cloud.api.log.model.vo.UserLoginLogVO;
+import com.stephen.cloud.log.model.entity.ApiAccessLog;
+import com.stephen.cloud.log.model.entity.FileUploadRecord;
+import com.stephen.cloud.log.model.entity.OperationLog;
+import com.stephen.cloud.log.model.entity.UserLoginLog;
 import org.springframework.beans.BeanUtils;
 
 /**

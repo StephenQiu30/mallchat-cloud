@@ -29,8 +29,6 @@ public class NotificationMqConsumer {
     private RabbitMqConsumerDispatcher mqConsumerDispatcher;
 
 
-
-
     /**
      * 监听关注事件队列，自动创建关注通知
      *

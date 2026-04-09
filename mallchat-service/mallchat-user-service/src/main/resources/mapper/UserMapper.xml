@@ -24,7 +24,8 @@
     </resultMap>
 
     <sql id="Base_Column_List">
-        id, user_name, user_avatar, user_profile, user_role, user_phone, user_email, 
+        id
+        , user_name, user_avatar, user_profile, user_role, user_phone, user_email,
         ma_open_id, wx_union_id, wx_open_id, apple_id, 
         last_login_time, last_login_ip, create_time, update_time, is_delete
     </sql>

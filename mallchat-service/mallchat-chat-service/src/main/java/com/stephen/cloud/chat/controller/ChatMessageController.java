@@ -38,7 +38,7 @@ public class ChatMessageController {
      * 发送聊天记录
      *
      * @param chatMessageSendRequest 发送消息请求
-     * @param request HTTP 请求
+     * @param request                HTTP 请求
      * @return 消息 ID
      */
     @PostMapping("/send")
@@ -59,7 +59,7 @@ public class ChatMessageController {
     /**
      * 标记消息已读
      *
-     * @param request 房间与已读游标
+     * @param request        房间与已读游标
      * @param servletRequest HTTP 请求
      * @return 是否更新成功
      */

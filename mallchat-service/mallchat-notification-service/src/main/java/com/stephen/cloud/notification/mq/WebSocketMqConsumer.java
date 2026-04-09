@@ -7,14 +7,17 @@ import com.stephen.cloud.common.rabbitmq.model.RabbitMessage;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.amqp.core.Message;
-import org.springframework.amqp.rabbit.annotation.*;
+import org.springframework.amqp.rabbit.annotation.Exchange;
+import org.springframework.amqp.rabbit.annotation.Queue;
+import org.springframework.amqp.rabbit.annotation.QueueBinding;
+import org.springframework.amqp.rabbit.annotation.RabbitListener;
 import org.springframework.stereotype.Component;
 
 import java.io.IOException;
 
 /**
  * WebSocket 消息队列消费者
- * 监听所有与 Web 实时通信相关的 MQ 消息，并通过 {@link RabbitMqConsumerDispatcher} 
+ * 监听所有与 Web 实时通信相关的 MQ 消息，并通过 {@link RabbitMqConsumerDispatcher}
  * 执行单播 (SINGLE)、广播 (BROADCAST) 或房间级推送 (ROOM)。
  *
  * @author StephenQiu30

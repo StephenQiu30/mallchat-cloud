@@ -23,7 +23,7 @@ import java.util.List;
  */
 @Service
 public class ChatGroupInfoServiceImpl extends ServiceImpl<ChatGroupInfoMapper, ChatGroupInfo>
-    implements ChatGroupInfoService {
+        implements ChatGroupInfoService {
 
     /**
      * 校验群组详情

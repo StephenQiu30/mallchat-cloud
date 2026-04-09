@@ -40,7 +40,7 @@ public class ChatSessionListener {
         Long userId = event.getUserId();
         Long roomId = chatMessage.getRoomId();
 
-        log.info("[ChatSessionListener] 收到消息发送事件, userId: {}, roomId: {}, messageId: {}", 
+        log.info("[ChatSessionListener] 收到消息发送事件, userId: {}, roomId: {}, messageId: {}",
                 userId, roomId, chatMessage.getId());
 
         // 1. 获取房间所有成员

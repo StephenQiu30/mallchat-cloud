@@ -21,13 +21,16 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.*;
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 @Service
 @Slf4j
 public class ChatRoomMemberServiceImpl extends ServiceImpl<ChatRoomMemberMapper, ChatRoomMember>
-    implements ChatRoomMemberService {
+        implements ChatRoomMemberService {
 
     @Resource
     private CacheUtils cacheUtils;
@@ -163,7 +166,7 @@ public class ChatRoomMemberServiceImpl extends ServiceImpl<ChatRoomMemberMapper,
     @Transactional(rollbackFor = Exception.class)
     public void leaveRoom(Long roomId, Long userId) {
         if (roomId == null || userId == null) return;
-        
+
         // 1. 从数据库删除
         this.remove(new LambdaQueryWrapper<ChatRoomMember>()
                 .eq(ChatRoomMember::getRoomId, roomId)

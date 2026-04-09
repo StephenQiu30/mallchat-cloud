@@ -38,48 +38,51 @@ graph TD
 
 ### 服务模块说明
 
-| 模块名称                           | 功能描述                    | 端口   |
-|:-------------------------------|:------------------------|:-----|
+| 模块名称                            | 功能描述                    | 端口   |
+|:--------------------------------|:------------------------|:-----|
 | `mallchat-gateway`              | API 网关：路由转发、鉴权、限流       | 8080 |
 | `mallchat-user-service`         | 用户服务：账号、权限、多端登录         | 8081 |
 | `mallchat-notification-service` | 通知服务：系统消息、实时推送          | 8083 |
-| `mallchat-file-service`         | 文件服务：对象存储 (COS)       | 8085 |
+| `mallchat-file-service`         | 文件服务：对象存储 (COS)         | 8085 |
 | `mallchat-log-service`          | 日志服务：全链路日志采集与存储         | 8086 |
 | `mallchat-mail-service`         | 邮件服务：验证码、告警发送           | 8087 |
 | `mallchat-ai-service`           | AI 服务：LangChain4j 大模型集成 | 8089 |
 
 ## 🎯 技术栈
 
-| 领域        | 核心技术                 | 版本           |
-|:----------|:---------------------|:-------------|
-| Java 运行环境 | JDK                  | 21           |
-| AI 框架      | LangChain4j          | 0.36.2       |
-| 核心框架      | Spring Boot          | 3.5.9        |
-| 微服务治理     | Spring Cloud Alibaba | 2023.0.3.2   |
-| 服务网关      | Spring Cloud Gateway | 5.0.1        |
-| 数据库       | MySQL                | 8.4.0        |
-| 持久层框架     | MyBatis-Plus         | 3.5.12       |
-| 缓存/分布式锁   | Redis & Redisson     | 7.0 / 3.48.0 |
-| 消息队列      | RabbitMQ             | 3.12         |
-| 通讯框架      | Netty                | 4.2.5.Final  |
-| 认证鉴权      | Sa-Token             | 1.44.0       |
-| 监控配置: Actuator | Spring Boot Actuator | 3.5.9 |
+| 领域             | 核心技术                 | 版本           |
+|:---------------|:---------------------|:-------------|
+| Java 运行环境      | JDK                  | 21           |
+| AI 框架          | LangChain4j          | 0.36.2       |
+| 核心框架           | Spring Boot          | 3.5.9        |
+| 微服务治理          | Spring Cloud Alibaba | 2023.0.3.2   |
+| 服务网关           | Spring Cloud Gateway | 5.0.1        |
+| 数据库            | MySQL                | 8.4.0        |
+| 持久层框架          | MyBatis-Plus         | 3.5.12       |
+| 缓存/分布式锁        | Redis & Redisson     | 7.0 / 3.48.0 |
+| 消息队列           | RabbitMQ             | 3.12         |
+| 通讯框架           | Netty                | 4.2.5.Final  |
+| 认证鉴权           | Sa-Token             | 1.44.0       |
+| 监控配置: Actuator | Spring Boot Actuator | 3.5.9        |
 
 ## 📮 消息队列 use 指南
 
 项目通过 `mallchat-common-rabbitmq` 模块对 RabbitMQ 进行了封装，实现了**生产端统一发送**与**消费端自动化分发**。
 
 ### 1. 生产者 (Producer)
+
 注入 `RabbitMqSender` 即可发送消息。
+
 - **普通发送**：`mqSender.send(bizType, data)`
 - **事务发送**：`mqSender.sendTransactional(bizType, data)`（当前实现为兼容历史 API，语义已降级为立即发送）。
 
 ### 2. 消费者 (Consumer)
+
 1. **定义 Handler**：实现 `RabbitMqHandler<T>` 接口并注入为 Bean，标记 `@RabbitMqDedupeLock` 进行分布式去重。
-2. **统一调度**：在具体的 `@RabbitListener` 中调用 `mqConsumerDispatcher.dispatch(rabbitMessage, channel, msg)`，系统将根据 `bizType` 自动匹配 Handler 及其对应的 DTO 类型。
+2. **统一调度**：在具体的 `@RabbitListener` 中调用 `mqConsumerDispatcher.dispatch(rabbitMessage, channel, msg)`，系统将根据
+   `bizType` 自动匹配 Handler 及其对应的 DTO 类型。
 
 > 更多细节请参考 [RabbitMQ 模块文档](mallchat-common/mallchat-common-rabbitmq/README.md)。
-
 
 ## 🚀 快速启动
 

@@ -237,7 +237,7 @@
 
             <!-- Tencent COS -->
 
-            <!-- 微信 --> 
+            <!-- 微信 -->
 
             <dependency>
                 <groupId>com.github.binarywang</groupId>
@@ -455,7 +455,6 @@
                 <artifactId>mallchat-file-service</artifactId>
                 <version>${mallchat-cloud.version}</version>
             </dependency>
-
 
 
             <dependency>

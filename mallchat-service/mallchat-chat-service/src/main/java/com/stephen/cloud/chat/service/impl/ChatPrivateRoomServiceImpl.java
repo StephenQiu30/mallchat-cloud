@@ -13,5 +13,5 @@ import org.springframework.stereotype.Service;
  */
 @Service
 public class ChatPrivateRoomServiceImpl extends ServiceImpl<ChatPrivateRoomMapper, ChatPrivateRoom>
-    implements ChatPrivateRoomService {
+        implements ChatPrivateRoomService {
 }

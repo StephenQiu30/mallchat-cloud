@@ -4,11 +4,8 @@ import cn.hutool.core.io.FileUtil;
 import com.qcloud.cos.COSClient;
 import com.qcloud.cos.model.ObjectMetadata;
 import com.qcloud.cos.model.PutObjectRequest;
-import com.qcloud.cos.model.PutObjectResult;
 import com.stephen.cloud.api.file.model.enums.FileUploadBizEnum;
 import com.stephen.cloud.api.file.model.vo.FileVO;
-import com.stephen.cloud.common.common.ErrorCode;
-import com.stephen.cloud.common.common.ThrowUtils;
 import com.stephen.cloud.file.config.FileStorageConfiguration;
 import com.stephen.cloud.file.service.FileService;
 import jakarta.annotation.Resource;
@@ -48,7 +45,7 @@ public class CosFileServiceImpl implements FileService {
             PutObjectRequest putObjectRequest = new PutObjectRequest(fileStorageConfiguration.getBucket(), key, inputStream, objectMetadata);
             cosClient.putObject(putObjectRequest);
 
-            String url = String.format("https://%s.cos.%s.myqcloud.com/%s", 
+            String url = String.format("https://%s.cos.%s.myqcloud.com/%s",
                     fileStorageConfiguration.getBucket(), fileStorageConfiguration.getRegion(), key);
 
             return FileVO.builder()

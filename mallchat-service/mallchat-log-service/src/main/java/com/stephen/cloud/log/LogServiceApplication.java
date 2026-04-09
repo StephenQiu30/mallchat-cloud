@@ -10,7 +10,7 @@ import org.springframework.cloud.client.discovery.EnableDiscoveryClient;
  *
  * @author StephenQiu30
  */
-@SpringBootApplication(scanBasePackages = { "com.stephen.cloud.log", "com.stephen.cloud.common" })
+@SpringBootApplication(scanBasePackages = {"com.stephen.cloud.log", "com.stephen.cloud.common"})
 @MapperScan("com.stephen.cloud.log.mapper")
 @EnableDiscoveryClient
 public class LogServiceApplication {

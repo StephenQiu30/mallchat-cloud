@@ -1,8 +1,15 @@
 package com.stephen.cloud.user.service.impl;
 
+import cn.binarywang.wx.miniapp.api.WxMaService;
+import cn.binarywang.wx.miniapp.bean.WxMaJscode2SessionResult;
 import cn.dev33.satoken.stp.StpUtil;
 import cn.hutool.core.collection.CollUtil;
+import cn.hutool.core.util.RandomUtil;
+import cn.hutool.http.HttpUtil;
 import cn.hutool.json.JSONObject;
+import cn.hutool.json.JSONUtil;
+import cn.hutool.jwt.JWT;
+import cn.hutool.jwt.JWTUtil;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
@@ -10,10 +17,12 @@ import com.stephen.cloud.api.log.client.LogFeignClient;
 import com.stephen.cloud.api.log.model.dto.login.UserLoginLogAddRequest;
 import com.stephen.cloud.api.log.model.enums.LoginStatusEnum;
 import com.stephen.cloud.api.log.model.enums.LoginTypeEnum;
+import com.stephen.cloud.api.user.model.dto.UserAppleLoginRequest;
 import com.stephen.cloud.api.user.model.dto.UserQueryRequest;
 import com.stephen.cloud.api.user.model.enums.UserRoleEnum;
 import com.stephen.cloud.api.user.model.vo.LoginUserVO;
 import com.stephen.cloud.api.user.model.vo.UserVO;
+import com.stephen.cloud.common.auth.utils.SecurityUtils;
 import com.stephen.cloud.common.cache.model.TimeModel;
 import com.stephen.cloud.common.cache.utils.CacheUtils;
 import com.stephen.cloud.common.cache.utils.lock.LockUtils;
@@ -23,9 +32,9 @@ import com.stephen.cloud.common.constants.CommonConstant;
 import com.stephen.cloud.common.constants.UserConstant;
 import com.stephen.cloud.common.exception.BusinessException;
 import com.stephen.cloud.common.mysql.utils.SqlUtils;
-import com.stephen.cloud.common.auth.utils.SecurityUtils;
 import com.stephen.cloud.common.utils.IpUtils;
 import com.stephen.cloud.common.utils.RegexUtils;
+import com.stephen.cloud.user.config.AppleProperties;
 import com.stephen.cloud.user.config.WxAppProperties;
 import com.stephen.cloud.user.convert.UserConvert;
 import com.stephen.cloud.user.mapper.UserMapper;
@@ -35,15 +44,6 @@ import com.stephen.cloud.user.service.UserService;
 import jakarta.annotation.Resource;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
-import cn.binarywang.wx.miniapp.api.WxMaService;
-import cn.binarywang.wx.miniapp.bean.WxMaJscode2SessionResult;
-import com.stephen.cloud.user.config.AppleProperties;
-import com.stephen.cloud.api.user.model.dto.UserAppleLoginRequest;
-import cn.hutool.jwt.JWT;
-import cn.hutool.jwt.JWTUtil;
-import cn.hutool.http.HttpUtil;
-import cn.hutool.json.JSONUtil;
-import cn.hutool.http.HttpUtil;
 import org.apache.commons.lang3.ObjectUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.beans.BeanUtils;
@@ -52,8 +52,6 @@ import org.springframework.mail.SimpleMailMessage;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
-
-import cn.hutool.core.util.RandomUtil;
 
 import java.util.ArrayList;
 import java.util.Date;
@@ -79,7 +77,6 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User>
 
     @Resource
     private LogFeignClient logFeignClient;
-
 
     @Resource
     private LockUtils lockUtils;
@@ -315,8 +312,6 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User>
         return queryWrapper;
     }
 
-
-
     /**
      * 异步记录登录日志
      *
@@ -347,9 +342,6 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User>
             log.error("记录登录日志失败", e);
         }
     }
-
-
-
 
     @Override
     public void sendEmailCode(String email) {
@@ -496,7 +488,8 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User>
         }
         try {
             // 通过 HttpUtil 调用微信 OAuth2 接口
-            String url = String.format("https://api.weixin.qq.com/sns/oauth2/access_token?appid=%s&secret=%s&code=%s&grant_type=authorization_code",
+            String url = String.format(
+                    "https://api.weixin.qq.com/sns/oauth2/access_token?appid=%s&secret=%s&code=%s&grant_type=authorization_code",
                     wxAppProperties.getAppId(), wxAppProperties.getAppSecret(), code);
             String response = HttpUtil.get(url);
             JSONObject jsonObject = JSONUtil.parseObj(response);

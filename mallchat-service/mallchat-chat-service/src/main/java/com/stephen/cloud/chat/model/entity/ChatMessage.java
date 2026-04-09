@@ -45,7 +45,7 @@ public class ChatMessage implements Serializable {
      * 消息类型：1-文本，2-图片，3-文件
      */
     private Integer type;
-    
+
     /**
      * 回复的消息ID
      */

@@ -6,9 +6,9 @@ import com.stephen.cloud.ai.model.entity.AiChatRecord;
 import com.stephen.cloud.ai.service.AiChatRecordService;
 import com.stephen.cloud.api.ai.model.dto.AiChatRecordQueryRequest;
 import com.stephen.cloud.api.ai.model.vo.AiChatRecordVO;
+import com.stephen.cloud.common.auth.utils.SecurityUtils;
 import com.stephen.cloud.common.common.*;
 import com.stephen.cloud.common.log.annotation.OperationLog;
-import com.stephen.cloud.common.auth.utils.SecurityUtils;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.annotation.Resource;
@@ -76,7 +76,7 @@ public class AiChatRecordController {
     @Operation(summary = "删除对话记录", description = "根据 ID 删除指定的对话记录，仅本人可删除")
     @OperationLog(module = "AI 管理", action = "删除 AI 对话记录")
     public BaseResponse<Boolean> deleteAiChatRecord(@RequestBody DeleteRequest deleteRequest,
-            HttpServletRequest request) {
+                                                    HttpServletRequest request) {
         log.info("删除 AI 对话记录请求: {}", deleteRequest);
         ThrowUtils.throwIf(deleteRequest == null || deleteRequest.getId() <= 0, ErrorCode.PARAMS_ERROR);
         long id = deleteRequest.getId();

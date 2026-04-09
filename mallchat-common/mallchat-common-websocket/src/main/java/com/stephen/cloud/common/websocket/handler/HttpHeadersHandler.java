@@ -27,7 +27,7 @@ public class HttpHeadersHandler extends ChannelInboundHandlerAdapter {
     public void channelRead(ChannelHandlerContext ctx, Object msg) throws Exception {
         if (msg instanceof FullHttpRequest) {
             FullHttpRequest request = (FullHttpRequest) msg;
-            
+
             // 1. 获取 Token (优先从 Header 获取，其次从 Query Param 获取)
             String token = request.headers().get("Authorization");
             if (StrUtil.isBlank(token)) {
@@ -44,7 +44,7 @@ public class HttpHeadersHandler extends ChannelInboundHandlerAdapter {
                     if (token.startsWith("Bearer ")) {
                         token = token.substring(7);
                     }
-                    
+
                     Object loginId = StpUtil.getLoginIdByToken(token);
                     if (loginId != null) {
                         String userId = String.valueOf(loginId);

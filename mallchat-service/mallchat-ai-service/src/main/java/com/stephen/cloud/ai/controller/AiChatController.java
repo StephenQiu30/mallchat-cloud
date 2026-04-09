@@ -5,6 +5,7 @@ import com.stephen.cloud.api.ai.model.dto.AiChatRequest;
 import com.stephen.cloud.api.ai.model.enums.AiModelTypeEnum;
 import com.stephen.cloud.api.ai.model.vo.AiChatResponse;
 import com.stephen.cloud.api.ai.model.vo.AiModelVO;
+import com.stephen.cloud.common.auth.utils.SecurityUtils;
 import com.stephen.cloud.common.cache.model.TimeModel;
 import com.stephen.cloud.common.cache.utils.ratelimit.RateLimitUtils;
 import com.stephen.cloud.common.common.BaseResponse;
@@ -12,7 +13,6 @@ import com.stephen.cloud.common.common.ErrorCode;
 import com.stephen.cloud.common.common.ResultUtils;
 import com.stephen.cloud.common.common.ThrowUtils;
 import com.stephen.cloud.common.log.annotation.OperationLog;
-import com.stephen.cloud.common.auth.utils.SecurityUtils;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.annotation.Resource;
@@ -58,11 +58,11 @@ public class AiChatController {
     public BaseResponse<AiChatResponse> doAiChat(@RequestBody AiChatRequest aiChatRequest, HttpServletRequest request) {
         log.info("AI 对话请求: {}", aiChatRequest);
         ThrowUtils.throwIf(aiChatRequest == null, ErrorCode.PARAMS_ERROR);
-        
+
         // 限流策略：基于用户 ID 维度的对话频率控制
         Long userId = SecurityUtils.getLoginUserId();
         rateLimitUtils.doRateLimit("ai:chat:" + userId, new TimeModel(1L, TimeUnit.MINUTES), 10L, 1L);
-        
+
         AiChatResponse response = aiChatService.chat(aiChatRequest, request);
         log.info("AI 对话响应完成: {}", response);
         return ResultUtils.success(response);
@@ -83,11 +83,11 @@ public class AiChatController {
     public SseEmitter doStreamAiChat(@RequestBody AiChatRequest aiChatRequest, HttpServletRequest request) {
         log.info("AI 对话流处理已启动");
         ThrowUtils.throwIf(aiChatRequest == null, ErrorCode.PARAMS_ERROR);
-        
+
         // 限流校验
         Long userId = SecurityUtils.getLoginUserId();
         rateLimitUtils.doRateLimit("ai:chat:" + userId, new TimeModel(1L, TimeUnit.MINUTES), 10L, 1L);
-        
+
         // 默认超市时间 1 分钟
         SseEmitter emitter = new SseEmitter(60000L);
         aiChatService.streamChat(aiChatRequest, emitter, request);

@@ -22,7 +22,6 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.*;
 import java.util.stream.Collectors;
-import java.util.Optional;
 
 /**
  * 会话服务实现
@@ -111,7 +110,7 @@ public class ChatSessionServiceImpl extends ServiceImpl<ChatSessionMapper, ChatS
                 .filter(r -> r.getType() == 2).map(ChatRoom::getId).toList();
         List<ChatPrivateRoom> privateRooms = privateRoomIds.isEmpty() ? Collections.emptyList() :
                 chatPrivateRoomService.list(new LambdaQueryWrapper<ChatPrivateRoom>().in(ChatPrivateRoom::getRoomId, privateRoomIds));
-        
+
         Map<Long, Long> roomToPeerIdMap = new HashMap<>();
         for (ChatPrivateRoom pr : privateRooms) {
             Long peerId = pr.getUserLow().equals(userId) ? pr.getUserHigh() : pr.getUserLow();
@@ -198,7 +197,7 @@ public class ChatSessionServiceImpl extends ServiceImpl<ChatSessionMapper, ChatS
     @Override
     public void updateSession(Long userId, Long roomId, Long lastMessageId, boolean incrementUnread) {
         if (userId == null || roomId == null) return;
-        log.info("[ChatSessionServiceImpl] 更新会话状态, userId: {}, roomId: {}, messageId: {}, incrementUnread: {}", 
+        log.info("[ChatSessionServiceImpl] 更新会话状态, userId: {}, roomId: {}, messageId: {}, incrementUnread: {}",
                 userId, roomId, lastMessageId, incrementUnread);
         ChatSession session = this.getOne(new LambdaQueryWrapper<ChatSession>()
                 .eq(ChatSession::getUserId, userId)

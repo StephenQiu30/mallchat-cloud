@@ -35,7 +35,7 @@ public interface ChatSessionService extends IService<ChatSession> {
      * 批量获取会话视图
      *
      * @param chatSessionList 会话实体列表
-     * @param request          HTTP 请求
+     * @param request         HTTP 请求
      * @return 会话视图列表
      */
     List<ChatSessionVO> getChatSessionVO(List<ChatSession> chatSessionList, HttpServletRequest request);
@@ -62,9 +62,9 @@ public interface ChatSessionService extends IService<ChatSession> {
     /**
      * 自动更新会话（用于消息发送时）
      *
-     * @param userId         谁的会话
-     * @param roomId         哪个会话
-     * @param lastMessageId  最后一条消息ID
+     * @param userId          谁的会话
+     * @param roomId          哪个会话
+     * @param lastMessageId   最后一条消息ID
      * @param incrementUnread 是否增加未读数
      */
     void updateSession(Long userId, Long roomId, Long lastMessageId, boolean incrementUnread);
@@ -72,10 +72,10 @@ public interface ChatSessionService extends IService<ChatSession> {
     /**
      * 批量自动更新会话（用于大群消息发送时，减少数据库连接开销）
      *
-     * @param userIds         用户列表
-     * @param roomId          哪个会话
-     * @param lastMessageId   最后一条消息ID
-     * @param senderId        发送者ID（发送者不增加未读数）
+     * @param userIds       用户列表
+     * @param roomId        哪个会话
+     * @param lastMessageId 最后一条消息ID
+     * @param senderId      发送者ID（发送者不增加未读数）
      */
     void updateSessionBatch(List<Long> userIds, Long roomId, Long lastMessageId, Long senderId);
 }

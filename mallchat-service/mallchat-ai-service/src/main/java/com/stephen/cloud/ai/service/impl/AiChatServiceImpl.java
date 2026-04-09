@@ -6,15 +6,14 @@ import com.stephen.cloud.ai.model.entity.AiChatRecord;
 import com.stephen.cloud.ai.service.AiAssistant;
 import com.stephen.cloud.ai.service.AiChatRecordService;
 import com.stephen.cloud.ai.service.AiChatService;
-import com.stephen.cloud.common.rabbitmq.enums.MqBizTypeEnum;
-import com.stephen.cloud.common.rabbitmq.producer.RabbitMqSender;
 import com.stephen.cloud.api.ai.model.dto.AiChatRecordDTO;
 import com.stephen.cloud.api.ai.model.dto.AiChatRequest;
 import com.stephen.cloud.api.ai.model.vo.AiChatResponse;
-import dev.langchain4j.service.Result;
+import com.stephen.cloud.common.auth.utils.SecurityUtils;
 import com.stephen.cloud.common.common.ErrorCode;
 import com.stephen.cloud.common.common.ThrowUtils;
-import com.stephen.cloud.common.auth.utils.SecurityUtils;
+import com.stephen.cloud.common.rabbitmq.enums.MqBizTypeEnum;
+import com.stephen.cloud.common.rabbitmq.producer.RabbitMqSender;
 import dev.langchain4j.data.message.AiMessage;
 import dev.langchain4j.data.message.UserMessage;
 import dev.langchain4j.memory.ChatMemory;
@@ -23,6 +22,7 @@ import dev.langchain4j.model.chat.ChatLanguageModel;
 import dev.langchain4j.model.chat.StreamingChatLanguageModel;
 import dev.langchain4j.model.output.TokenUsage;
 import dev.langchain4j.service.AiServices;
+import dev.langchain4j.service.Result;
 import jakarta.annotation.Resource;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
@@ -187,7 +187,7 @@ public class AiChatServiceImpl implements AiChatService {
                     .promptTokens(usage != null ? usage.inputTokenCount() : null)
                     .completionTokens(usage != null ? usage.outputTokenCount() : null)
                     .build();
-            
+
             String bizId = "ai_chat:" + System.currentTimeMillis();
             mqSender.send(MqBizTypeEnum.AI_CHAT_RECORD, bizId, recordDTO);
         } catch (Exception e) {

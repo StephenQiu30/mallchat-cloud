@@ -105,7 +105,6 @@ public interface RabbitMqConstant {
     String FOLLOW_EVENT_ROUTING_KEY = "mallchat.event.follow.create";
 
 
-
     // ==================== AI 相关 ====================
 
     /**

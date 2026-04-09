@@ -136,9 +136,9 @@ public class GlobalLogFilter implements GlobalFilter, Ordered {
      * 异步上报 API 访问日志到日志服务（fire-and-forget，不阻塞主链路）
      */
     private void submitAccessLog(String traceId, String path, String method,
-            String query, int status, int latencyMs,
-            String clientIp, String userAgent, String referer,
-            Long loginUserId) {
+                                 String query, int status, int latencyMs,
+                                 String clientIp, String userAgent, String referer,
+                                 Long loginUserId) {
         try {
             ApiAccessLogAddRequest request = new ApiAccessLogAddRequest();
             request.setTraceId(traceId);

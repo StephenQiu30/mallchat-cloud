@@ -25,7 +25,7 @@ CREATE TABLE `user`
     `ma_open_id`      varchar(256)          DEFAULT NULL COMMENT '微信小程序 OpenID',
     `wx_union_id`     varchar(256)          DEFAULT NULL COMMENT '微信 UnionID',
     `wx_open_id`      varchar(256)          DEFAULT NULL COMMENT '微信开放平台 OpenID',
-    `apple_id`       varchar(256)          DEFAULT NULL COMMENT 'Apple ID',
+    `apple_id`        varchar(256)          DEFAULT NULL COMMENT 'Apple ID',
     `last_login_time` datetime              DEFAULT NULL COMMENT '最后登录时间',
     `last_login_ip`   varchar(128)          DEFAULT NULL COMMENT '最后登录IP',
     `create_time`     datetime     NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
@@ -236,12 +236,12 @@ DROP TABLE IF EXISTS `user_friend`;
 
 CREATE TABLE `user_friend`
 (
-    `id`              bigint   NOT NULL AUTO_INCREMENT COMMENT '主键',
-    `user_id`         bigint   NOT NULL COMMENT '用户ID',
-    `friend_user_id`  bigint   NOT NULL COMMENT '好友用户ID',
-    `create_time`     datetime NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
-    `update_time`     datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
-    `is_delete`       tinyint  NOT NULL DEFAULT 0 COMMENT '是否删除',
+    `id`             bigint   NOT NULL AUTO_INCREMENT COMMENT '主键',
+    `user_id`        bigint   NOT NULL COMMENT '用户ID',
+    `friend_user_id` bigint   NOT NULL COMMENT '好友用户ID',
+    `create_time`    datetime NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    `update_time`    datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+    `is_delete`      tinyint  NOT NULL DEFAULT 0 COMMENT '是否删除',
     PRIMARY KEY (`id`),
     UNIQUE KEY `uk_user_friend` (`user_id`, `friend_user_id`),
     KEY `idx_user_id` (`user_id`),
@@ -328,14 +328,14 @@ CREATE TABLE `chat_private_room`
 DROP TABLE IF EXISTS `user_friend_apply`;
 CREATE TABLE `user_friend_apply`
 (
-    `id`            bigint       NOT NULL AUTO_INCREMENT COMMENT '申请ID',
-    `user_id`       bigint       NOT NULL COMMENT '发起用户ID',
-    `target_id`     bigint       NOT NULL COMMENT '目标用户ID',
-    `msg`           varchar(256) NOT NULL COMMENT '申请消息',
-    `status`        tinyint      NOT NULL DEFAULT 1 COMMENT '状态：1-待处理，2-已同意，3-已忽略',
-    `create_time`   datetime     NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '申请时间',
-    `update_time`   datetime     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
-    `is_delete`     tinyint      NOT NULL DEFAULT 0 COMMENT '是否删除',
+    `id`          bigint       NOT NULL AUTO_INCREMENT COMMENT '申请ID',
+    `user_id`     bigint       NOT NULL COMMENT '发起用户ID',
+    `target_id`   bigint       NOT NULL COMMENT '目标用户ID',
+    `msg`         varchar(256) NOT NULL COMMENT '申请消息',
+    `status`      tinyint      NOT NULL DEFAULT 1 COMMENT '状态：1-待处理，2-已同意，3-已忽略',
+    `create_time` datetime     NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '申请时间',
+    `update_time` datetime     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+    `is_delete`   tinyint      NOT NULL DEFAULT 0 COMMENT '是否删除',
     PRIMARY KEY (`id`),
     KEY `idx_user_id` (`user_id`),
     KEY `idx_target_id` (`target_id`)
@@ -369,15 +369,15 @@ CREATE TABLE `chat_session`
 DROP TABLE IF EXISTS `chat_group_info`;
 CREATE TABLE `chat_group_info`
 (
-    `id`            bigint       NOT NULL AUTO_INCREMENT COMMENT '主键',
-    `room_id`       bigint       NOT NULL COMMENT '房间ID',
-    `group_name`    varchar(128) NOT NULL COMMENT '群聊名称',
-    `group_avatar`  varchar(512)          DEFAULT NULL COMMENT '群聊头像',
-    `announcement`  text                  DEFAULT NULL COMMENT '群公告',
-    `create_user`   bigint       NOT NULL COMMENT '创建者用户ID',
-    `create_time`   datetime     NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
-    `update_time`   datetime     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
-    `is_delete`     tinyint      NOT NULL DEFAULT 0 COMMENT '是否删除',
+    `id`           bigint       NOT NULL AUTO_INCREMENT COMMENT '主键',
+    `room_id`      bigint       NOT NULL COMMENT '房间ID',
+    `group_name`   varchar(128) NOT NULL COMMENT '群聊名称',
+    `group_avatar` varchar(512)          DEFAULT NULL COMMENT '群聊头像',
+    `announcement` text                  DEFAULT NULL COMMENT '群公告',
+    `create_user`  bigint       NOT NULL COMMENT '创建者用户ID',
+    `create_time`  datetime     NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    `update_time`  datetime     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+    `is_delete`    tinyint      NOT NULL DEFAULT 0 COMMENT '是否删除',
     PRIMARY KEY (`id`),
     UNIQUE KEY `uk_room_id` (`room_id`)
 ) ENGINE = InnoDB

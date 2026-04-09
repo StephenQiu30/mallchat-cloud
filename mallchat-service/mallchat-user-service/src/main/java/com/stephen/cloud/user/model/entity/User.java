@@ -71,7 +71,7 @@ public class User implements Serializable {
     @Schema(description = "用户邮箱")
     private String userEmail;
 
-    
+
     /**
      * 微信小程序 OpenID
      */

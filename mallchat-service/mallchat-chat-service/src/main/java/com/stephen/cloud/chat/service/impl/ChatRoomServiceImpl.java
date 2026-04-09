@@ -1,6 +1,5 @@
 package com.stephen.cloud.chat.service.impl;
 
-import cn.hutool.core.collection.CollUtil;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
@@ -10,11 +9,7 @@ import com.stephen.cloud.chat.mapper.ChatRoomMapper;
 import com.stephen.cloud.chat.model.entity.ChatPrivateRoom;
 import com.stephen.cloud.chat.model.entity.ChatRoom;
 import com.stephen.cloud.chat.model.entity.ChatRoomMember;
-import com.stephen.cloud.chat.service.ChatPrivateRoomService;
-import com.stephen.cloud.chat.service.ChatRoomMemberService;
-import com.stephen.cloud.chat.service.ChatRoomService;
-import com.stephen.cloud.chat.service.ChatSessionService;
-import com.stephen.cloud.chat.service.UserFriendService;
+import com.stephen.cloud.chat.service.*;
 import com.stephen.cloud.common.auth.utils.SecurityUtils;
 import com.stephen.cloud.common.common.ErrorCode;
 import com.stephen.cloud.common.common.ThrowUtils;
@@ -27,7 +22,6 @@ import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 import java.util.stream.Collectors;
@@ -43,7 +37,7 @@ import java.util.stream.Collectors;
 @Service
 @Slf4j
 public class ChatRoomServiceImpl extends ServiceImpl<ChatRoomMapper, ChatRoom>
-    implements ChatRoomService {
+        implements ChatRoomService {
 
     @Resource
     private ChatRoomMemberService chatRoomMemberService;
@@ -167,7 +161,7 @@ public class ChatRoomServiceImpl extends ServiceImpl<ChatRoomMapper, ChatRoom>
         log.info("获取或创建私聊房间: userId={}, peerUserId={}", userId, peerUserId);
         ThrowUtils.throwIf(peerUserId == null || userId == null, ErrorCode.PARAMS_ERROR);
         ThrowUtils.throwIf(Objects.equals(peerUserId, userId), ErrorCode.PARAMS_ERROR, "不能与自己私聊");
-        
+
         // 1. 业务校验：双向好友关系检查
         ThrowUtils.throwIf(!userFriendService.isMutualFriend(userId, peerUserId), ErrorCode.NO_AUTH_ERROR,
                 "非好友无法发起私聊");
