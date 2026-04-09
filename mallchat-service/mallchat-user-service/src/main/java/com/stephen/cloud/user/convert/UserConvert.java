@@ -74,7 +74,6 @@ public class UserConvert {
         }
         User user = new User();
         BeanUtils.copyProperties(userAddRequest, user);
-        user.setUserEmail(userAddRequest.getUserEmail());
         return user;
     }
 
@@ -90,7 +89,6 @@ public class UserConvert {
         }
         User user = new User();
         BeanUtils.copyProperties(userUpdateRequest, user);
-        user.setUserEmail(userUpdateRequest.getUserEmail());
         return user;
     }
 
@@ -106,7 +104,6 @@ public class UserConvert {
         }
         User user = new User();
         BeanUtils.copyProperties(userEditRequest, user);
-        user.setUserEmail(userEditRequest.getUserEmail());
         return user;
     }
 }

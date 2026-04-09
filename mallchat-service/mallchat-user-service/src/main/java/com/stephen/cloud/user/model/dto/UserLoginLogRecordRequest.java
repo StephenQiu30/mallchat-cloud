@@ -34,9 +34,9 @@ public class UserLoginLogRecordRequest implements Serializable {
     private LoginTypeEnum loginType;
 
     /**
-     * 账号（GitHub用户名、邮箱、微信OpenID等）
+     * 账号 (邮箱、微信 OpenID、Apple ID 等)
      */
-    @Schema(description = "账号")
+    @Schema(description = "账号 (邮箱、微信 OpenID、Apple ID 等)")
     private String account;
 
     /**

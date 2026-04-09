@@ -22,9 +22,10 @@ CREATE TABLE `user`
     `user_role`       varchar(256) NOT NULL DEFAULT 'user' COMMENT '用户角色：user/admin/ban',
     `user_phone`      varchar(128)          DEFAULT NULL COMMENT '用户手机号',
     `user_email`      varchar(256)          DEFAULT NULL COMMENT '用户邮箱',
-    `mp_open_id`      varchar(256)          DEFAULT NULL COMMENT '微信公众号 OpenID',
+    `ma_open_id`      varchar(256)          DEFAULT NULL COMMENT '微信小程序 OpenID',
     `wx_union_id`     varchar(256)          DEFAULT NULL COMMENT '微信 UnionID',
     `wx_open_id`      varchar(256)          DEFAULT NULL COMMENT '微信开放平台 OpenID',
+    `apple_id`       varchar(256)          DEFAULT NULL COMMENT 'Apple ID',
     `last_login_time` datetime              DEFAULT NULL COMMENT '最后登录时间',
     `last_login_ip`   varchar(128)          DEFAULT NULL COMMENT '最后登录IP',
     `create_time`     datetime     NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
@@ -34,8 +35,9 @@ CREATE TABLE `user`
     KEY `idx_wx_union_id` (`wx_union_id`),
     KEY `idx_user_phone` (`user_phone`),
     KEY `idx_wx_union_id_is_delete` (`wx_union_id`, `is_delete`),
-    KEY `idx_mp_open_id` (`mp_open_id`),
+    KEY `idx_ma_open_id` (`ma_open_id`),
     KEY `idx_wx_open_id` (`wx_open_id`),
+    KEY `idx_apple_id` (`apple_id`),
     UNIQUE KEY `uk_user_email` (`user_email`)
 ) ENGINE = InnoDB
   DEFAULT CHARSET = utf8mb4

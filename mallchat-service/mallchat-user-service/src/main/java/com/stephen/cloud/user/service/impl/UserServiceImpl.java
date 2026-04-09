@@ -2,6 +2,7 @@ package com.stephen.cloud.user.service.impl;
 
 import cn.dev33.satoken.stp.StpUtil;
 import cn.hutool.core.collection.CollUtil;
+import cn.hutool.json.JSONObject;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
@@ -13,7 +14,6 @@ import com.stephen.cloud.api.user.model.dto.UserQueryRequest;
 import com.stephen.cloud.api.user.model.enums.UserRoleEnum;
 import com.stephen.cloud.api.user.model.vo.LoginUserVO;
 import com.stephen.cloud.api.user.model.vo.UserVO;
-import com.stephen.cloud.api.user.model.vo.WxLoginResponse;
 import com.stephen.cloud.common.cache.model.TimeModel;
 import com.stephen.cloud.common.cache.utils.CacheUtils;
 import com.stephen.cloud.common.cache.utils.lock.LockUtils;
@@ -23,10 +23,10 @@ import com.stephen.cloud.common.constants.CommonConstant;
 import com.stephen.cloud.common.constants.UserConstant;
 import com.stephen.cloud.common.exception.BusinessException;
 import com.stephen.cloud.common.mysql.utils.SqlUtils;
-import com.stephen.cloud.common.rabbitmq.producer.RabbitMqSender;
 import com.stephen.cloud.common.auth.utils.SecurityUtils;
 import com.stephen.cloud.common.utils.IpUtils;
 import com.stephen.cloud.common.utils.RegexUtils;
+import com.stephen.cloud.user.config.WxAppProperties;
 import com.stephen.cloud.user.convert.UserConvert;
 import com.stephen.cloud.user.mapper.UserMapper;
 import com.stephen.cloud.user.model.dto.UserLoginLogRecordRequest;
@@ -35,8 +35,15 @@ import com.stephen.cloud.user.service.UserService;
 import jakarta.annotation.Resource;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
-import me.chanjar.weixin.mp.api.WxMpService;
-import me.chanjar.weixin.mp.bean.result.WxMpQrCodeTicket;
+import cn.binarywang.wx.miniapp.api.WxMaService;
+import cn.binarywang.wx.miniapp.bean.WxMaJscode2SessionResult;
+import com.stephen.cloud.user.config.AppleProperties;
+import com.stephen.cloud.api.user.model.dto.UserAppleLoginRequest;
+import cn.hutool.jwt.JWT;
+import cn.hutool.jwt.JWTUtil;
+import cn.hutool.http.HttpUtil;
+import cn.hutool.json.JSONUtil;
+import cn.hutool.http.HttpUtil;
 import org.apache.commons.lang3.ObjectUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.beans.BeanUtils;
@@ -51,7 +58,6 @@ import cn.hutool.core.util.RandomUtil;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
-import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
@@ -66,7 +72,7 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User>
         implements UserService {
 
     @Resource
-    private WxMpService wxMpService;
+    private WxMaService wxMaService;
 
     @Resource
     private CacheUtils cacheUtils;
@@ -74,8 +80,6 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User>
     @Resource
     private LogFeignClient logFeignClient;
 
-    @Resource
-    private RabbitMqSender mqSender;
 
     @Resource
     private LockUtils lockUtils;
@@ -85,6 +89,12 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User>
 
     @Value("${spring.mail.username}")
     private String from;
+
+    @Resource
+    private WxAppProperties wxAppProperties;
+
+    @Resource
+    private AppleProperties appleProperties;
 
     /**
      * 校验数据
@@ -255,7 +265,6 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User>
         Long id = userQueryRequest.getId();
         Long notId = userQueryRequest.getNotId();
         String wxUnionId = userQueryRequest.getWxUnionId();
-        String mpOpenId = userQueryRequest.getMpOpenId();
         String userName = userQueryRequest.getUserName();
         String userRole = userQueryRequest.getUserRole();
         String userPhone = userQueryRequest.getUserPhone();
@@ -268,7 +277,6 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User>
                 .eq(id != null, User::getId, id)
                 .ne(ObjectUtils.isNotEmpty(notId), User::getId, notId)
                 .eq(StringUtils.isNotBlank(wxUnionId), User::getWxUnionId, wxUnionId)
-                .eq(StringUtils.isNotBlank(mpOpenId), User::getMpOpenId, mpOpenId)
                 .eq(StringUtils.isNotBlank(userRole), User::getUserRole, userRole)
                 .like(StringUtils.isNotBlank(userName), User::getUserName, userName)
                 .like(StringUtils.isNotBlank(userPhone), User::getUserPhone, userPhone);
@@ -326,32 +334,7 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User>
     }
 
 
-    @Override
-    public WxLoginResponse getLoginQrCode() {
-        try {
-            String sceneId = UUID.randomUUID().toString();
-            // 生成临时二维码，有效期 5 分钟
-            WxMpQrCodeTicket ticket = wxMpService.getQrcodeService().qrCodeCreateTmpTicket(sceneId, 60 * 5);
-            String qrCodeUrl = wxMpService.getQrcodeService().qrCodePictureUrl(ticket.getTicket());
-            return WxLoginResponse.builder()
-                    .qrCodeUrl(qrCodeUrl)
-                    .sceneId(sceneId)
-                    .build();
-        } catch (Exception e) {
-            log.error("getLoginQrCode error", e);
-            throw new BusinessException(ErrorCode.OPERATION_ERROR, "获取二维码失败");
-        }
-    }
 
-    @Override
-    public LoginUserVO checkWxLoginStatus(String sceneId) {
-        String redisKey = "user:login:wx:" + sceneId;
-        LoginUserVO loginUserVO = cacheUtils.get(redisKey);
-        if (loginUserVO != null) {
-            cacheUtils.remove(redisKey);
-        }
-        return loginUserVO;
-    }
 
     @Override
     public void sendEmailCode(String email) {
@@ -392,83 +375,214 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User>
 
         String lockKey = "user:register:email:" + email;
         return lockUtils.lockEvent(lockKey, new TimeModel(5L, TimeUnit.SECONDS), () -> {
-            User user = this.getOne(new LambdaQueryWrapper<User>().eq(User::getUserEmail, email));
-
+            User user = matchUserByEmail(email);
             if (user == null) {
-                // 自动注册
-                user = new User();
-                user.setUserEmail(email);
-                // 默认用户名取邮箱前缀
-                String defaultUserName = email.split("@")[0];
-                user.setUserName(defaultUserName);
-                user.setUserRole(UserRoleEnum.USER.getValue());
-                boolean result = this.save(user);
-                ThrowUtils.throwIf(!result, ErrorCode.OPERATION_ERROR, "用户注册失败");
+                user = createEmailUser(email);
             }
 
+            // 更新登录状态
             user.setLastLoginTime(new Date());
             this.updateById(user);
 
             // Sa-Token 登录
             StpUtil.login(user.getId());
 
-            // 异步记录登录日志
-            UserLoginLogRecordRequest logRecordRequest = new UserLoginLogRecordRequest();
-            logRecordRequest.setUser(user);
-            logRecordRequest.setLoginType(LoginTypeEnum.EMAIL);
-            logRecordRequest.setAccount(email);
-            logRecordRequest.setHttpRequest(null);
-            recordLoginLogAsync(logRecordRequest);
+            // 记录日志与 Session
+            recordLoginProcess(user, email, LoginTypeEnum.EMAIL);
 
-            // 返回登录信息
-            LoginUserVO loginUserVO = this.getLoginUserVO(user);
-            UserVO userVO = UserConvert.objToVo(user);
-            StpUtil.getSession().set(UserConstant.USER_LOGIN_STATE, userVO);
-            return loginUserVO;
+            return this.getLoginUserVO(user);
         }, () -> {
             throw new BusinessException(ErrorCode.OPERATION_ERROR, "登录人数过多，请稍后再试");
         });
     }
+
+    private User matchUserByEmail(String email) {
+        return this.getOne(new LambdaQueryWrapper<User>().eq(User::getUserEmail, email));
+    }
+
+    private User createEmailUser(String email) {
+        User user = new User();
+        user.setUserEmail(email);
+        // 默认用户名取邮箱前缀
+        String defaultUserName = email.split("@")[0];
+        user.setUserName(defaultUserName);
+        user.setUserRole(UserRoleEnum.USER.getValue());
+        boolean result = this.save(user);
+        ThrowUtils.throwIf(!result, ErrorCode.OPERATION_ERROR, "用户注册失败");
+        return user;
+    }
+
+
+
     @Override
-    public LoginUserVO userLoginByWxOpenId(String openId) {
-        ThrowUtils.throwIf(StringUtils.isBlank(openId), ErrorCode.PARAMS_ERROR, "openId 不能为空");
+    public LoginUserVO userLoginByMa(String code) {
+        ThrowUtils.throwIf(StringUtils.isBlank(code), ErrorCode.PARAMS_ERROR, "code 不能为空");
+        try {
+            WxMaJscode2SessionResult sessionInfo = wxMaService.getUserService().getSessionInfo(code);
+            return registerOrMatchWxUser(sessionInfo.getUnionid(), sessionInfo.getOpenid(), LoginTypeEnum.WECHAT_MA);
+        } catch (Exception e) {
+            log.error("userLoginByMa error", e);
+            throw new BusinessException(ErrorCode.OPERATION_ERROR, "小程序登录失败: " + e.getMessage());
+        }
+    }
 
-        String lockKey = "user:register:wx:" + openId;
+    @Override
+    public LoginUserVO userLoginByApp(String code) {
+        ThrowUtils.throwIf(StringUtils.isBlank(code), ErrorCode.PARAMS_ERROR, "code 不能为空");
+        if (StringUtils.isAnyBlank(wxAppProperties.getAppId(), wxAppProperties.getAppSecret())) {
+            throw new BusinessException(ErrorCode.OPERATION_ERROR, "未配置微信 App 登录信息");
+        }
+        try {
+            // 通过 HttpUtil 调用微信 OAuth2 接口
+            String url = String.format("https://api.weixin.qq.com/sns/oauth2/access_token?appid=%s&secret=%s&code=%s&grant_type=authorization_code",
+                    wxAppProperties.getAppId(), wxAppProperties.getAppSecret(), code);
+            String response = HttpUtil.get(url);
+            JSONObject jsonObject = JSONUtil.parseObj(response);
+            String openId = jsonObject.getStr("openid");
+            String unionId = jsonObject.getStr("unionid");
+            if (StringUtils.isBlank(openId)) {
+                log.error("微信 App 登录失败, response: {}", response);
+                throw new BusinessException(ErrorCode.OPERATION_ERROR, "微信授权失败");
+            }
+            return registerOrMatchWxUser(unionId, openId, LoginTypeEnum.WECHAT_APP);
+        } catch (Exception e) {
+            log.error("userLoginByApp error", e);
+            throw new BusinessException(ErrorCode.OPERATION_ERROR, "App 登录失败: " + e.getMessage());
+        }
+    }
+
+    /**
+     * 统一注册或匹配微信用户逻辑 (UnionID 优先)
+     */
+    @Override
+    public LoginUserVO userLoginByApple(UserAppleLoginRequest request) {
+        String identityToken = request.getIdentityToken();
+        String userIdentifier = request.getUserIdentifier();
+
+        // 1. 简单校验 Identity Token
+        JWT jwt = JWTUtil.parseToken(identityToken);
+        // 校验签发者
+        String iss = (String) jwt.getPayload("iss");
+        ThrowUtils.throwIf(!"https://appleid.apple.com".equals(iss), ErrorCode.PARAMS_ERROR, "非法的 Apple Token 签发者");
+        // 校验受众 (Bundle ID)
+        String aud = (String) jwt.getPayload("aud");
+        ThrowUtils.throwIf(!appleProperties.getClientId().equals(aud), ErrorCode.PARAMS_ERROR, "非法的 Apple Token 受众");
+        // 校验用户标识
+        String sub = (String) jwt.getPayload("sub");
+        ThrowUtils.throwIf(!userIdentifier.equals(sub), ErrorCode.PARAMS_ERROR, "Apple 用户标识不匹配");
+
+        // 2. 匹配或注册用户
+        return registerOrMatchAppleUser(sub);
+    }
+
+    private LoginUserVO registerOrMatchAppleUser(String appleId) {
+        String lockKey = "user:register:apple:" + appleId;
         return lockUtils.lockEvent(lockKey, new TimeModel(5L, TimeUnit.SECONDS), () -> {
-            User user = this.getOne(new LambdaQueryWrapper<User>().eq(User::getMpOpenId, openId));
-
+            User user = this.getOne(new LambdaQueryWrapper<User>().eq(User::getAppleId, appleId));
             if (user == null) {
-                // 自动注册
                 user = new User();
-                user.setMpOpenId(openId);
-                user.setUserName("微信用户_" + RandomUtil.randomString(6));
+                user.setAppleId(appleId);
+                user.setUserName("苹果用户_" + RandomUtil.randomString(6));
                 user.setUserRole(UserRoleEnum.USER.getValue());
-                boolean result = this.save(user);
-                ThrowUtils.throwIf(!result, ErrorCode.OPERATION_ERROR, "用户注册失败");
+                this.save(user);
             }
 
             user.setLastLoginTime(new Date());
             this.updateById(user);
+            StpUtil.login(user.getId());
 
+            recordLoginProcess(user, appleId, LoginTypeEnum.APPLE);
+
+            return this.getLoginUserVO(user);
+        }, () -> {
+            throw new BusinessException(ErrorCode.OPERATION_ERROR, "系统繁忙，请稍后再试");
+        });
+    }
+
+    private LoginUserVO registerOrMatchWxUser(String unionId, String openId, LoginTypeEnum loginType) {
+
+        String lockKey = "user:register:wx:" + (StringUtils.isNotBlank(unionId) ? unionId : openId);
+        return lockUtils.lockEvent(lockKey, new TimeModel(5L, TimeUnit.SECONDS), () -> {
+            User user = matchUser(unionId, openId, loginType);
+            boolean isNewUser = (user == null);
+
+            if (isNewUser) {
+                user = createWxUser(unionId, openId, loginType);
+            } else {
+                syncWxUserInfo(user, unionId, openId, loginType);
+            }
+
+            // 更新登录状态
+            user.setLastLoginTime(new Date());
+            this.updateById(user);
+            
             // Sa-Token 登录
             StpUtil.login(user.getId());
 
-            // 异步记录登录日志
-            UserLoginLogRecordRequest logRecordRequest = new UserLoginLogRecordRequest();
-            logRecordRequest.setUser(user);
-            logRecordRequest.setLoginType(LoginTypeEnum.WECHAT_MP);
-            logRecordRequest.setAccount(openId);
-            logRecordRequest.setHttpRequest(null);
-            recordLoginLogAsync(logRecordRequest);
+            // 记录日志与 Session
+            recordLoginProcess(user, openId, loginType);
 
-            // 返回登录信息
-            LoginUserVO loginUserVO = this.getLoginUserVO(user);
-            UserVO userVO = UserConvert.objToVo(user);
-            StpUtil.getSession().set(UserConstant.USER_LOGIN_STATE, userVO);
-            return loginUserVO;
+            return this.getLoginUserVO(user);
         }, () -> {
             throw new BusinessException(ErrorCode.OPERATION_ERROR, "登录人数过多，请稍后再试");
         });
     }
 
+    private User matchUser(String unionId, String openId, LoginTypeEnum loginType) {
+        User user = null;
+        if (StringUtils.isNotBlank(unionId)) {
+            user = this.getOne(new LambdaQueryWrapper<User>().eq(User::getWxUnionId, unionId));
+        }
+        if (user == null) {
+            if (loginType == LoginTypeEnum.WECHAT_MA) {
+                user = this.getOne(new LambdaQueryWrapper<User>().eq(User::getMaOpenId, openId));
+            } else if (loginType == LoginTypeEnum.WECHAT_APP) {
+                user = this.getOne(new LambdaQueryWrapper<User>().eq(User::getWxOpenId, openId));
+            }
+        }
+        return user;
+    }
+
+    private User createWxUser(String unionId, String openId, LoginTypeEnum loginType) {
+        User user = new User();
+        user.setWxUnionId(unionId);
+        if (loginType == LoginTypeEnum.WECHAT_MA) {
+            user.setMaOpenId(openId);
+        } else {
+            user.setWxOpenId(openId);
+        }
+        user.setUserName("微信用户_" + RandomUtil.randomString(6));
+        user.setUserRole(UserRoleEnum.USER.getValue());
+        boolean result = this.save(user);
+        ThrowUtils.throwIf(!result, ErrorCode.OPERATION_ERROR, "用户注册失败");
+        return user;
+    }
+
+    private void syncWxUserInfo(User user, String unionId, String openId, LoginTypeEnum loginType) {
+        boolean updated = false;
+        if (loginType == LoginTypeEnum.WECHAT_MA && StringUtils.isBlank(user.getMaOpenId())) {
+            user.setMaOpenId(openId);
+            updated = true;
+        } else if (loginType == LoginTypeEnum.WECHAT_APP && StringUtils.isBlank(user.getWxOpenId())) {
+            user.setWxOpenId(openId);
+            updated = true;
+        }
+        if (StringUtils.isBlank(user.getWxUnionId()) && StringUtils.isNotBlank(unionId)) {
+            user.setWxUnionId(unionId);
+            updated = true;
+        }
+        if (updated) {
+            this.updateById(user);
+        }
+    }
+
+    private void recordLoginProcess(User user, String openId, LoginTypeEnum loginType) {
+        UserLoginLogRecordRequest logRecordRequest = new UserLoginLogRecordRequest();
+        logRecordRequest.setUser(user);
+        logRecordRequest.setLoginType(loginType);
+        logRecordRequest.setAccount(openId);
+        recordLoginLogAsync(logRecordRequest);
+
+        StpUtil.getSession().set(UserConstant.USER_LOGIN_STATE, UserConvert.objToVo(user));
+    }
 }

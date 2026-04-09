@@ -6,6 +6,7 @@ import com.stephen.cloud.common.rabbitmq.model.RabbitMessage;
 import com.stephen.cloud.common.rabbitmq.model.WebSocketMessage;
 import com.stephen.cloud.common.rabbitmq.consumer.RabbitMqHandler;
 import com.stephen.cloud.common.websocket.manager.ChannelManager;
+import com.stephen.cloud.common.rabbitmq.producer.RabbitMqSender;
 import io.netty.handler.codec.http.websocketx.TextWebSocketFrame;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
@@ -30,6 +31,9 @@ public class WebSocketPushHandler implements RabbitMqHandler<WebSocketMessage> {
 
     @Resource
     private ChannelManager channelManager;
+
+    @Resource
+    private RabbitMqSender mqSender;
 
     @Override
     public String getBizType() {
@@ -61,7 +65,12 @@ public class WebSocketPushHandler implements RabbitMqHandler<WebSocketMessage> {
         String userIdStr = String.valueOf(userId);
 
         if (!channelManager.isOnline(userIdStr)) {
-            log.debug("[WebSocketPushHandler] 用户 {} 不在本服务器实例, 忽略推送", userId);
+            log.info("[WebSocketPushHandler] 用户 {} 不在本服务器实例, 尝试跨实例中转推送", userId);
+            // 避免无限循环中转：如果已经带有 RELAY 标记，则不再中转
+            if (!"RELAY".equals(wsMessage.getBizId())) {
+                wsMessage.setBizId("RELAY");
+                mqSender.send(MqBizTypeEnum.WEBSOCKET_BROADCAST, wsMessage);
+            }
             return;
         }
 
@@ -72,7 +81,7 @@ public class WebSocketPushHandler implements RabbitMqHandler<WebSocketMessage> {
         }
 
         channel.writeAndFlush(new TextWebSocketFrame(JSONUtil.toJsonStr(wsMessage)));
-        log.info("[WebSocketPushHandler] 成功向用户 {} 推送 WebSocket 消息", userId);
+        log.info("[WebSocketPushHandler] 成功向本地用户 {} 推送 WebSocket 消息", userId);
     }
 
     private void pushToMultipleUsers(WebSocketMessage wsMessage) {

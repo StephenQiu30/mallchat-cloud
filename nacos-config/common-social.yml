@@ -6,17 +6,15 @@ spring:
       on-profile: default
 
 wx:
-  # 微信公众平台配置
-  mp:
-    app-id: ${dev.wx.mp.appId}
-    secret: ${dev.wx.mp.secret}
-    token: ${dev.wx.mp.token}
-    aes-key: ${dev.wx.mp.aesKey}
-  # 微信扫码登录配置
-  qrcode:
-    enable: false
-    app-id: ${dev.wx.qrcode.app-id}
-    app-secret: ${dev.wx.qrcode.app-secret}
-    redirect-uri: ${dev.wx.qrcode.redirect-uri}
+  # 微信小程序配置
+  ma:
+    app-id: ${dev.wx.ma.appId}
+    app-secret: ${dev.wx.ma.appSecret}
+  # 微信 App 配置 (Flutter)
+  app:
+    app-id: ${dev.wx.app.appId}
+    app-secret: ${dev.wx.app.appSecret}
 
-
+# Apple 登录配置
+apple:
+  client-id: ${dev.apple.clientId}

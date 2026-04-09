@@ -6,29 +6,27 @@
 
     <resultMap id="BaseResultMap" type="com.stephen.cloud.user.model.entity.User">
         <id property="id" column="id" jdbcType="BIGINT"/>
-        <result property="unionId" column="union_id" jdbcType="VARCHAR"/>
-        <result property="mpOpenId" column="mp_open_id" jdbcType="VARCHAR"/>
         <result property="userName" column="user_name" jdbcType="VARCHAR"/>
         <result property="userAvatar" column="user_avatar" jdbcType="VARCHAR"/>
         <result property="userProfile" column="user_profile" jdbcType="VARCHAR"/>
         <result property="userRole" column="user_role" jdbcType="VARCHAR"/>
-        <result property="githubId" column="github_id" jdbcType="VARCHAR"/>
-        <result property="githubLogin" column="github_login" jdbcType="VARCHAR"/>
-        <result property="githubUrl" column="github_url" jdbcType="VARCHAR"/>
-        <result property="wxOpenId" column="wx_open_id" jdbcType="VARCHAR"/>
         <result property="userPhone" column="user_phone" jdbcType="VARCHAR"/>
+        <result property="userEmail" column="user_email" jdbcType="VARCHAR"/>
+        <result property="maOpenId" column="ma_open_id" jdbcType="VARCHAR"/>
+        <result property="wxUnionId" column="wx_union_id" jdbcType="VARCHAR"/>
+        <result property="wxOpenId" column="wx_open_id" jdbcType="VARCHAR"/>
+        <result property="appleId" column="apple_id" jdbcType="VARCHAR"/>
+        <result property="lastLoginTime" column="last_login_time" jdbcType="TIMESTAMP"/>
+        <result property="lastLoginIp" column="last_login_ip" jdbcType="VARCHAR"/>
         <result property="createTime" column="create_time" jdbcType="TIMESTAMP"/>
         <result property="updateTime" column="update_time" jdbcType="TIMESTAMP"/>
         <result property="isDelete" column="is_delete" jdbcType="TINYINT"/>
     </resultMap>
 
     <sql id="Base_Column_List">
-        id
-        ,
-        union_id,mp_open_id,user_name,
-        github_id,github_login,
-        github_url,wx_open_id,
-        user_phone,create_time,update_time,is_delete
+        id, user_name, user_avatar, user_profile, user_role, user_phone, user_email, 
+        ma_open_id, wx_union_id, wx_open_id, apple_id, 
+        last_login_time, last_login_ip, create_time, update_time, is_delete
     </sql>
 
 </mapper>

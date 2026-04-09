@@ -4,9 +4,10 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.IService;
 import com.stephen.cloud.api.user.model.dto.UserQueryRequest;
+import com.stephen.cloud.api.user.model.dto.UserAppleLoginRequest;
 import com.stephen.cloud.api.user.model.vo.LoginUserVO;
 import com.stephen.cloud.api.user.model.vo.UserVO;
-import com.stephen.cloud.api.user.model.vo.WxLoginResponse;
+
 import com.stephen.cloud.user.model.entity.User;
 import jakarta.servlet.http.HttpServletRequest;
 
@@ -84,9 +85,10 @@ public interface UserService extends IService<User> {
     UserVO getUserVO(User user, HttpServletRequest request);
 
     /**
-     * 获取脱敏的用户信息
+     * 获取脱敏的用户信息列表
      *
-     * @param userList userList
+     * @param userList 用户对象列表
+     * @param request  请求对象
      * @return {@link List<UserVO>}
      */
     List<UserVO> getUserVO(List<User> userList, HttpServletRequest request);
@@ -96,7 +98,7 @@ public interface UserService extends IService<User> {
      *
      * @param userPage userPage
      * @param request  request
-     * @return {@link Page {@link UserVO} }
+     * @return {@link Page<UserVO>}
      */
     Page<UserVO> getUserVOPage(Page<User> userPage, HttpServletRequest request);
 
@@ -109,29 +111,6 @@ public interface UserService extends IService<User> {
     LambdaQueryWrapper<User> getQueryWrapper(UserQueryRequest userQueryRequest);
 
     /**
-     * 获取微信登录二维码
-     *
-     * @return {@link WxLoginResponse}
-     */
-    WxLoginResponse getLoginQrCode();
-
-    /**
-     * 检查微信登录状态
-     *
-     * @param sceneId 场景 ID
-     * @return {@link LoginUserVO}
-     */
-    LoginUserVO checkWxLoginStatus(String sceneId);
-
-    /**
-     * 微信登录/注册
-     *
-     * @param openId 微信 OpenID
-     * @return {@link LoginUserVO}
-     */
-    LoginUserVO userLoginByWxOpenId(String openId);
-
-    /**
      * 发送邮箱验证码
      *
      * @param email 邮箱
@@ -139,12 +118,36 @@ public interface UserService extends IService<User> {
     void sendEmailCode(String email);
 
     /**
-     * 用户邮箱登录
+     * 用户登录 (邮箱登录)
      *
-     * @param email 邮箱账号
-     * @param code  验证码
-     * @return {@link LoginUserVO}
+     * @param email 邮箱地址
+     * @param code  邮箱验证码
+     * @return 登录用户视图VO
      */
     LoginUserVO userLoginByEmail(String email, String code);
+
+    /**
+     * 用户登录 (Apple 登录)
+     *
+     * @param request 请求参数
+     * @return 登录视图
+     */
+    LoginUserVO userLoginByApple(UserAppleLoginRequest request);
+
+    /**
+     * 微信小程序登录
+     *
+     * @param code 微信小程序登录 code
+     * @return {@link LoginUserVO}
+     */
+    LoginUserVO userLoginByMa(String code);
+
+    /**
+     * 微信 App 登录
+     *
+     * @param code 微信 App 登录 code
+     * @return {@link LoginUserVO}
+     */
+    LoginUserVO userLoginByApp(String code);
 
 }

@@ -14,7 +14,7 @@ import java.util.Date;
 /**
  * 用户实体
  * <p>
- * 支持多种登录方式：微信公众号、微信扫码登录
+ * 支持多种登录方式：微信小程序、微信 App、Apple 登录、邮箱登录
  * 用户角色包含：普通用户、管理员、封禁用户
  * </p>
  *
@@ -71,11 +71,12 @@ public class User implements Serializable {
     @Schema(description = "用户邮箱")
     private String userEmail;
 
+    
     /**
-     * 微信公众号 OpenID
+     * 微信小程序 OpenID
      */
-    @Schema(description = "微信公众号 OpenID")
-    private String mpOpenId;
+    @Schema(description = "微信小程序 OpenID")
+    private String maOpenId;
 
     /**
      * 微信 UnionID
@@ -84,10 +85,16 @@ public class User implements Serializable {
     private String wxUnionId;
 
     /**
-     * 微信开放平台 OpenID
+     * 微信 App OpenID (开放平台 Mobile App)
      */
-    @Schema(description = "微信开放平台 OpenID")
+    @Schema(description = "微信 App OpenID (开放平台 Mobile App)")
     private String wxOpenId;
+
+    /**
+     * Apple ID
+     */
+    @Schema(description = "Apple ID")
+    private String appleId;
 
     /**
      * 最后登录时间

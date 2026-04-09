@@ -6,7 +6,6 @@ import com.stephen.cloud.api.user.model.dto.*;
 import com.stephen.cloud.api.user.model.vo.LoginUserVO;
 import com.stephen.cloud.common.exception.BusinessException;
 import com.stephen.cloud.api.user.model.vo.UserVO;
-import com.stephen.cloud.api.user.model.vo.WxLoginResponse;
 import com.stephen.cloud.common.common.*;
 import com.stephen.cloud.common.constants.UserConstant;
 import com.stephen.cloud.common.log.annotation.OperationLog;
@@ -18,7 +17,6 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.annotation.Resource;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.commons.lang3.StringUtils;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -69,65 +67,55 @@ public class UserController {
         return ResultUtils.success(userService.getLoginUserVO(user));
     }
 
-    /**
-     * 获取微信登录二维码
-     *
-     * @return 微信登录二维码链接及场景 ID
-     */
-    @GetMapping("/login/wx/qrcode")
-    public BaseResponse<WxLoginResponse> getWxLoginQrCode() {
-        WxLoginResponse wxLoginResponse = userService.getLoginQrCode();
-        return ResultUtils.success(wxLoginResponse);
-    }
 
     /**
-     * 检查微信登录状态
-     *
-     * @param sceneId 场景 ID
-     * @return BaseResponse<LoginUserVO>
-     */
-    @GetMapping("/login/wx/status")
-    @OperationLog(module = "用户认证", action = "检查微信登录状态")
-    @Operation(summary = "检查微信登录状态", description = "轮询检查微信扫码登录状态")
-    public BaseResponse<LoginUserVO> checkWxLoginStatus(String sceneId) {
-        if (StringUtils.isBlank(sceneId)) {
-            throw new BusinessException(ErrorCode.PARAMS_ERROR);
-        }
-        LoginUserVO loginUserVO = userService.checkWxLoginStatus(sceneId);
-        return ResultUtils.success(loginUserVO);
-    }
-
-    /**
-     * 发送邮箱验证码
-     *
-     * @param emailCodeRequest 发送验证码请求
-     * @return 是否发送成功
-     */
-    @PostMapping("/login/email/code")
-    @Operation(summary = "发送邮箱验证码", description = "向指定邮箱发送 6 位验证码")
-    @OperationLog(module = "用户认证", action = "发送邮箱验证码")
-    public BaseResponse<Boolean> sendEmailCode(@RequestBody UserEmailCodeRequest emailCodeRequest) {
-        if (emailCodeRequest == null) {
-            throw new BusinessException(ErrorCode.PARAMS_ERROR);
-        }
-        userService.sendEmailCode(emailCodeRequest.getEmail());
-        return ResultUtils.success(true);
-    }
-
-    /**
-     * 邮箱登录
+     * 微信小程序登录
      *
      * @param loginRequest 登录请求
      * @return 登录用户信息
      */
-    @PostMapping("/login/email")
-    @Operation(summary = "邮箱登录", description = "通过邮箱验证码进行登录或注册")
-    @OperationLog(module = "用户认证", action = "邮箱登录")
-    public BaseResponse<LoginUserVO> userLoginByEmail(@RequestBody UserEmailLoginRequest loginRequest) {
+    @PostMapping("/login/ma")
+    @Operation(summary = "微信小程序登录", description = "通过微信小程序 code 进行登录或注册")
+    @OperationLog(module = "用户认证", action = "微信小程序登录")
+    public BaseResponse<LoginUserVO> userLoginByMa(@RequestBody UserMaLoginRequest loginRequest) {
         if (loginRequest == null) {
             throw new BusinessException(ErrorCode.PARAMS_ERROR);
         }
-        LoginUserVO loginUserVO = userService.userLoginByEmail(loginRequest.getEmail(), loginRequest.getCode());
+        LoginUserVO loginUserVO = userService.userLoginByMa(loginRequest.getCode());
+        return ResultUtils.success(loginUserVO);
+    }
+
+    /**
+     * 微信 App 登录
+     *
+     * @param loginRequest 登录请求
+     * @return 登录用户信息
+     */
+    @PostMapping("/login/app")
+    @Operation(summary = "微信 App 登录", description = "通过微信 App code 进行登录或注册")
+    @OperationLog(module = "用户认证", action = "微信 App 登录")
+    public BaseResponse<LoginUserVO> userLoginByApp(@RequestBody UserAppLoginRequest loginRequest) {
+        if (loginRequest == null) {
+            throw new BusinessException(ErrorCode.PARAMS_ERROR);
+        }
+        LoginUserVO loginUserVO = userService.userLoginByApp(loginRequest.getCode());
+        return ResultUtils.success(loginUserVO);
+    }
+
+    /**
+     * Apple 登录
+     *
+     * @param loginRequest 登录请求
+     * @return 登录用户信息
+     */
+    @PostMapping("/login/apple")
+    @Operation(summary = "Apple 登录", description = "通过 Apple 授权信息进行登录或注册")
+    @OperationLog(module = "用户认证", action = "Apple 登录")
+    public BaseResponse<LoginUserVO> userLoginByApple(@RequestBody UserAppleLoginRequest loginRequest) {
+        if (loginRequest == null) {
+            throw new BusinessException(ErrorCode.PARAMS_ERROR);
+        }
+        LoginUserVO loginUserVO = userService.userLoginByApple(loginRequest);
         return ResultUtils.success(loginUserVO);
     }
 
@@ -155,9 +143,9 @@ public class UserController {
         boolean result = userService.save(user);
         ThrowUtils.throwIf(!result, ErrorCode.OPERATION_ERROR);
         // 返回新写入的数据 id
-        long newTagId = user.getId();
+        long newUserId = user.getId();
 
-        return ResultUtils.success(newTagId);
+        return ResultUtils.success(newUserId);
     }
 
     /**
@@ -165,7 +153,7 @@ public class UserController {
      *
      * @param deleteRequest deleteRequest
      * @param request       request
-     * @return /ioBaseResponse<Boolean>
+     * @return BaseResponse<Boolean>
      */
     @PostMapping("/delete")
     @OperationLog(module = "用户管理", action = "删除用户")
@@ -276,7 +264,6 @@ public class UserController {
      * 批量根据 id 获取用户包装类（Feign 调用）
      *
      * @param ids     用户id列表
-     * @param request request
      * @return 查询得到的用户包装类列表
      */
     @GetMapping("/get/vo/batch")
@@ -312,7 +299,7 @@ public class UserController {
      * 分页获取用户封装列表
      *
      * @param userQueryRequest 用户查询请求
-     * @param request          requestbbash
+     * @param request          request
      * @return BaseResponse<Page < UserVO>>
      */
     @PostMapping("/list/page/vo")

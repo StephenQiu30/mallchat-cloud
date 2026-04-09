@@ -5,14 +5,14 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.context.annotation.Configuration;
 
 /**
- * 微信公众号配置
+ * 微信小程序配置
  *
  * @author stephen
  */
 @Data
 @Configuration
-@ConfigurationProperties(prefix = "wx.mp")
-public class WxMpProperties {
+@ConfigurationProperties(prefix = "wx.ma")
+public class WxMaProperties {
 
     /**
      * App ID

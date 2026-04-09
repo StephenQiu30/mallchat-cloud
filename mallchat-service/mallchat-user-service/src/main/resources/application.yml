@@ -36,3 +36,13 @@ spring:
 # MyBatis-Plus 业务配置
 mybatis-plus:
   type-aliases-package: com.stephen.cloud.user.model.entity
+
+# 微信相关配置
+wx:
+  ma:
+    appId: ${WX_MA_APP_ID:}
+    appSecret: ${WX_MA_APP_SECRET:}
+  app:
+    appId: ${WX_APP_APP_ID:}
+    appSecret: ${WX_APP_APP_SECRET:}
+

@@ -4,19 +4,21 @@ import com.stephen.cloud.common.rabbitmq.consumer.RabbitMqHandler;
 import com.stephen.cloud.common.rabbitmq.enums.MqBizTypeEnum;
 import com.stephen.cloud.common.rabbitmq.model.RabbitMessage;
 import com.stephen.cloud.common.websocket.manager.ChannelManager;
+import com.stephen.cloud.common.rabbitmq.model.WebSocketMessage;
+import cn.hutool.json.JSONUtil;
 import io.netty.handler.codec.http.websocketx.TextWebSocketFrame;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
 /**
- * WebSocket 广播处理器 (全服广播)
+ * WebSocket 广播处理器 (全服广播或跨实例分发)
  *
  * @author StephenQiu30
  */
 @Slf4j
 @Component
-public class WebSocketBroadcastHandler implements RabbitMqHandler<Object> {
+public class WebSocketBroadcastHandler implements RabbitMqHandler<WebSocketMessage> {
 
     @Resource
     private ChannelManager channelManager;
@@ -27,20 +29,47 @@ public class WebSocketBroadcastHandler implements RabbitMqHandler<Object> {
     }
 
     @Override
-    public void onMessage(Object data, RabbitMessage rabbitMessage) throws Exception {
+    public void onMessage(WebSocketMessage wsMessage, RabbitMessage rabbitMessage) throws Exception {
         String msgId = rabbitMessage.getMsgId();
+        log.info("[WebSocketBroadcastHandler] 收到 WebSocket 广播/中转消息, msgId: {}", msgId);
 
-        log.info("[WebSocketBroadcastHandler] 收到 WebSocket 广播消息, msgId: {}", msgId);
+        String messageJson = JSONUtil.toJsonStr(wsMessage);
 
-        // 广播的内容仍然在 msgText 中
-        channelManager.getAllChannels().writeAndFlush(new TextWebSocketFrame(rabbitMessage.getMsgText()));
+        // 1. 如果是特定单用户推送（中转过来的）
+        if (wsMessage.getUserId() != null) {
+            String userIdStr = String.valueOf(wsMessage.getUserId());
+            if (channelManager.isOnline(userIdStr)) {
+                io.netty.channel.Channel channel = channelManager.getChannel(userIdStr);
+                if (channel != null && channel.isActive()) {
+                    channel.writeAndFlush(new TextWebSocketFrame(messageJson));
+                    log.info("[WebSocketBroadcastHandler] 中转推送成功, userId: {}, msgId: {}", userIdStr, msgId);
+                }
+            }
+            return;
+        }
 
-        log.info("[WebSocketBroadcastHandler] 成功广播消息给所有在线用户, 在线人数: {}, msgId: {}",
+        // 2. 如果是特定多用户推送
+        if (wsMessage.getUserIds() != null && !wsMessage.getUserIds().isEmpty()) {
+            wsMessage.getUserIds().forEach(uid -> {
+                String uidStr = String.valueOf(uid);
+                if (channelManager.isOnline(uidStr)) {
+                    io.netty.channel.Channel channel = channelManager.getChannel(uidStr);
+                    if (channel != null && channel.isActive()) {
+                        channel.writeAndFlush(new TextWebSocketFrame(messageJson));
+                    }
+                }
+            });
+            return;
+        }
+
+        // 3. 全服广播
+        channelManager.getAllChannels().writeAndFlush(new TextWebSocketFrame(messageJson));
+        log.info("[WebSocketBroadcastHandler] 全服广播成功, 在线人数: {}, msgId: {}",
                 channelManager.getOnlineCount(), msgId);
     }
 
     @Override
-    public Class<Object> getDataType() {
-        return Object.class;
+    public Class<WebSocketMessage> getDataType() {
+        return WebSocketMessage.class;
     }
 }

@@ -238,15 +238,10 @@
             <!-- Tencent COS -->
 
             <!-- 微信 -->
-            <dependency>
-                <groupId>com.github.binarywang</groupId>
-                <artifactId>wx-java-mp-spring-boot-starter</artifactId>
-                <version>${wx-java.version}</version>
-            </dependency>
 
             <dependency>
                 <groupId>com.github.binarywang</groupId>
-                <artifactId>weixin-java-mp</artifactId>
+                <artifactId>weixin-java-miniapp</artifactId>
                 <version>${wx-java.version}</version>
             </dependency>
 

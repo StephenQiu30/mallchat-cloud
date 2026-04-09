@@ -70,25 +70,56 @@ public class ChatSessionServiceImpl extends ServiceImpl<ChatSessionMapper, ChatS
             return Collections.emptyList();
         }
 
-        // 批量查询房间信息
+        // 1. 批量查询基础数据 (房间、消息)
         List<Long> roomIds = sessions.stream().map(ChatSession::getRoomId).toList();
         Map<Long, ChatRoom> roomMap = chatRoomService.listByIds(roomIds).stream()
                 .collect(Collectors.toMap(ChatRoom::getId, r -> r));
 
-        // 批量查询消息记录 (用于内容展示)
         List<Long> msgIds = sessions.stream().map(ChatSession::getLastMessageId).filter(Objects::nonNull).toList();
         Map<Long, ChatMessage> msgMap = msgIds.isEmpty() ? Collections.emptyMap() :
                 chatMessageService.listByIds(msgIds).stream().collect(Collectors.toMap(ChatMessage::getId, m -> m));
 
+        // 2. 分类处理房间扩展信息 (批量查询群组信息和私聊映射)
+        List<Long> groupRoomIds = roomMap.values().stream()
+                .filter(r -> r.getType() == 1).map(ChatRoom::getId).toList();
+        Map<Long, ChatGroupInfo> groupInfoMap = groupRoomIds.isEmpty() ? Collections.emptyMap() :
+                chatGroupInfoService.list(new LambdaQueryWrapper<ChatGroupInfo>().in(ChatGroupInfo::getRoomId, groupRoomIds))
+                        .stream().collect(Collectors.toMap(ChatGroupInfo::getRoomId, g -> g));
+
+        List<Long> privateRoomIds = roomMap.values().stream()
+                .filter(r -> r.getType() == 2).map(ChatRoom::getId).toList();
+        List<ChatPrivateRoom> privateRooms = privateRoomIds.isEmpty() ? Collections.emptyList() :
+                chatPrivateRoomService.list(new LambdaQueryWrapper<ChatPrivateRoom>().in(ChatPrivateRoom::getRoomId, privateRoomIds));
+        
+        Map<Long, Long> roomToPeerIdMap = new HashMap<>();
+        for (ChatPrivateRoom pr : privateRooms) {
+            Long peerId = pr.getUserLow().equals(userId) ? pr.getUserHigh() : pr.getUserLow();
+            roomToPeerIdMap.put(pr.getRoomId(), peerId);
+        }
+
+        // 3. 批量获取用户信息 (Feign 调用)
+        Collection<Long> peerIds = roomToPeerIdMap.values();
+        Map<Long, UserVO> userMap = Collections.emptyMap();
+        if (!peerIds.isEmpty()) {
+            try {
+                List<UserVO> users = userFeignClient.getUserVOByIds(new ArrayList<>(peerIds)).getData();
+                if (users != null) {
+                    userMap = users.stream().collect(Collectors.toMap(UserVO::getId, u -> u));
+                }
+            } catch (Exception e) {
+                log.error("[ChatSessionServiceImpl] 批量获取用户信息失败", e);
+            }
+        }
+
+        // 4. 组装 VO
+        Map<Long, UserVO> finalUserMap = userMap;
         return sessions.stream().map(session -> {
             ChatSessionVO vo = ChatSessionConvert.objToVo(session);
             ChatRoom room = roomMap.get(session.getRoomId());
             if (room != null) {
                 vo.setType(room.getType());
                 if (room.getType() == 1) {
-                    // 群聊：取群组详情
-                    ChatGroupInfo groupInfo = chatGroupInfoService.getOne(new LambdaQueryWrapper<ChatGroupInfo>()
-                            .eq(ChatGroupInfo::getRoomId, room.getId()));
+                    ChatGroupInfo groupInfo = groupInfoMap.get(room.getId());
                     if (groupInfo != null) {
                         vo.setName(groupInfo.getGroupName());
                         vo.setAvatar(groupInfo.getGroupAvatar());
@@ -96,27 +127,43 @@ public class ChatSessionServiceImpl extends ServiceImpl<ChatSessionMapper, ChatS
                         vo.setName(room.getName());
                     }
                 } else {
-                    // 私聊：取对方头像昵称
-                    ChatPrivateRoom privateRoom = chatPrivateRoomService.getOne(new LambdaQueryWrapper<ChatPrivateRoom>()
-                            .eq(ChatPrivateRoom::getRoomId, room.getId()));
-                    if (privateRoom != null) {
-                        Long peerId = privateRoom.getUserLow().equals(userId) ? privateRoom.getUserHigh() : privateRoom.getUserLow();
-                        UserVO peer = userFeignClient.getUserVOById(peerId).getData();
-                        if (peer != null) {
-                            vo.setName(peer.getUserName());
-                            vo.setAvatar(peer.getUserAvatar());
-                        }
+                    Long peerId = roomToPeerIdMap.get(room.getId());
+                    UserVO peer = finalUserMap.get(peerId);
+                    if (peer != null) {
+                        vo.setName(peer.getUserName());
+                        vo.setAvatar(peer.getUserAvatar());
                     }
                 }
             }
 
+            // 处理最后一条消息展示逻辑 (撤回、占位符)
             ChatMessage lastMsg = msgMap.get(session.getLastMessageId());
             if (lastMsg != null) {
-                vo.setLastMessage(lastMsg.getContent());
+                vo.setLastMessage(formatLastMessage(lastMsg));
             }
 
             return vo;
         }).collect(Collectors.toList());
+    }
+
+    /**
+     * 格式化会话预览消息
+     */
+    private String formatLastMessage(ChatMessage msg) {
+        if (msg == null) return "";
+        // 撤回识别
+        if (Objects.equals(msg.getStatus(), 1)) { // 1 为已撤回 (MessageStatusEnum.RECALL.getCode())
+            return "[该消息已被撤回]";
+        }
+        // 类型识别
+        if (!Objects.equals(msg.getType(), 1)) { // 非文本
+            return switch (msg.getType()) {
+                case 2 -> "[图片]";
+                case 3 -> "[文件]";
+                default -> "[消息]";
+            };
+        }
+        return msg.getContent();
     }
 
     @Override

@@ -42,12 +42,6 @@ public class UserQueryRequest extends PageRequest implements Serializable {
     @Schema(description = "微信开放平台UnionID")
     private String wxUnionId;
 
-    /**
-     * 公众号OpenID
-     * 精确查询公众号OpenID
-     */
-    @Schema(description = "公众号OpenID")
-    private String mpOpenId;
 
     /**
      * 用户昵称
