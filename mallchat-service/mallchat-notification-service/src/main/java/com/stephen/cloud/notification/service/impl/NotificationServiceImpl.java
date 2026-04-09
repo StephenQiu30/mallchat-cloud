@@ -223,7 +223,7 @@ public class NotificationServiceImpl extends ServiceImpl<NotificationMapper, Not
     public Long addNotification(Notification notification) {
         validNotification(notification, true);
 
-        // 默认幂等 ID 处理
+        // 幂等标识生成与校验
         String bizId = notification.getBizId();
         if (StringUtils.isBlank(bizId)) {
             bizId = "manual_" + IdUtil.fastSimpleUUID();
@@ -247,7 +247,6 @@ public class NotificationServiceImpl extends ServiceImpl<NotificationMapper, Not
             boolean result = this.save(notification);
             ThrowUtils.throwIf(!result, ErrorCode.OPERATION_ERROR);
         } catch (DuplicateKeyException e) {
-            // 数据库二级防御
             Notification again = this.lambdaQuery()
                     .eq(Notification::getBizId, bizId)
                     .eq(Notification::getUserId, userId)
@@ -258,16 +257,14 @@ public class NotificationServiceImpl extends ServiceImpl<NotificationMapper, Not
             throw e;
         }
 
-        // 发送推送逻辑（异步且保证事务一致性）
+        // 注册推送钩子：确保在事务提交后再发送 MQ 实时通知
         registerPushHook(notification);
 
         return notification.getId();
     }
 
     /**
-     * 注册事务推送钩子
-     *
-     * @param notification 通知实体
+     * 事务同步推送：只有当事务成功提交，才会下发实时 WebSocket 推送
      */
     private void registerPushHook(Notification notification) {
         if (TransactionSynchronizationManager.isActualTransactionActive()) {
@@ -278,11 +275,12 @@ public class NotificationServiceImpl extends ServiceImpl<NotificationMapper, Not
                         NotificationVO notificationVO = NotificationConvert.objToVo(notification);
                         notificationMqProducer.sendNotificationCreated(notificationVO);
                     } catch (Exception e) {
-                        log.error("[NotificationServiceImpl] 发送实时通知消息失败, notificationId: {}", notification.getId(), e);
+                        log.error("[NotificationServiceImpl] 事务后同步实时通知失败, notificationId: {}", notification.getId(), e);
                     }
                 }
             });
         } else {
+            // 非事务环境下直接异步发送
             try {
                 NotificationVO notificationVO = NotificationConvert.objToVo(notification);
                 notificationMqProducer.sendNotificationCreated(notificationVO);

@@ -54,13 +54,15 @@ public class AiChatController {
      */
     @PostMapping("/chat")
     @OperationLog(module = "AI 管理", action = "AI 标准对话")
-    @Operation(summary = "AI 对话 (标准)", description = "发送消息并等待 AI 返回完整回答")
+    @Operation(summary = "AI 对话 (标准)", description = "发送问题并同步等待 AI 完整的文本回复")
     public BaseResponse<AiChatResponse> doAiChat(@RequestBody AiChatRequest aiChatRequest, HttpServletRequest request) {
         log.info("AI 对话请求: {}", aiChatRequest);
         ThrowUtils.throwIf(aiChatRequest == null, ErrorCode.PARAMS_ERROR);
-        // 限流：每个用户每分钟最多 10 次对话
+        
+        // 限流策略：基于用户 ID 维度的对话频率控制
         Long userId = SecurityUtils.getLoginUserId();
         rateLimitUtils.doRateLimit("ai:chat:" + userId, new TimeModel(1L, TimeUnit.MINUTES), 10L, 1L);
+        
         AiChatResponse response = aiChatService.chat(aiChatRequest, request);
         log.info("AI 对话响应完成: {}", response);
         return ResultUtils.success(response);
@@ -77,13 +79,16 @@ public class AiChatController {
      */
     @PostMapping("/chat/stream")
     @OperationLog(module = "AI 管理", action = "AI 流式对话")
-    @Operation(summary = "AI 对话 (流式)", description = "发送消息并通过 SSE 获取 AI 逐字返回的内容")
+    @Operation(summary = "AI 对话 (流式)", description = "发送问题并通过 SSE 获取 AI 实时、逐字下发的回答内容")
     public SseEmitter doStreamAiChat(@RequestBody AiChatRequest aiChatRequest, HttpServletRequest request) {
         log.info("AI 对话流处理已启动");
         ThrowUtils.throwIf(aiChatRequest == null, ErrorCode.PARAMS_ERROR);
-        // 限流
+        
+        // 限流校验
         Long userId = SecurityUtils.getLoginUserId();
         rateLimitUtils.doRateLimit("ai:chat:" + userId, new TimeModel(1L, TimeUnit.MINUTES), 10L, 1L);
+        
+        // 默认超市时间 1 分钟
         SseEmitter emitter = new SseEmitter(60000L);
         aiChatService.streamChat(aiChatRequest, emitter, request);
         return emitter;

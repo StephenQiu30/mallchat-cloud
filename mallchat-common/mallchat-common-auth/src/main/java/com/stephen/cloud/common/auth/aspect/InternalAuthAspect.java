@@ -35,20 +35,24 @@ public class InternalAuthAspect {
      */
     @Around("@annotation(internalAuth)")
     public Object around(ProceedingJoinPoint point, InternalAuth internalAuth) throws Throwable {
+        // 1. 从 ThreadLocal 中获取当前的 Servlet 请求属性
         ServletRequestAttributes attributes = (ServletRequestAttributes) RequestContextHolder.getRequestAttributes();
         if (attributes == null) {
             throw new BusinessException(ErrorCode.NO_AUTH_ERROR, "无法获取请求上下文");
         }
 
         HttpServletRequest request = attributes.getRequest();
+        // 2. 从请求头中提取特定的内部调用来源标识
         String fromSource = request.getHeader(SecurityConstant.FROM_SOURCE);
 
-        // 校验内部调用标识
+        // 3. 核心校验逻辑：对比请求头中的 source 是否与安全常量中定义的内部标识一致
         if (!StrUtil.equals(fromSource, SecurityConstant.INNER)) {
+            // 记录警告日志，便于追踪非法越权尝试
             log.warn("拦截到非内部调用访问 @InternalAuth 接口: {}", request.getRequestURI());
             throw new BusinessException(ErrorCode.NO_AUTH_ERROR, "仅限内部调用");
         }
 
+        // 4. 校验通过，允许方法继续执行
         return point.proceed();
     }
 }

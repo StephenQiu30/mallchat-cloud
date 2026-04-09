@@ -7,10 +7,7 @@ import com.stephen.cloud.chat.convert.ChatMessageConvert;
 import com.stephen.cloud.chat.model.entity.ChatMessage;
 import com.stephen.cloud.chat.service.ChatMessageService;
 import com.stephen.cloud.common.auth.utils.SecurityUtils;
-import com.stephen.cloud.common.common.BaseResponse;
-import com.stephen.cloud.common.common.ErrorCode;
-import com.stephen.cloud.common.common.ResultUtils;
-import com.stephen.cloud.common.common.ThrowUtils;
+import com.stephen.cloud.common.common.*;
 import com.stephen.cloud.common.exception.BusinessException;
 import com.stephen.cloud.common.log.annotation.OperationLog;
 import io.swagger.v3.oas.annotations.Operation;
@@ -29,7 +26,7 @@ import java.util.List;
  * @author StephenQiu30
  */
 @RestController
-@RequestMapping("/chat_message")
+@RequestMapping("/chat/message")
 @Slf4j
 @Tag(name = "ChatMessageController", description = "聊天消息管理")
 public class ChatMessageController {
@@ -48,9 +45,13 @@ public class ChatMessageController {
     @OperationLog(module = "消息管理", action = "发送消息")
     @Operation(summary = "发送消息", description = "向指定房间发送一条消息（支持文本、图片、文件）")
     public BaseResponse<Long> sendMessage(@Validated @RequestBody ChatMessageSendRequest chatMessageSendRequest) {
+        // 请求参数非空校验
         ThrowUtils.throwIf(chatMessageSendRequest == null, ErrorCode.PARAMS_ERROR);
+        // 获取当前登录用户 ID
         Long userId = SecurityUtils.getLoginUserId();
+        // 将 DTO 转换为实体类
         ChatMessage chatMessage = ChatMessageConvert.addRequestToObj(chatMessageSendRequest);
+        // 调用 Service 执行发送逻辑
         Long messageId = chatMessageService.sendMessage(chatMessage, userId);
         return ResultUtils.success(messageId);
     }
@@ -80,10 +81,9 @@ public class ChatMessageController {
      * @param roomId        房间 ID
      * @param lastMessageId 上一页最后一条消息 ID
      * @param limit         数量
-     * @param request HTTP 请求
      * @return 历史消息列表
      */
-    @GetMapping("/history")
+    @GetMapping("/list/history/vo")
     @Operation(summary = "获取历史消息", description = "获取指定房间的历史聊天记录（支持滚动翻页优化）")
     public BaseResponse<List<ChatMessageVO>> listHistoryMessages(
             @Parameter(description = "房间ID", required = true) @RequestParam Long roomId,
@@ -98,16 +98,19 @@ public class ChatMessageController {
     /**
      * 撤回消息
      *
-     * @param id 消息 ID
+     * @param deleteRequest 撤回请求 (使用 id 字段作为消息 ID)
      * @return 是否成功
      */
-    @PutMapping("/recall/{id}")
+    @PostMapping("/recall")
     @OperationLog(module = "消息管理", action = "撤回消息")
     @Operation(summary = "撤回消息", description = "撤回指定消息（限时 2 分钟内）")
-    public BaseResponse<Boolean> recallMessage(@PathVariable("id") Long id) {
-        ThrowUtils.throwIf(id == null, ErrorCode.PARAMS_ERROR);
+    public BaseResponse<Boolean> recallMessage(@RequestBody DeleteRequest deleteRequest) {
+        // 参数校验
+        ThrowUtils.throwIf(deleteRequest == null || deleteRequest.getId() == null, ErrorCode.PARAMS_ERROR);
+        // 获取当前用户 ID
         Long userId = SecurityUtils.getLoginUserId();
-        boolean ok = chatMessageService.recallMessage(id, userId);
+        // 执行撤回逻辑
+        boolean ok = chatMessageService.recallMessage(deleteRequest.getId(), userId);
         return ResultUtils.success(ok);
     }
 }

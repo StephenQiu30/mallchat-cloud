@@ -145,9 +145,11 @@ public class ChatRoomServiceImpl extends ServiceImpl<ChatRoomMapper, ChatRoom>
         Long userId = SecurityUtils.getLoginUserId();
         chatRoom.setCreateUser(userId);
 
+        // 1. 持久化聊天室基本信息
         boolean result = this.save(chatRoom);
         ThrowUtils.throwIf(!result, ErrorCode.OPERATION_ERROR, "创建聊天室失败");
 
+        // 2. 创建者自动加入房间成为首位成员
         joinChatRoom(chatRoom.getId(), userId);
 
         return chatRoom.getId();
@@ -178,11 +180,11 @@ public class ChatRoomServiceImpl extends ServiceImpl<ChatRoomMapper, ChatRoom>
         log.info("用户加入聊天室: roomId={}, userId={}", roomId, userId);
         ThrowUtils.throwIf(roomId == null || userId == null, ErrorCode.PARAMS_ERROR);
 
-        // 检查房间是否存在
+        // 1. 检查目标房间是否存在
         ChatRoom chatRoom = this.getById(roomId);
         ThrowUtils.throwIf(chatRoom == null, ErrorCode.NOT_FOUND_ERROR, "聊天室不存在");
 
-        // 检查是否已经在房间中
+        // 2. 幂等校验：检查用户是否已在该房间成员列表中
         long count = chatRoomMemberService.count(
                 new LambdaQueryWrapper<ChatRoomMember>()
                         .eq(ChatRoomMember::getRoomId, roomId)
@@ -193,11 +195,11 @@ public class ChatRoomServiceImpl extends ServiceImpl<ChatRoomMapper, ChatRoom>
             return;
         }
 
+        // 3. 构造并保存成员关系记录
         ChatRoomMember member = new ChatRoomMember();
         member.setRoomId(roomId);
         member.setUserId(userId);
-        member.setRole(1); // 普通成员
-
+        member.setRole(1); // 1-普通成员
         boolean result = chatRoomMemberService.save(member);
         ThrowUtils.throwIf(!result, ErrorCode.OPERATION_ERROR, "加入聊天室失败");
     }
@@ -208,12 +210,16 @@ public class ChatRoomServiceImpl extends ServiceImpl<ChatRoomMapper, ChatRoom>
         log.info("获取或创建私聊房间: userId={}, peerUserId={}", userId, peerUserId);
         ThrowUtils.throwIf(peerUserId == null || userId == null, ErrorCode.PARAMS_ERROR);
         ThrowUtils.throwIf(Objects.equals(peerUserId, userId), ErrorCode.PARAMS_ERROR, "不能与自己私聊");
+        
+        // 1. 业务校验：双向好友关系检查
         ThrowUtils.throwIf(!userFriendService.isMutualFriend(userId, peerUserId), ErrorCode.NO_AUTH_ERROR,
                 "非好友无法发起私聊");
 
+        // 2. 映射关系标准化：固定低 ID 为 userLow，高 ID 为 userHigh，确保房间唯一性
         long userLow = Math.min(userId, peerUserId);
         long userHigh = Math.max(userId, peerUserId);
 
+        // 3. 检查是否已有私聊映射记录
         ChatPrivateRoom existing = chatPrivateRoomMapper.selectOne(
                 new LambdaQueryWrapper<ChatPrivateRoom>()
                         .eq(ChatPrivateRoom::getUserLow, userLow)
@@ -223,23 +229,27 @@ public class ChatRoomServiceImpl extends ServiceImpl<ChatRoomMapper, ChatRoom>
             return existing.getRoomId();
         }
 
+        // 4. 初始化私聊房间逻辑
+        // 4.1 创建公共聊天室实体
         ChatRoom chatRoom = new ChatRoom();
         chatRoom.setName("私聊");
-        chatRoom.setType(2);
+        chatRoom.setType(2); // 2-私聊模式
         chatRoom.setCreateUser(userId);
         boolean saved = this.save(chatRoom);
         ThrowUtils.throwIf(!saved, ErrorCode.OPERATION_ERROR, "创建私聊房间失败");
 
+        // 4.2 双方入群：维护成员列表
         joinChatRoom(chatRoom.getId(), userId);
         joinChatRoom(chatRoom.getId(), peerUserId);
 
+        // 4.3 维护私聊一对一映射表
         ChatPrivateRoom mapping = new ChatPrivateRoom();
         mapping.setUserLow(userLow);
         mapping.setUserHigh(userHigh);
         mapping.setRoomId(chatRoom.getId());
         chatPrivateRoomMapper.insert(mapping);
 
-        // 初始化会话列表 (双方都能看到对方)
+        // 5. 会话列表初始化：确保双方好友的会话列表中均出现该房间 (非活跃会话加载)
         chatSessionService.updateSession(userId, chatRoom.getId(), null, false);
         chatSessionService.updateSession(peerUserId, chatRoom.getId(), null, false);
 

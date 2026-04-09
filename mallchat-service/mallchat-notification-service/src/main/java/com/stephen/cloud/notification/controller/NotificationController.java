@@ -57,9 +57,10 @@ public class NotificationController {
     @PostMapping("/add")
     @OperationLog(module = "通知管理", action = "智能创建通知")
     @SaCheckRole(UserConstant.ADMIN_ROLE)
-    @Operation(summary = "创建通知", description = "管理员向特定目标发送通知")
+    @Operation(summary = "批量发布通知", description = "管理员向全员、特定角色或指定用户组批量下发实时通知")
     public BaseResponse<List<Long>> addNotification(@RequestBody NotificationAddRequest notificationAddRequest) {
         ThrowUtils.throwIf(notificationAddRequest == null, ErrorCode.PARAMS_ERROR);
+        // 执行分发逻辑，内部包含事务处理与异步推送
         List<Long> ids = notificationService.addNotification(notificationAddRequest);
         return ResultUtils.success(ids);
     }
@@ -123,7 +124,8 @@ public class NotificationController {
      */
     @GetMapping("/get/vo")
     @Operation(summary = "获取通知详情", description = "根据 ID 获取通知脱敏后的视图对象")
-    public BaseResponse<NotificationVO> getNotificationVOById(@RequestParam("id") long id) {
+    public BaseResponse<NotificationVO> getNotificationVOById(
+            @io.swagger.v3.oas.annotations.Parameter(description = "通知ID", required = true, example = "1") @RequestParam("id") long id) {
         ThrowUtils.throwIf(id <= 0, ErrorCode.PARAMS_ERROR);
         Notification notification = notificationService.getById(id);
         ThrowUtils.throwIf(notification == null, ErrorCode.NOT_FOUND_ERROR);
@@ -227,8 +229,9 @@ public class NotificationController {
      */
     @PostMapping("/read/all")
     @OperationLog(module = "通知管理", action = "全部标记已读")
-    @Operation(summary = "全部标记已读", description = "将当前用户的所有未读通知标记为已读")
+    @Operation(summary = "全量已读", description = "一键将当前用户名下的所有未读状态通知更新为已读状态")
     public BaseResponse<Boolean> markAllNotificationRead() {
+        // 获取当前用户 ID 并执行全量更新操作
         boolean result = notificationService.markAllRead(SecurityUtils.getLoginUserId());
         return ResultUtils.success(result);
     }

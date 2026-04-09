@@ -32,14 +32,12 @@ public class AiClientFactory {
     private OllamaProperties ollamaProperties;
 
     /**
-     * 获取对话模型
-     *
-     * @param request 对话请求
-     * @return 对话模型
+     * 根据请求动态构建标准对话模型实例
      */
     public ChatLanguageModel getChatModel(AiChatRequest request) {
         String modelType = request.getModelType();
         AiModelTypeEnum typeEnum = AiModelTypeEnum.getEnumByValue(modelType);
+        // 默认兜底使用通义千问 (DashScope)
         if (typeEnum == null) {
             typeEnum = AiModelTypeEnum.DASHSCOPE;
         }

@@ -222,54 +222,38 @@ public class ChatMessageServiceImpl extends ServiceImpl<ChatMessageMapper, ChatM
         log.info("用户发送消息: userId={}, roomId={}", userId, chatMessage.getRoomId());
 
         Long roomId = chatMessage.getRoomId();
-
-        // 1. 校验会话权限
         ChatRoom chatRoom = chatRoomService.getById(roomId);
         if (chatRoom == null) {
             throw new BusinessException(ErrorCode.NOT_FOUND_ERROR, "聊天室不存在");
         }
 
-        // 2. 私聊权限校验 (双方互为好友)
-        if (Objects.equals(chatRoom.getType(), 2)) { // 2 为私聊
+        // 校验发送权限：私聊需互为好友，群聊需为群成员
+        if (Objects.equals(chatRoom.getType(), 2)) {
             ChatPrivateRoom privateRoom = chatPrivateRoomService.getOne(
                     new LambdaQueryWrapper<ChatPrivateRoom>()
                             .eq(ChatPrivateRoom::getRoomId, roomId)
                             .last("LIMIT 1"));
-            if (privateRoom == null) {
-                throw new BusinessException(ErrorCode.SYSTEM_ERROR, "私聊房间映射不存在");
-            }
+            ThrowUtils.throwIf(privateRoom == null, ErrorCode.SYSTEM_ERROR, "私聊房间映射不存在");
             
             Long peerUserId = Objects.equals(userId, privateRoom.getUserLow()) ? privateRoom.getUserHigh() : privateRoom.getUserLow();
-            boolean isFriend = userFriendService.isMutualFriend(userId, peerUserId);
-            ThrowUtils.throwIf(!isFriend, ErrorCode.NO_AUTH_ERROR, "非好友无法发送消息");
+            ThrowUtils.throwIf(!userFriendService.isMutualFriend(userId, peerUserId), ErrorCode.NO_AUTH_ERROR, "非好友无法发送消息");
         } else {
-            // 3. 群聊权限校验 (是否在房间中)
-            boolean isMember = chatRoomMemberService.isMember(roomId, userId);
-            ThrowUtils.throwIf(!isMember, ErrorCode.NO_AUTH_ERROR, "您不在此聊天室中");
+            ThrowUtils.throwIf(!chatRoomMemberService.isMember(roomId, userId), ErrorCode.NO_AUTH_ERROR, "您不在此聊天室中");
         }
 
-        // 3. 回复消息校验
+        // 校验回复消息是否属于当前房间
         if (chatMessage.getReplyMsgId() != null) {
             ChatMessage replyMsg = this.getById(chatMessage.getReplyMsgId());
-            if (replyMsg == null) {
-                throw new BusinessException(ErrorCode.NOT_FOUND_ERROR, "回复的消息不存在");
-            }
-            if (!Objects.equals(replyMsg.getRoomId(), roomId)) {
-                throw new BusinessException(ErrorCode.PARAMS_ERROR, "不能跨房间回复消息");
-            }
+            ThrowUtils.throwIf(replyMsg == null || !Objects.equals(replyMsg.getRoomId(), roomId), ErrorCode.PARAMS_ERROR, "回复消息非法");
         }
 
-        // 4. 保存消息到数据库
         chatMessage.setFromUserId(userId);
-        chatMessage.setStatus(MessageStatusEnum.NORMAL.getCode()); // 正常状态
+        chatMessage.setStatus(MessageStatusEnum.NORMAL.getCode());
         boolean result = this.save(chatMessage);
         ThrowUtils.throwIf(!result, ErrorCode.OPERATION_ERROR, "发送消息失败");
 
-        // 5. 异步推送消息到所有房间成员 (RabbitMQ) 并更新会话列表
-        List<ChatRoomMember> members = chatRoomMemberService.listByRoomId(roomId);
-        pushMessageToRoomMembers(chatMessage, members);
-
-        // 6. 发布消息发送事件 (异步更新会话等操作)
+        // 异步推送消息给房间成员并发布发送事件
+        pushMessageToRoomMembers(chatMessage, null);
         eventPublisher.publishEvent(new ChatMessageSentEvent(this, chatMessage, userId));
 
         return chatMessage.getId();
@@ -355,23 +339,23 @@ public class ChatMessageServiceImpl extends ServiceImpl<ChatMessageMapper, ChatM
     public boolean recallMessage(Long messageId, Long userId) {
         log.info("[ChatMessageServiceImpl] 撤回消息请求, messageId: {}, userId: {}", messageId, userId);
         
-        // 1. 获取并检查消息
+        // 1. 获取并检查原始消息是否存在
         ChatMessage msg = this.getById(messageId);
         ThrowUtils.throwIf(msg == null, ErrorCode.NOT_FOUND_ERROR, "消息不存在");
         
-        // 2. 权限校验：只能撤回自己的消息
+        // 2. 权限校验：只能撤回自己发送的消息
         if (msg == null || !Objects.equals(msg.getFromUserId(), userId)) {
             throw new BusinessException(ErrorCode.NO_AUTH_ERROR, "只能撤回自己的消息");
         }
         
-        // 3. 时限校验：2 分钟内可撤回
+        // 3. 时限校验：限制在消息发送后的 2 分钟内可撤回
         long now = System.currentTimeMillis();
         long createTime = msg.getCreateTime().getTime();
         if (now - createTime > 2 * 60 * 1000) {
             throw new BusinessException(ErrorCode.OPERATION_ERROR, "消息发送超过 2 分钟，无法撤回");
         }
         
-        // 4. 更新状态为已撤回 (status = 1)
+        // 4. 更新数据库状态为已撤回 (状态码 1)
         if (Objects.equals(msg.getStatus(), MessageStatusEnum.RECALL.getCode())) {
             return true;
         }
@@ -379,7 +363,7 @@ public class ChatMessageServiceImpl extends ServiceImpl<ChatMessageMapper, ChatM
         boolean ok = this.updateById(msg);
         if (!ok) return false;
         
-        // 5. 广播撤回信令 (MQ)
+        // 5. 发送撤回广播信号 (推送撤回消息的 VO 给所有成员)
         ChatMessageVO vo = ChatMessageConvert.objToVo(msg);
         chatMqProducer.sendChatMessageGroupPush(msg.getRoomId(), vo);
         

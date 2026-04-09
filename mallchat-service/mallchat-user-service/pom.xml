@@ -14,11 +14,6 @@
     <description>用户服务</description>
 
     <dependencies>
-        <dependency>
-            <groupId>org.projectlombok</groupId>
-            <artifactId>lombok</artifactId>
-            <scope>provided</scope>
-        </dependency>
 
         <!-- mallchat-api-user -->
         <dependency>
@@ -60,7 +55,6 @@
             <groupId>com.stephen.cloud</groupId>
             <artifactId>mallchat-api-log</artifactId>
         </dependency>
-
 
 
         <!-- weixin-java-miniapp -->

@@ -32,7 +32,7 @@ public interface ChatFeignClient {
      *
      * @return 房间列表
      */
-    @GetMapping("/room/list")
+    @GetMapping("/room/list/vo")
     BaseResponse<List<ChatRoomVO>> listUserChatRooms();
 
     /**
@@ -52,7 +52,7 @@ public interface ChatFeignClient {
      * @param limit         限制数量
      * @return 消息列表
      */
-    @GetMapping("/message/history")
+    @GetMapping("/message/list/history/vo")
     BaseResponse<List<ChatMessageVO>> listHistoryMessages(
             @RequestParam("roomId") Long roomId,
             @RequestParam(value = "lastMessageId", required = false) Long lastMessageId,
@@ -61,7 +61,7 @@ public interface ChatFeignClient {
     @PostMapping("/friend/add")
     BaseResponse<Boolean> addFriend(@RequestBody ChatFriendAddRequest request);
 
-    @GetMapping("/friend/list")
+    @GetMapping("/friend/list/vo")
     BaseResponse<List<ChatFriendUserVO>> listFriends();
 
     @PostMapping("/room/private")

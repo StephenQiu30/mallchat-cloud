@@ -14,9 +14,7 @@ import java.util.List;
 
 /**
  * 聊天系统消息队列生产者
- * <p>
- * 负责发送聊天消息推送、WebSocket 实时推送等 MQ 消息。
- * </p>
+ * 负责通过 RabbitMQ 发送 WebSocket 推送消息（包含定向推送、广播推送及通用的消息推送）
  *
  * @author StephenQiu30
  */

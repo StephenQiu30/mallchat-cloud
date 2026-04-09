@@ -24,6 +24,9 @@ import java.util.List;
 public class AiChatRecordServiceImpl extends ServiceImpl<AiChatRecordMapper, AiChatRecord>
         implements AiChatRecordService {
 
+    /**
+     * 根据查询请求构造灵活的 MyBatis-Plus 查询条件
+     */
     @Override
     public LambdaQueryWrapper<AiChatRecord> getQueryWrapper(AiChatRecordQueryRequest aiChatRecordQueryRequest) {
         LambdaQueryWrapper<AiChatRecord> queryWrapper = new LambdaQueryWrapper<>();
@@ -36,9 +39,11 @@ public class AiChatRecordServiceImpl extends ServiceImpl<AiChatRecordMapper, AiC
         String sortField = aiChatRecordQueryRequest.getSortField();
         String sortOrder = aiChatRecordQueryRequest.getSortOrder();
 
+        // 基础字段匹配
         queryWrapper.eq(StringUtils.isNotBlank(sessionId), AiChatRecord::getSessionId, sessionId)
                 .eq(StringUtils.isNotBlank(modelType), AiChatRecord::getModelType, modelType);
 
+        // 模糊搜索：匹配提问或回答正文
         if (StringUtils.isNotBlank(searchText)) {
             queryWrapper.and(qw -> qw
                     .like(AiChatRecord::getMessage, searchText)
@@ -46,12 +51,11 @@ public class AiChatRecordServiceImpl extends ServiceImpl<AiChatRecordMapper, AiC
                     .like(AiChatRecord::getResponse, searchText));
         }
 
+        // 动态排序逻辑
         if (StringUtils.isNotBlank(sortField)) {
             boolean isAsc = CommonConstant.SORT_ORDER_ASC.equalsIgnoreCase(sortOrder);
-            switch (sortField) {
-                case "createTime" -> queryWrapper.orderBy(true, isAsc, AiChatRecord::getCreateTime);
-                default -> {
-                }
+            if ("createTime".equals(sortField)) {
+                queryWrapper.orderBy(true, isAsc, AiChatRecord::getCreateTime);
             }
         }
         return queryWrapper;

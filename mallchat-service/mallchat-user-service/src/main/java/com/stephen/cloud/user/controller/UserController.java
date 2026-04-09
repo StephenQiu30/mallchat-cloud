@@ -130,19 +130,22 @@ public class UserController {
      */
     @PostMapping("/add")
     @SaCheckRole(UserConstant.ADMIN_ROLE)
+    @Operation(summary = "创建用户", description = "管理员手动创建新用户")
     @OperationLog(module = "用户管理", action = "创建用户")
     public BaseResponse<Long> addUser(@RequestBody UserAddRequest userAddRequest,
             HttpServletRequest request) {
+        // 请求参数非空校验
         if (userAddRequest == null) {
             throw new BusinessException(ErrorCode.PARAMS_ERROR);
         }
+        // 将 DTO 转换为领域对象
         User user = UserConvert.addRequestToObj(userAddRequest);
-        // 数据校验
+        // 执行业务规则校验（如必填项、格式等）
         userService.validUser(user, true);
-        // 写入数据库
+        // 执行持久化操作
         boolean result = userService.save(user);
         ThrowUtils.throwIf(!result, ErrorCode.OPERATION_ERROR);
-        // 返回新写入的数据 id
+        // 返回新增成功后的主键 ID
         long newUserId = user.getId();
 
         return ResultUtils.success(newUserId);
@@ -156,24 +159,28 @@ public class UserController {
      * @return BaseResponse<Boolean>
      */
     @PostMapping("/delete")
+    @Operation(summary = "删除用户", description = "删除指定 ID 的用户（仅本人或管理员）")
     @OperationLog(module = "用户管理", action = "删除用户")
     @SaCheckRole(UserConstant.ADMIN_ROLE)
     public BaseResponse<Boolean> deleteUser(@RequestBody DeleteRequest deleteRequest,
             HttpServletRequest request) {
+        // 参数校验：ID 必须大于 0
         if (deleteRequest == null || deleteRequest.getId() <= 0) {
             throw new BusinessException(ErrorCode.PARAMS_ERROR);
         }
+        // 获取当前操作人信息
         User user = userService.getLoginUser(request);
         long id = deleteRequest.getId();
+        // 校验被删除的对象是否存在
         User oldUser = userService.getById(id);
         if (oldUser == null) {
             throw new BusinessException(ErrorCode.NOT_FOUND_ERROR);
         }
-        // 仅本人或管理员可删除
+        // 权限校验：仅本人或系统管理员有权执行删除
         if (!oldUser.getId().equals(user.getId()) && !userService.isAdmin(request)) {
             throw new BusinessException(ErrorCode.NO_AUTH_ERROR);
         }
-        // 操作数据库
+        // 执行逻辑删除
         boolean result = userService.removeById(id);
         if (!result) {
             throw new BusinessException(ErrorCode.OPERATION_ERROR);
@@ -190,20 +197,25 @@ public class UserController {
      * @return BaseResponse<Boolean>
      */
     @PostMapping("/update")
+    @Operation(summary = "更新用户", description = "管理员后台更新用户信息")
     @OperationLog(module = "用户管理", action = "更新用户")
     @SaCheckRole(UserConstant.ADMIN_ROLE)
     public BaseResponse<Boolean> updateUser(@RequestBody UserUpdateRequest userUpdateRequest,
             HttpServletRequest request) {
+        // 基本参数校验
         if (userUpdateRequest == null || userUpdateRequest.getId() == null || userUpdateRequest.getId() <= 0) {
             throw new BusinessException(ErrorCode.PARAMS_ERROR);
         }
+        // 转换为实体对象并执行业务校验
         User user = UserConvert.updateRequestToObj(userUpdateRequest);
         userService.validUser(user, false);
         long id = userUpdateRequest.getId();
+        // 确认用户是否存在
         User oldUser = userService.getById(id);
         if (oldUser == null) {
             throw new BusinessException(ErrorCode.NOT_FOUND_ERROR);
         }
+        // 执行更新操作
         boolean result = userService.updateById(user);
         if (!result) {
             throw new BusinessException(ErrorCode.OPERATION_ERROR);
@@ -238,7 +250,10 @@ public class UserController {
      */
     @GetMapping("/get")
     @SaCheckRole(UserConstant.ADMIN_ROLE)
-    public BaseResponse<User> getUserById(@RequestParam("id") long id, HttpServletRequest request) {
+    @Operation(summary = "根据ID获取用户", description = "根据用户ID获取用户详细信息（仅管理员）")
+    public BaseResponse<User> getUserById(
+            @io.swagger.v3.oas.annotations.Parameter(description = "用户ID", required = true, example = "1") @RequestParam("id") long id,
+            HttpServletRequest request) {
         ThrowUtils.throwIf(id <= 0, ErrorCode.PARAMS_ERROR);
         User user = userService.getById(id);
         ThrowUtils.throwIf(user == null, ErrorCode.NOT_FOUND_ERROR);
@@ -253,7 +268,10 @@ public class UserController {
      * @return 查询得到的用户包装类
      */
     @GetMapping("/get/vo")
-    public BaseResponse<UserVO> getUserVOById(@RequestParam("id") long id, HttpServletRequest request) {
+    @Operation(summary = "根据ID获取用户视图对象", description = "根据用户ID获取用户脱敏后的视图对象")
+    public BaseResponse<UserVO> getUserVOById(
+            @io.swagger.v3.oas.annotations.Parameter(description = "用户ID", required = true, example = "1") @RequestParam("id") long id,
+            HttpServletRequest request) {
         ThrowUtils.throwIf(id <= 0, ErrorCode.PARAMS_ERROR);
         User user = userService.getById(id);
         ThrowUtils.throwIf(user == null, ErrorCode.NOT_FOUND_ERROR);
@@ -267,7 +285,9 @@ public class UserController {
      * @return 查询得到的用户包装类列表
      */
     @GetMapping("/get/vo/batch")
-    public BaseResponse<List<UserVO>> getUserVOByIds(@RequestParam("ids") List<Long> ids) {
+    @Operation(summary = "批量获取用户视图对象", description = "根据用户ID列表批量获取用户脱敏后的视图对象")
+    public BaseResponse<List<UserVO>> getUserVOByIds(
+            @io.swagger.v3.oas.annotations.Parameter(description = "用户ID列表", required = true, example = "[1,2,3]") @RequestParam("ids") List<Long> ids) {
         ThrowUtils.throwIf(ids == null || ids.isEmpty(), ErrorCode.PARAMS_ERROR);
         List<User> userList = userService.listByIds(ids);
         // 批量接口主要用于内部 Feign 调用（如 ES 同步），不依赖 HttpServletRequest 上下文
@@ -286,10 +306,13 @@ public class UserController {
      */
     @PostMapping("/list/page")
     @SaCheckRole(UserConstant.ADMIN_ROLE)
+    @Operation(summary = "分页获取用户列表", description = "管理员分页查询原始用户信息")
     public BaseResponse<Page<User>> listUserByPage(@RequestBody UserQueryRequest userQueryRequest,
             HttpServletRequest request) {
+        // 获取当前页码和每页大小
         long current = userQueryRequest.getCurrent();
         long size = userQueryRequest.getPageSize();
+        // 执行分页查询，getQueryWrapper 内部处理过滤条件
         Page<User> userPage = userService.page(new Page<>(current, size),
                 userService.getQueryWrapper(userQueryRequest));
         return ResultUtils.success(userPage);
@@ -303,6 +326,7 @@ public class UserController {
      * @return BaseResponse<Page < UserVO>>
      */
     @PostMapping("/list/page/vo")
+    @Operation(summary = "分页获取用户封装列表", description = "分页获取脱敏后的用户信息列表")
     public BaseResponse<Page<UserVO>> listUserVOByPage(@RequestBody UserQueryRequest userQueryRequest,
             HttpServletRequest request) {
         if (userQueryRequest == null) {
@@ -329,6 +353,7 @@ public class UserController {
      * @return BaseResponse<Boolean>
      */
     @PostMapping("/edit")
+    @Operation(summary = "编辑个人信息", description = "当前登录用户编辑自己的个人资料")
     @OperationLog(module = "用户管理", action = "编辑个人信息")
     public BaseResponse<Boolean> editUser(@RequestBody UserEditRequest userEditRequest,
             HttpServletRequest request) {

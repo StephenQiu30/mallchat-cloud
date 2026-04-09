@@ -41,7 +41,7 @@ public class SecurityUtils {
      * @return 用户 ID，获取不到返回 null
      */
     public static Long getLoginUserIdPermitNull() {
-        // 1. 优先尝试从请求头获取 (网关透传最为可靠)
+        // 1. 优先尝试从请求头获取 (网关透传最为可靠，能直接反映原始用户身份)
         ServletRequestAttributes attributes = (ServletRequestAttributes) RequestContextHolder.getRequestAttributes();
         HttpServletRequest request = attributes != null ? attributes.getRequest() : null;
         if (request != null) {
@@ -51,12 +51,12 @@ public class SecurityUtils {
             }
         }
 
-        // 2. 尝试从 Sa-Token 环境获取
+        // 2. 备选方案：尝试从 Sa-Token 的当前会话环境中获取已入驻的 LoginId
         if (StpUtil.isLogin()) {
             try {
                 return StpUtil.getLoginIdAsLong();
             } catch (Exception e) {
-                // 如果是内部调用导致的身份切换为 0，且 header 中确实没有 userId，则可能返回 0
+                // 如果是某些特殊内部调用导致的身份切换（如 ID 为 0），则按默认值处理
                 return 0L;
             }
         }

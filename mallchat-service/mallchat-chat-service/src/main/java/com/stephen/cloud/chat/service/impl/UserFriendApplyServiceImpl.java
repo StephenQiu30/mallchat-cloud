@@ -164,10 +164,10 @@ public class UserFriendApplyServiceImpl extends ServiceImpl<UserFriendApplyMappe
         Long targetId = apply.getTargetId();
         ThrowUtils.throwIf(targetId.equals(userId), ErrorCode.PARAMS_ERROR, "不能添加自己为好友");
 
-        // 1. 校验是否已经是好友
+        // 校验是否已经是好友，避免重复申请
         ThrowUtils.throwIf(userFriendService.isMutualFriend(userId, targetId), ErrorCode.OPERATION_ERROR, "已经是好友了");
 
-        // 2. 校验是否有待审核的申请
+        // 幂等校验：检查是否有待审核的相同申请
         UserFriendApply existing = this.getOne(new LambdaQueryWrapper<UserFriendApply>()
                 .eq(UserFriendApply::getUserId, userId)
                 .eq(UserFriendApply::getTargetId, targetId)
@@ -176,9 +176,8 @@ public class UserFriendApplyServiceImpl extends ServiceImpl<UserFriendApplyMappe
             return existing.getId();
         }
 
-        // 3. 保存申请
         apply.setUserId(userId);
-        apply.setStatus(1); // 待处理
+        apply.setStatus(1); // 1-待处理
         this.save(apply);
         return apply.getId();
     }
@@ -194,27 +193,23 @@ public class UserFriendApplyServiceImpl extends ServiceImpl<UserFriendApplyMappe
         ThrowUtils.throwIf(status != 2 && status != 3, ErrorCode.PARAMS_ERROR);
 
         UserFriendApply apply = this.getById(applyId);
-        if (apply == null) {
-          throw new BusinessException(ErrorCode.NOT_FOUND_ERROR, "申请记录不存在");
-        }
+        ThrowUtils.throwIf(apply == null, ErrorCode.NOT_FOUND_ERROR, "申请记录不存在");
 
-        // 校验是否是给我的申请
+        // 权限与状态校验
         ThrowUtils.throwIf(!apply.getTargetId().equals(userId), ErrorCode.NO_AUTH_ERROR);
-        // 只能审核待处理状态
         ThrowUtils.throwIf(apply.getStatus() != 1, ErrorCode.PARAMS_ERROR, "已处理过该申请");
 
-        // 4. 不同意直接更新状态返回
         if (status == 3) {
             apply.setStatus(status);
             return this.updateById(apply);
         }
 
-        // 5. 同意：建立好友关系并创建私聊房间
+        // 同意申请：建立双向好友并初始化私聊房间
         apply.setStatus(status);
         userFriendService.addFriend(apply.getUserId(), apply.getTargetId());
         chatRoomService.getOrCreatePrivateRoom(apply.getUserId(), apply.getTargetId());
 
-        // 6. 推送 WebSocket 通知给申请人
+        // 发送 WebSocket 通知
         String bizId = "friend_approve:" + apply.getId();
         chatMqProducer.sendWebSocketPush(apply.getUserId(), WebSocketMessageTypeEnum.FRIEND_APPROVE, "您的好友申请已通过", bizId);
 

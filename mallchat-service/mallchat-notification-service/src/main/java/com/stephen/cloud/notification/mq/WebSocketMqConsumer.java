@@ -14,9 +14,8 @@ import java.io.IOException;
 
 /**
  * WebSocket 消息队列消费者
- * <p>
- * 监听 RabbitMQ 消息，借助 {@link RabbitMqConsumerDispatcher} 分发单播、广播及业务通知实时下发。
- * </p>
+ * 监听所有与 Web 实时通信相关的 MQ 消息，并通过 {@link RabbitMqConsumerDispatcher} 
+ * 执行单播 (SINGLE)、广播 (BROADCAST) 或房间级推送 (ROOM)。
  *
  * @author StephenQiu30
  */

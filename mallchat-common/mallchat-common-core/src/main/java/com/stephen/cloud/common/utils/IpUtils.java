@@ -47,7 +47,9 @@ public class IpUtils {
             return null;
         }
 
+        // 1. 尝试从负载均衡常用的 X-Forwarded-For 头部获取 (通常包含代理链)
         String ip = request.getHeader("X-Forwarded-For");
+        // 2. 如果为空或 unknown，则依次尝试其他常见的代理头
         if (StringUtils.isBlank(ip) || isUnknown(ip)) {
             ip = request.getHeader("Proxy-Client-IP");
         }
@@ -63,11 +65,12 @@ public class IpUtils {
         if (StringUtils.isBlank(ip) || isUnknown(ip)) {
             ip = request.getHeader("X-Real-IP");
         }
+        // 3. 最终兜底方案：通过 getRemoteAddr 获取直连 IP
         if (StringUtils.isBlank(ip) || isUnknown(ip)) {
             ip = request.getRemoteAddr();
         }
 
-        // 处理本地回环地址
+        // 4. 特殊处理：如果是本地回环地址，则尝试解析服务器本机真实 IP
         if ("127.0.0.1".equals(ip) || "0:0:0:0:0:0:0:1".equals(ip)) {
             try {
                 InetAddress localhost = InetAddress.getLocalHost();
@@ -77,7 +80,7 @@ public class IpUtils {
             }
         }
 
-        // 处理多个 IP 情况 (多个代理)
+        // 5. 处理代理链情况，提取第一个且有效的非 unknown IP
         return extractFirstIp(ip);
     }
 

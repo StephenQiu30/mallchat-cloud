@@ -6,6 +6,7 @@ import com.stephen.cloud.api.chat.model.vo.ChatRoomVO;
 import com.stephen.cloud.chat.convert.ChatRoomConvert;
 import com.stephen.cloud.chat.model.entity.ChatRoom;
 import com.stephen.cloud.chat.service.ChatRoomService;
+import com.stephen.cloud.common.auth.utils.SecurityUtils;
 import com.stephen.cloud.common.common.BaseResponse;
 import com.stephen.cloud.common.common.ErrorCode;
 import com.stephen.cloud.common.common.ResultUtils;
@@ -28,7 +29,7 @@ import java.util.List;
  * @author StephenQiu30
  */
 @RestController
-@RequestMapping("/chat_room")
+@RequestMapping("/chat/room")
 @Slf4j
 @Tag(name = "ChatRoomController", description = "聊天室管理")
 public class ChatRoomController {
@@ -44,10 +45,13 @@ public class ChatRoomController {
      */
     @PostMapping("/add")
     @OperationLog(module = "聊天室管理", action = "创建聊天室")
-    @Operation(summary = "创建聊天室", description = "创建一个新的聊天室（群聊或私聊）")
+    @Operation(summary = "创建聊天室", description = "创建一个新的聊天室（群聊或私聊会话）")
     public BaseResponse<Long> addChatRoom(@Validated @RequestBody ChatRoomAddRequest chatRoomAddRequest) {
+        // 请求参数非空校验
         ThrowUtils.throwIf(chatRoomAddRequest == null, ErrorCode.PARAMS_ERROR);
+        // 将 DTO 转换为实体
         ChatRoom chatRoom = ChatRoomConvert.addRequestToObj(chatRoomAddRequest);
+        // 调用业务层执行创建逻辑
         Long roomId = chatRoomService.addChatRoom(chatRoom);
         return ResultUtils.success(roomId);
     }
@@ -93,11 +97,14 @@ public class ChatRoomController {
      */
     @PostMapping("/private")
     @OperationLog(module = "聊天室管理", action = "私聊房间")
-    @Operation(summary = "获取或创建私聊房间", description = "与好友建立唯一私聊会话")
+    @Operation(summary = "获取或创建私聊房间", description = "获取与指定好友的唯一私聊房间，若不存在则初始化（UnionID 级别唯一）")
     public BaseResponse<Long> getOrCreatePrivateRoom(@Validated @RequestBody ChatPrivateRoomRequest request,
                                                      HttpServletRequest servletRequest) {
+        // 校验目标用户 ID
         ThrowUtils.throwIf(request == null || request.getPeerUserId() == null, ErrorCode.PARAMS_ERROR);
-        Long userId = chatRoomService.getLoginUserId(servletRequest);
+        // 获取当前登录用户 ID
+        Long userId = SecurityUtils.getLoginUserId();
+        // 执行私聊房间获取/创建逻辑 (内部包含双向同步锁)
         Long roomId = chatRoomService.getOrCreatePrivateRoom(request.getPeerUserId(), userId);
         return ResultUtils.success(roomId);
     }

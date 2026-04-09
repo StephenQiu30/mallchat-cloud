@@ -30,8 +30,9 @@ public class UserConvert {
             return null;
         }
         UserVO userVO = new UserVO();
+        // 批量属性拷贝，简化赋值操作
         BeanUtils.copyProperties(user, userVO);
-        // 敏感字段脱敏处理
+        // 针对敏感字段手机号进行脱敏处理，返回中段脱敏后的字符串
         userVO.setUserPhone(DesensitizedUtil.mobilePhone(userVO.getUserPhone()));
         return userVO;
     }
@@ -43,6 +44,7 @@ public class UserConvert {
      * @return 用户视图列表
      */
     public static List<UserVO> getUserVO(List<User> userList) {
+        // 利用 Java 8 Stream 执行批量对象转换
         return userList.stream().map(UserConvert::objToVo).collect(Collectors.toList());
     }
 
@@ -58,6 +60,7 @@ public class UserConvert {
             return null;
         }
         LoginUserVO loginUserVO = new LoginUserVO();
+        // 拷贝用户基础信息至登录视图类
         BeanUtils.copyProperties(user, loginUserVO);
         return loginUserVO;
     }
@@ -73,6 +76,7 @@ public class UserConvert {
             return null;
         }
         User user = new User();
+        // 将 API 请求参数映射至数据库实体
         BeanUtils.copyProperties(userAddRequest, user);
         return user;
     }
@@ -88,6 +92,7 @@ public class UserConvert {
             return null;
         }
         User user = new User();
+        // 将后台更新请求映射至实体，以便入库
         BeanUtils.copyProperties(userUpdateRequest, user);
         return user;
     }
@@ -103,6 +108,7 @@ public class UserConvert {
             return null;
         }
         User user = new User();
+        // 处理用户自主编辑资料请求的对象转换
         BeanUtils.copyProperties(userEditRequest, user);
         return user;
     }
