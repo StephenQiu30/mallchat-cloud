@@ -24,9 +24,8 @@ public interface UserFriendService extends IService<UserFriend> {
      * 校验好友数据
      *
      * @param userFriend 好友实体
-     * @param add        是否为新增操作
      */
-    void validUserFriend(UserFriend userFriend, boolean add);
+    void validUserFriend(UserFriend userFriend);
 
     /**
      * 获取查询条件

@@ -23,17 +23,9 @@ public interface ChatRoomService extends IService<ChatRoom> {
      * 校验聊天室数据
      *
      * @param chatRoom 聊天室实体
-     * @param add      是否为新增操作
      */
-    void validChatRoom(ChatRoom chatRoom, boolean add);
+    void validChatRoom(ChatRoom chatRoom);
 
-    /**
-     * 获取当前登录用户
-     *
-     * @param request request
-     * @return {@link com.stephen.cloud.api.user.model.vo.UserVO}
-     */
-    Long getLoginUserId(HttpServletRequest request);
 
     /**
      * 获取聊天室视图类

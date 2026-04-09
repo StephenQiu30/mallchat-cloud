@@ -16,6 +16,7 @@ import com.stephen.cloud.common.cache.utils.CacheUtils;
 import com.stephen.cloud.common.common.ErrorCode;
 import com.stephen.cloud.common.common.ThrowUtils;
 import com.stephen.cloud.common.constants.CommonConstant;
+import com.stephen.cloud.common.exception.BusinessException;
 import com.stephen.cloud.common.mysql.utils.SqlUtils;
 import jakarta.annotation.Resource;
 import jakarta.servlet.http.HttpServletRequest;
@@ -23,10 +24,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.Collections;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 import java.util.stream.Collectors;
 
 /**
@@ -51,21 +49,16 @@ public class UserFriendServiceImpl extends ServiceImpl<UserFriendMapper, UserFri
      * 校验好友数据
      *
      * @param userFriend 好友实体
-     * @param add        是否为新增操作
      */
     @Override
-    public void validUserFriend(UserFriend userFriend, boolean add) {
-        ThrowUtils.throwIf(userFriend == null, ErrorCode.PARAMS_ERROR);
-        // 从实体中获取数据
+    public void validUserFriend(UserFriend userFriend) {
+        if (userFriend == null) {
+            throw new BusinessException(ErrorCode.PARAMS_ERROR);
+        }
+        // 核心权限或逻辑校验
         Long userId = userFriend.getUserId();
         Long friendUserId = userFriend.getFriendUserId();
-        // 修改数据时，id 不能为空
-        if (!add) {
-            ThrowUtils.throwIf(userFriend.getId() == null, ErrorCode.PARAMS_ERROR);
-        }
-        // 补充校验规则
-        ThrowUtils.throwIf(userId == null || friendUserId == null, ErrorCode.PARAMS_ERROR);
-        ThrowUtils.throwIf(userId.equals(friendUserId), ErrorCode.PARAMS_ERROR, "不能添加自己为好友");
+        ThrowUtils.throwIf(Objects.equals(userId, friendUserId), ErrorCode.PARAMS_ERROR, "不能添加自己为好友");
     }
 
     /**
@@ -162,14 +155,13 @@ public class UserFriendServiceImpl extends ServiceImpl<UserFriendMapper, UserFri
      */
     @Override
     public Page<ChatFriendUserVO> getUserFriendVOPage(Page<UserFriend> userFriendPage, HttpServletRequest request) {
-        List<UserFriend> userFriendList = userFriendPage.getRecords();
-        Page<ChatFriendUserVO> chatFriendUserVOPage = new Page<>(userFriendPage.getCurrent(), userFriendPage.getSize(), userFriendPage.getTotal());
-        if (CollUtil.isEmpty(userFriendList)) {
-            return chatFriendUserVOPage;
+        List<UserFriend> records = userFriendPage.getRecords();
+        Page<ChatFriendUserVO> voPage = new Page<>(userFriendPage.getCurrent(), userFriendPage.getSize(), userFriendPage.getTotal());
+        if (CollUtil.isEmpty(records)) {
+            return voPage;
         }
-        List<ChatFriendUserVO> chatFriendUserVOList = getUserFriendVO(userFriendList, request);
-        chatFriendUserVOPage.setRecords(chatFriendUserVOList);
-        return chatFriendUserVOPage;
+        voPage.setRecords(getUserFriendVO(records, request));
+        return voPage;
     }
 
     @Override
@@ -266,8 +258,9 @@ public class UserFriendServiceImpl extends ServiceImpl<UserFriendMapper, UserFri
                     .collect(Collectors.toSet());
             cacheUtils.sAddAll(key, friendIds);
         } else {
-            // Add a placeholder or just set expiration to avoid penetration
-            cacheUtils.putString(key, "EMPTY", 60); 
+            // 空好友列表也需要标识，防止缓存穿透，注意 SET 类型不能用 putString
+            cacheUtils.sAdd(key, "EMPTY");
+            cacheUtils.expire(key, 60);
         }
         cacheUtils.expire(key, 86400 * 7);
     }

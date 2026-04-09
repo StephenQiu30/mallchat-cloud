@@ -22,9 +22,8 @@ public interface ChatMessageService extends IService<ChatMessage> {
      * 校验聊天消息数据
      *
      * @param chatMessage 聊天消息实体
-     * @param add         是否为新增操作
      */
-    void validChatMessage(ChatMessage chatMessage, boolean add);
+    void validChatMessage(ChatMessage chatMessage);
 
     /**
      * 获取聊天消息视图类

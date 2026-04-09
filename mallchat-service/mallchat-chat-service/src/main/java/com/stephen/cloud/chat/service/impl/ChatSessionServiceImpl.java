@@ -1,7 +1,9 @@
 package com.stephen.cloud.chat.service.impl;
 
+import cn.hutool.core.collection.CollUtil;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
+import com.stephen.cloud.api.chat.model.enums.MessageStatusEnum;
 import com.stephen.cloud.api.chat.model.vo.ChatSessionVO;
 import com.stephen.cloud.api.user.client.UserFeignClient;
 import com.stephen.cloud.api.user.model.vo.UserVO;
@@ -9,14 +11,18 @@ import com.stephen.cloud.chat.convert.ChatSessionConvert;
 import com.stephen.cloud.chat.mapper.ChatSessionMapper;
 import com.stephen.cloud.chat.model.entity.*;
 import com.stephen.cloud.chat.service.*;
+import com.stephen.cloud.common.auth.utils.SecurityUtils;
 import com.stephen.cloud.common.common.ErrorCode;
 import com.stephen.cloud.common.common.ThrowUtils;
 import jakarta.annotation.Resource;
+import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.*;
 import java.util.stream.Collectors;
+import java.util.Optional;
 
 /**
  * 会话服务实现
@@ -52,23 +58,38 @@ public class ChatSessionServiceImpl extends ServiceImpl<ChatSessionMapper, ChatS
                 .orderByDesc(ChatSession::getActiveTime);
 
         List<ChatSession> sessions = this.list(queryWrapper);
-        return getChatSessionVO(sessions, userId);
+        return getChatSessionVO(sessions, (HttpServletRequest) null);
     }
 
+    /**
+     * 获取会话视图
+     *
+     * @param chatSession 会话实体
+     * @param request     HTTP 请求
+     * @return 会话视图
+     */
     @Override
-    public ChatSessionVO getChatSessionVO(ChatSession chatSession, Long userId) {
+    public ChatSessionVO getChatSessionVO(ChatSession chatSession, HttpServletRequest request) {
         if (chatSession == null) {
             return null;
         }
-        List<ChatSessionVO> vos = getChatSessionVO(Collections.singletonList(chatSession), userId);
+        List<ChatSessionVO> vos = getChatSessionVO(Collections.singletonList(chatSession), request);
         return vos.get(0);
     }
 
+    /**
+     * 批量获取会话视图
+     *
+     * @param sessions 会话实体列表
+     * @param request  HTTP 请求
+     * @return 会话视图列表
+     */
     @Override
-    public List<ChatSessionVO> getChatSessionVO(List<ChatSession> sessions, Long userId) {
+    public List<ChatSessionVO> getChatSessionVO(List<ChatSession> sessions, HttpServletRequest request) {
         if (sessions.isEmpty()) {
             return Collections.emptyList();
         }
+        Long userId = SecurityUtils.getLoginUserId();
 
         // 1. 批量查询基础数据 (房间、消息)
         List<Long> roomIds = sessions.stream().map(ChatSession::getRoomId).toList();
@@ -136,41 +157,33 @@ public class ChatSessionServiceImpl extends ServiceImpl<ChatSessionMapper, ChatS
                 }
             }
 
-            // 处理最后一条消息展示逻辑 (撤回、占位符)
+            // 4.3 处理最后一条消息预览 (撤回脱敏、消息类型占位符)
             ChatMessage lastMsg = msgMap.get(session.getLastMessageId());
             if (lastMsg != null) {
-                vo.setLastMessage(formatLastMessage(lastMsg));
+                if (Objects.equals(lastMsg.getStatus(), MessageStatusEnum.RECALL.getCode())) {
+                    vo.setLastMessage("[该消息已被撤回]");
+                } else {
+                    // 处理非文本消息的占位符展示 (inline 逻辑减少跨服务调用)
+                    String preview = switch (Optional.ofNullable(lastMsg.getType()).orElse(1)) {
+                        case 2 -> "[图片]";
+                        case 3 -> "[文件]";
+                        default -> lastMsg.getContent();
+                    };
+                    vo.setLastMessage(preview);
+                }
             }
 
             return vo;
         }).collect(Collectors.toList());
     }
 
-    /**
-     * 格式化会话预览消息
-     */
-    private String formatLastMessage(ChatMessage msg) {
-        if (msg == null) return "";
-        // 撤回识别
-        if (Objects.equals(msg.getStatus(), 1)) { // 1 为已撤回 (MessageStatusEnum.RECALL.getCode())
-            return "[该消息已被撤回]";
-        }
-        // 类型识别
-        if (!Objects.equals(msg.getType(), 1)) { // 非文本
-            return switch (msg.getType()) {
-                case 2 -> "[图片]";
-                case 3 -> "[文件]";
-                default -> "[消息]";
-            };
-        }
-        return msg.getContent();
-    }
-
     @Override
     public boolean topSession(Long roomId, Long userId, Integer topStatus) {
-        ChatSession session = getSession(userId, roomId);
+        // 获取会话实体
+        ChatSession session = this.getOne(new LambdaQueryWrapper<ChatSession>()
+                .eq(ChatSession::getUserId, userId)
+                .eq(ChatSession::getRoomId, roomId));
         ThrowUtils.throwIf(session == null, ErrorCode.NOT_FOUND_ERROR);
-        if (session == null) return false;
         session.setTopStatus(topStatus);
         return this.updateById(session);
     }
@@ -187,7 +200,9 @@ public class ChatSessionServiceImpl extends ServiceImpl<ChatSessionMapper, ChatS
         if (userId == null || roomId == null) return;
         log.info("[ChatSessionServiceImpl] 更新会话状态, userId: {}, roomId: {}, messageId: {}, incrementUnread: {}", 
                 userId, roomId, lastMessageId, incrementUnread);
-        ChatSession session = getSession(userId, roomId);
+        ChatSession session = this.getOne(new LambdaQueryWrapper<ChatSession>()
+                .eq(ChatSession::getUserId, userId)
+                .eq(ChatSession::getRoomId, roomId));
         if (session == null) {
             session = new ChatSession();
             session.setUserId(userId);
@@ -196,7 +211,7 @@ public class ChatSessionServiceImpl extends ServiceImpl<ChatSessionMapper, ChatS
             session.setTopStatus(0);
         }
         session.setLastMessageId(lastMessageId);
-        session.setActiveTime(new java.util.Date());
+        session.setActiveTime(new Date());
         if (incrementUnread) {
             Integer currentUnread = session.getUnreadCount();
             session.setUnreadCount((currentUnread == null ? 0 : currentUnread) + 1);
@@ -204,9 +219,44 @@ public class ChatSessionServiceImpl extends ServiceImpl<ChatSessionMapper, ChatS
         this.saveOrUpdate(session);
     }
 
-    private ChatSession getSession(Long userId, Long roomId) {
-        return this.getOne(new LambdaQueryWrapper<ChatSession>()
-                .eq(ChatSession::getUserId, userId)
-                .eq(ChatSession::getRoomId, roomId));
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void updateSessionBatch(List<Long> userIds, Long roomId, Long lastMessageId, Long senderId) {
+        if (CollUtil.isEmpty(userIds) || roomId == null) return;
+        log.info("[ChatSessionServiceImpl] 批量更新会话状态, roomId: {}, messageId: {}, usersSize: {}",
+                roomId, lastMessageId, userIds.size());
+
+        // 1. 批量查询已存在的会话
+        List<ChatSession> existingSessions = this.list(new LambdaQueryWrapper<ChatSession>()
+                .eq(ChatSession::getRoomId, roomId)
+                .in(ChatSession::getUserId, userIds));
+        Map<Long, ChatSession> sessionMap = existingSessions.stream()
+                .collect(Collectors.toMap(ChatSession::getUserId, s -> s));
+
+        List<ChatSession> toUpdate = new ArrayList<>();
+        Date now = new Date();
+
+        // 2. 遍历用户，补全或更新会话
+        for (Long userId : userIds) {
+            ChatSession session = sessionMap.get(userId);
+            if (session == null) {
+                session = new ChatSession();
+                session.setUserId(userId);
+                session.setRoomId(roomId);
+                session.setUnreadCount(0);
+                session.setTopStatus(0);
+            }
+            session.setLastMessageId(lastMessageId);
+            session.setActiveTime(now);
+            // 发送者不增加未读数
+            if (!userId.equals(senderId)) {
+                Integer currentUnread = session.getUnreadCount();
+                session.setUnreadCount((currentUnread == null ? 0 : currentUnread) + 1);
+            }
+            toUpdate.add(session);
+        }
+
+        // 3. 批量保存或更新
+        this.saveOrUpdateBatch(toUpdate);
     }
 }

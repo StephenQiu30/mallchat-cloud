@@ -427,7 +427,61 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User>
         ThrowUtils.throwIf(StringUtils.isBlank(code), ErrorCode.PARAMS_ERROR, "code 不能为空");
         try {
             WxMaJscode2SessionResult sessionInfo = wxMaService.getUserService().getSessionInfo(code);
-            return registerOrMatchWxUser(sessionInfo.getUnionid(), sessionInfo.getOpenid(), LoginTypeEnum.WECHAT_MA);
+            String unionId = sessionInfo.getUnionid();
+            String openId = sessionInfo.getOpenid();
+            LoginTypeEnum loginType = LoginTypeEnum.WECHAT_MA;
+
+            String lockKey = "user:register:wx:" + (StringUtils.isNotBlank(unionId) ? unionId : openId);
+            return lockUtils.lockEvent(lockKey, new TimeModel(5L, TimeUnit.SECONDS), () -> {
+                // 1. 尝试匹配用户
+                User user = null;
+                if (StringUtils.isNotBlank(unionId)) {
+                    user = this.getOne(new LambdaQueryWrapper<User>().eq(User::getWxUnionId, unionId));
+                }
+                if (user == null) {
+                    user = this.getOne(new LambdaQueryWrapper<User>().eq(User::getMaOpenId, openId));
+                }
+
+                // 2. 匹配失败则创建新用户，成功则同步信息
+                if (user == null) {
+                    user = new User();
+                    user.setWxUnionId(unionId);
+                    user.setMaOpenId(openId);
+                    user.setUserName("微信用户_" + RandomUtil.randomString(6));
+                    user.setUserRole(UserRoleEnum.USER.getValue());
+                    ThrowUtils.throwIf(!this.save(user), ErrorCode.OPERATION_ERROR, "用户注册失败");
+                } else {
+                    boolean updated = false;
+                    if (StringUtils.isBlank(user.getMaOpenId())) {
+                        user.setMaOpenId(openId);
+                        updated = true;
+                    }
+                    if (StringUtils.isBlank(user.getWxUnionId()) && StringUtils.isNotBlank(unionId)) {
+                        user.setWxUnionId(unionId);
+                        updated = true;
+                    }
+                    if (updated) {
+                        this.updateById(user);
+                    }
+                }
+
+                // 3. 更新登录状态并执行 Sa-Token 登录
+                user.setLastLoginTime(new Date());
+                this.updateById(user);
+                StpUtil.login(user.getId());
+
+                // 4. 记录登录过程（日志、缓存等）
+                UserLoginLogRecordRequest logRecordRequest = new UserLoginLogRecordRequest();
+                logRecordRequest.setUser(user);
+                logRecordRequest.setLoginType(loginType);
+                logRecordRequest.setAccount(openId);
+                recordLoginLogAsync(logRecordRequest);
+                StpUtil.getSession().set(UserConstant.USER_LOGIN_STATE, UserConvert.objToVo(user));
+
+                return this.getLoginUserVO(user);
+            }, () -> {
+                throw new BusinessException(ErrorCode.OPERATION_ERROR, "登录人数过多，请稍后再试");
+            });
         } catch (Exception e) {
             log.error("userLoginByMa error", e);
             throw new BusinessException(ErrorCode.OPERATION_ERROR, "小程序登录失败: " + e.getMessage());
@@ -452,7 +506,59 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User>
                 log.error("微信 App 登录失败, response: {}", response);
                 throw new BusinessException(ErrorCode.OPERATION_ERROR, "微信授权失败");
             }
-            return registerOrMatchWxUser(unionId, openId, LoginTypeEnum.WECHAT_APP);
+
+            LoginTypeEnum loginType = LoginTypeEnum.WECHAT_APP;
+            String lockKey = "user:register:wx:" + (StringUtils.isNotBlank(unionId) ? unionId : openId);
+            return lockUtils.lockEvent(lockKey, new TimeModel(5L, TimeUnit.SECONDS), () -> {
+                // 1. 尝试匹配用户
+                User user = null;
+                if (StringUtils.isNotBlank(unionId)) {
+                    user = this.getOne(new LambdaQueryWrapper<User>().eq(User::getWxUnionId, unionId));
+                }
+                if (user == null) {
+                    user = this.getOne(new LambdaQueryWrapper<User>().eq(User::getWxOpenId, openId));
+                }
+
+                // 2. 匹配失败则创建新用户，成功则同步信息
+                if (user == null) {
+                    user = new User();
+                    user.setWxUnionId(unionId);
+                    user.setWxOpenId(openId);
+                    user.setUserName("微信用户_" + RandomUtil.randomString(6));
+                    user.setUserRole(UserRoleEnum.USER.getValue());
+                    ThrowUtils.throwIf(!this.save(user), ErrorCode.OPERATION_ERROR, "用户注册失败");
+                } else {
+                    boolean updated = false;
+                    if (StringUtils.isBlank(user.getWxOpenId())) {
+                        user.setWxOpenId(openId);
+                        updated = true;
+                    }
+                    if (StringUtils.isBlank(user.getWxUnionId()) && StringUtils.isNotBlank(unionId)) {
+                        user.setWxUnionId(unionId);
+                        updated = true;
+                    }
+                    if (updated) {
+                        this.updateById(user);
+                    }
+                }
+
+                // 3. 更新登录状态并执行 Sa-Token 登录
+                user.setLastLoginTime(new Date());
+                this.updateById(user);
+                StpUtil.login(user.getId());
+
+                // 4. 记录登录过程（日志、缓存等）
+                UserLoginLogRecordRequest logRecordRequest = new UserLoginLogRecordRequest();
+                logRecordRequest.setUser(user);
+                logRecordRequest.setLoginType(loginType);
+                logRecordRequest.setAccount(openId);
+                recordLoginLogAsync(logRecordRequest);
+                StpUtil.getSession().set(UserConstant.USER_LOGIN_STATE, UserConvert.objToVo(user));
+
+                return this.getLoginUserVO(user);
+            }, () -> {
+                throw new BusinessException(ErrorCode.OPERATION_ERROR, "登录人数过多，请稍后再试");
+            });
         } catch (Exception e) {
             log.error("userLoginByApp error", e);
             throw new BusinessException(ErrorCode.OPERATION_ERROR, "App 登录失败: " + e.getMessage());
@@ -480,13 +586,7 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User>
         ThrowUtils.throwIf(!userIdentifier.equals(sub), ErrorCode.PARAMS_ERROR, "Apple 用户标识不匹配");
 
         // 2. 根据 Apple 用户标识 (sub) 匹配或注册用户
-        return registerOrMatchAppleUser(sub);
-    }
-
-    /**
-     * 注册或匹配 Apple 用户
-     */
-    private LoginUserVO registerOrMatchAppleUser(String appleId) {
+        String appleId = sub;
         String lockKey = "user:register:apple:" + appleId;
         return lockUtils.lockEvent(lockKey, new TimeModel(5L, TimeUnit.SECONDS), () -> {
             User user = this.getOne(new LambdaQueryWrapper<User>().eq(User::getAppleId, appleId));
@@ -515,71 +615,4 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User>
         });
     }
 
-    /**
-     * 统一注册或匹配微信用户逻辑 (UnionID 优先)
-     */
-    private LoginUserVO registerOrMatchWxUser(String unionId, String openId, LoginTypeEnum loginType) {
-        String lockKey = "user:register:wx:" + (StringUtils.isNotBlank(unionId) ? unionId : openId);
-        return lockUtils.lockEvent(lockKey, new TimeModel(5L, TimeUnit.SECONDS), () -> {
-            // 1. 尝试匹配用户
-            User user = null;
-            if (StringUtils.isNotBlank(unionId)) {
-                user = this.getOne(new LambdaQueryWrapper<User>().eq(User::getWxUnionId, unionId));
-            }
-            if (user == null) {
-                if (loginType == LoginTypeEnum.WECHAT_MA) {
-                    user = this.getOne(new LambdaQueryWrapper<User>().eq(User::getMaOpenId, openId));
-                } else if (loginType == LoginTypeEnum.WECHAT_APP) {
-                    user = this.getOne(new LambdaQueryWrapper<User>().eq(User::getWxOpenId, openId));
-                }
-            }
-
-            // 2. 匹配失败则创建新用户，成功则同步信息
-            if (user == null) {
-                user = new User();
-                user.setWxUnionId(unionId);
-                if (loginType == LoginTypeEnum.WECHAT_MA) {
-                    user.setMaOpenId(openId);
-                } else {
-                    user.setWxOpenId(openId);
-                }
-                user.setUserName("微信用户_" + RandomUtil.randomString(6));
-                user.setUserRole(UserRoleEnum.USER.getValue());
-                ThrowUtils.throwIf(!this.save(user), ErrorCode.OPERATION_ERROR, "用户注册失败");
-            } else {
-                boolean updated = false;
-                if (loginType == LoginTypeEnum.WECHAT_MA && StringUtils.isBlank(user.getMaOpenId())) {
-                    user.setMaOpenId(openId);
-                    updated = true;
-                } else if (loginType == LoginTypeEnum.WECHAT_APP && StringUtils.isBlank(user.getWxOpenId())) {
-                    user.setWxOpenId(openId);
-                    updated = true;
-                }
-                if (StringUtils.isBlank(user.getWxUnionId()) && StringUtils.isNotBlank(unionId)) {
-                    user.setWxUnionId(unionId);
-                    updated = true;
-                }
-                if (updated) {
-                    this.updateById(user);
-                }
-            }
-
-            // 3. 更新登录状态并执行 Sa-Token 登录
-            user.setLastLoginTime(new Date());
-            this.updateById(user);
-            StpUtil.login(user.getId());
-
-            // 4. 记录登录过程（日志、缓存等）
-            UserLoginLogRecordRequest logRecordRequest = new UserLoginLogRecordRequest();
-            logRecordRequest.setUser(user);
-            logRecordRequest.setLoginType(loginType);
-            logRecordRequest.setAccount(openId);
-            recordLoginLogAsync(logRecordRequest);
-            StpUtil.getSession().set(UserConstant.USER_LOGIN_STATE, UserConvert.objToVo(user));
-
-            return this.getLoginUserVO(user);
-        }, () -> {
-            throw new BusinessException(ErrorCode.OPERATION_ERROR, "登录人数过多，请稍后再试");
-        });
-    }
 }

@@ -55,26 +55,15 @@ public class UserFriendApplyServiceImpl extends ServiceImpl<UserFriendApplyMappe
      * 校验好友申请数据
      *
      * @param userFriendApply 好友申请实体
-     * @param add             是否为新增操作
      */
     @Override
-    public void validUserFriendApply(UserFriendApply userFriendApply, boolean add) {
+    public void validUserFriendApply(UserFriendApply userFriendApply) {
         if (userFriendApply == null) {
             throw new BusinessException(ErrorCode.PARAMS_ERROR);
         }
-        // 从实体中获取数据
-        Long targetId = userFriendApply.getTargetId();
-        String msg = userFriendApply.getMsg();
-        // 修改数据时，id 不能为空
-        if (!add) {
-            ThrowUtils.throwIf(userFriendApply.getId() == null, ErrorCode.PARAMS_ERROR);
-        }
-        // 补充校验规则
-        if (targetId == null) {
-            ThrowUtils.throwIf(true, ErrorCode.PARAMS_ERROR, "目标用户 ID 不能为空");
-        }
-        if (StringUtils.isNotBlank(msg)) {
-            ThrowUtils.throwIf(msg.length() > 256, ErrorCode.PARAMS_ERROR, "留言过长");
+        // 基础校验由 @Validated 处理，此处保持轻量
+        if (StringUtils.isNotBlank(userFriendApply.getMsg())) {
+            ThrowUtils.throwIf(userFriendApply.getMsg().length() > 256, ErrorCode.PARAMS_ERROR, "留言过长");
         }
     }
 
@@ -144,14 +133,13 @@ public class UserFriendApplyServiceImpl extends ServiceImpl<UserFriendApplyMappe
      */
     @Override
     public Page<ChatFriendApplyVO> getUserFriendApplyVOPage(Page<UserFriendApply> userFriendApplyPage, HttpServletRequest request) {
-        List<UserFriendApply> userFriendApplyList = userFriendApplyPage.getRecords();
-        Page<ChatFriendApplyVO> userFriendApplyVOPage = new Page<>(userFriendApplyPage.getCurrent(), userFriendApplyPage.getSize(), userFriendApplyPage.getTotal());
-        if (CollUtil.isEmpty(userFriendApplyList)) {
-            return userFriendApplyVOPage;
+        List<UserFriendApply> records = userFriendApplyPage.getRecords();
+        Page<ChatFriendApplyVO> voPage = new Page<>(userFriendApplyPage.getCurrent(), userFriendApplyPage.getSize(), userFriendApplyPage.getTotal());
+        if (CollUtil.isEmpty(records)) {
+            return voPage;
         }
-        List<ChatFriendApplyVO> userFriendApplyVOList = getUserFriendApplyVO(userFriendApplyList, request);
-        userFriendApplyVOPage.setRecords(userFriendApplyVOList);
-        return userFriendApplyVOPage;
+        voPage.setRecords(getUserFriendApplyVO(records, request));
+        return voPage;
     }
 
     @Override
@@ -159,7 +147,7 @@ public class UserFriendApplyServiceImpl extends ServiceImpl<UserFriendApplyMappe
         if (apply == null || userId == null) {
             throw new BusinessException(ErrorCode.PARAMS_ERROR);
         }
-        validUserFriendApply(apply, true);
+        validUserFriendApply(apply);
 
         Long targetId = apply.getTargetId();
         ThrowUtils.throwIf(targetId.equals(userId), ErrorCode.PARAMS_ERROR, "不能添加自己为好友");

@@ -64,8 +64,8 @@ public class ChatRoomController {
      */
     @GetMapping("/list/vo")
     @Operation(summary = "获取当前用户的聊天室列表", description = "获取当前登录用户参与的所有聊天室")
-    public BaseResponse<List<ChatRoomVO>> listUserChatRooms(HttpServletRequest request) {
-        Long userId = chatRoomService.getLoginUserId(request);
+    public BaseResponse<List<ChatRoomVO>> listUserChatRooms() {
+        Long userId = SecurityUtils.getLoginUserId();
         List<ChatRoomVO> rooms = chatRoomService.listUserChatRooms(userId);
         return ResultUtils.success(rooms);
     }
@@ -80,10 +80,9 @@ public class ChatRoomController {
     @PostMapping("/join")
     @OperationLog(module = "聊天室管理", action = "加入聊天室")
     @Operation(summary = "加入聊天室", description = "将当前用户加入到指定的聊天室")
-    public BaseResponse<Boolean> joinChatRoom(@Parameter(description = "房间ID", required = true) @RequestParam Long roomId,
-                                              HttpServletRequest request) {
+    public BaseResponse<Boolean> joinChatRoom(@Parameter(description = "房间ID", required = true) @RequestParam Long roomId) {
         ThrowUtils.throwIf(roomId == null || roomId <= 0, ErrorCode.PARAMS_ERROR);
-        Long userId = chatRoomService.getLoginUserId(request);
+        Long userId = SecurityUtils.getLoginUserId();
         chatRoomService.joinChatRoom(roomId, userId);
         return ResultUtils.success(true);
     }
@@ -98,8 +97,7 @@ public class ChatRoomController {
     @PostMapping("/private")
     @OperationLog(module = "聊天室管理", action = "私聊房间")
     @Operation(summary = "获取或创建私聊房间", description = "获取与指定好友的唯一私聊房间，若不存在则初始化（UnionID 级别唯一）")
-    public BaseResponse<Long> getOrCreatePrivateRoom(@Validated @RequestBody ChatPrivateRoomRequest request,
-                                                     HttpServletRequest servletRequest) {
+    public BaseResponse<Long> getOrCreatePrivateRoom(@Validated @RequestBody ChatPrivateRoomRequest request) {
         // 校验目标用户 ID
         ThrowUtils.throwIf(request == null || request.getPeerUserId() == null, ErrorCode.PARAMS_ERROR);
         // 获取当前登录用户 ID

@@ -1,10 +1,12 @@
 package com.stephen.cloud.chat.convert;
 
+import cn.hutool.core.collection.CollUtil;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.stephen.cloud.api.chat.model.vo.ChatSessionVO;
 import com.stephen.cloud.chat.model.entity.ChatSession;
 import org.springframework.beans.BeanUtils;
 
+import java.util.Collections;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -37,6 +39,9 @@ public class ChatSessionConvert {
      * @return 聊天会话视图列表
      */
     public static List<ChatSessionVO> getChatSessionVO(List<ChatSession> chatSessionList) {
+        if (CollUtil.isEmpty(chatSessionList)) {
+            return Collections.emptyList();
+        }
         return chatSessionList.stream().map(ChatSessionConvert::objToVo).collect(Collectors.toList());
     }
 

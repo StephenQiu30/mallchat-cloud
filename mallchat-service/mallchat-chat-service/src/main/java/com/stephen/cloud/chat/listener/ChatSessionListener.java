@@ -1,5 +1,6 @@
 package com.stephen.cloud.chat.listener;
 
+import cn.hutool.core.collection.CollUtil;
 import com.stephen.cloud.chat.event.ChatMessageSentEvent;
 import com.stephen.cloud.chat.model.entity.ChatMessage;
 import com.stephen.cloud.chat.model.entity.ChatRoomMember;
@@ -11,6 +12,7 @@ import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
+import java.util.stream.Collectors;
 
 /**
  * 聊天会话监听器
@@ -28,7 +30,7 @@ public class ChatSessionListener {
     private ChatRoomMemberService chatRoomMemberService;
 
     /**
-     * 监听消息发送事件，异步更新会话列表
+     * 监听消息发送事件，自动更新会话列表
      *
      * @param event 消息发送事件
      */
@@ -41,17 +43,14 @@ public class ChatSessionListener {
         log.info("[ChatSessionListener] 收到消息发送事件, userId: {}, roomId: {}, messageId: {}", 
                 userId, roomId, chatMessage.getId());
 
-        // 获取房间所有成员
+        // 1. 获取房间所有成员
         List<ChatRoomMember> members = chatRoomMemberService.listByRoomId(roomId);
-        if (members == null || members.isEmpty()) {
+        if (CollUtil.isEmpty(members)) {
             return;
         }
 
-        // 更新所有成员的会话列表
-        for (ChatRoomMember member : members) {
-            // 发送者不增加未读数，其他人增加
-            boolean incrementUnread = !member.getUserId().equals(userId);
-            chatSessionService.updateSession(member.getUserId(), roomId, chatMessage.getId(), incrementUnread);
-        }
+        // 2. 批量更新所有成员的会话列表 (优化：由循环单次更新改为批量更新)
+        List<Long> userIds = members.stream().map(ChatRoomMember::getUserId).collect(Collectors.toList());
+        chatSessionService.updateSessionBatch(userIds, roomId, chatMessage.getId(), userId);
     }
 }

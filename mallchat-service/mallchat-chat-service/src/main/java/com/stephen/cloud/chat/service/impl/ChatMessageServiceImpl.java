@@ -12,23 +12,20 @@ import com.stephen.cloud.chat.convert.ChatMessageConvert;
 import com.stephen.cloud.chat.event.ChatMessageSentEvent;
 import com.stephen.cloud.chat.mapper.ChatMessageMapper;
 import com.stephen.cloud.chat.model.entity.*;
+import com.stephen.cloud.chat.mq.producer.ChatMqProducer;
 import com.stephen.cloud.chat.service.*;
 import com.stephen.cloud.common.common.ErrorCode;
 import com.stephen.cloud.common.common.ThrowUtils;
 import com.stephen.cloud.common.exception.BusinessException;
-import com.stephen.cloud.chat.mq.producer.ChatMqProducer;
 import jakarta.annotation.Resource;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.commons.lang3.StringUtils;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.Collections;
-import java.util.List;
-import java.util.Objects;
+import java.util.*;
 import java.util.stream.Collectors;
 
 /**
@@ -67,27 +64,12 @@ public class ChatMessageServiceImpl extends ServiceImpl<ChatMessageMapper, ChatM
      * 校验数据
      *
      * @param chatMessage 聊天消息实体
-     * @param add         是否为新增操作
      */
     @Override
-    public void validChatMessage(ChatMessage chatMessage, boolean add) {
-        if (chatMessage == null) {
-            throw new BusinessException(ErrorCode.PARAMS_ERROR);
-        }
-        // 从实体中获取数据
-        String content = chatMessage.getContent();
+    public void validChatMessage(ChatMessage chatMessage) {
+        // 仅保留核心业务校验
         Long roomId = chatMessage.getRoomId();
-        // 修改数据时，id 不能为空
-        if (!add) {
-            ThrowUtils.throwIf(chatMessage.getId() == null, ErrorCode.PARAMS_ERROR);
-        }
-        // 补充校验规则
-        if (StringUtils.isNotBlank(content)) {
-            ThrowUtils.throwIf(content.length() > 1024, ErrorCode.PARAMS_ERROR, "内容过长");
-        }
-        if (roomId == null) {
-            ThrowUtils.throwIf(true, ErrorCode.PARAMS_ERROR, "房间号不能为空");
-        }
+        ThrowUtils.throwIf(roomId == null, ErrorCode.PARAMS_ERROR, "房间号不能为空");
     }
 
     /**
@@ -103,7 +85,7 @@ public class ChatMessageServiceImpl extends ServiceImpl<ChatMessageMapper, ChatM
             return null;
         }
         ChatMessageVO vo = ChatMessageConvert.objToVo(chatMessage);
-        
+
         // 1. 消息撤回内容脱敏
         if (Objects.equals(chatMessage.getStatus(), MessageStatusEnum.RECALL.getCode())) {
             vo.setContent("该消息已被撤回");
@@ -116,7 +98,7 @@ public class ChatMessageServiceImpl extends ServiceImpl<ChatMessageMapper, ChatM
                 vo.setReplyMsg(buildReplyMsgVO(replyMsg));
             }
         }
-        
+
         return vo;
     }
 
@@ -125,30 +107,24 @@ public class ChatMessageServiceImpl extends ServiceImpl<ChatMessageMapper, ChatM
      */
     private ReplyMsgVO buildReplyMsgVO(ChatMessage replyMsg) {
         if (replyMsg == null) return null;
-        
+
         String content = replyMsg.getContent();
         // 如果是撤回状态，脱敏内容
         if (Objects.equals(replyMsg.getStatus(), MessageStatusEnum.RECALL.getCode())) {
             content = "该消息已被撤回";
-        } else if (!Objects.equals(replyMsg.getType(), 1)) {
             // 如果不是文本，显示占位符
-            content = getMessagePlaceholder(replyMsg.getType());
+            content = switch (Optional.ofNullable(replyMsg.getType()).orElse(1)) {
+                case 2 -> "[图片]";
+                case 3 -> "[文件]";
+                default -> "[消息]";
+            };
         }
-        
+
         return ReplyMsgVO.builder()
                 .id(replyMsg.getId())
                 .content(content)
                 .type(replyMsg.getType())
                 .build();
-    }
-
-    private String getMessagePlaceholder(Integer type) {
-        if (type == null) return "[消息]";
-        return switch (type) {
-            case 2 -> "[图片]";
-            case 3 -> "[文件]";
-            default -> "[消息]";
-        };
     }
 
     /**
@@ -164,33 +140,39 @@ public class ChatMessageServiceImpl extends ServiceImpl<ChatMessageMapper, ChatM
             return Collections.emptyList();
         }
 
-        // 1. 批量获取被回复的消息内容 (解决 N+1 问题)
+        // 1. 批量获取基础 VO
+        List<ChatMessageVO> voList = ChatMessageConvert.getChatMessageVO(chatMessageList);
+
+        // 2. 批量获取被回复的消息内容 (解决 N+1 问题)
         List<Long> replyIds = chatMessageList.stream()
                 .map(ChatMessage::getReplyMsgId)
                 .filter(Objects::nonNull)
                 .distinct()
-                .toList();
-        
-        java.util.Map<Long, ChatMessage> replyMsgMap = CollUtil.isEmpty(replyIds) ? 
-                Collections.emptyMap() : 
+                .collect(Collectors.toList());
+
+        Map<Long, ChatMessage> replyMsgMap = CollUtil.isEmpty(replyIds) ?
+                Collections.emptyMap() :
                 this.listByIds(replyIds).stream().collect(Collectors.toMap(ChatMessage::getId, m -> m));
 
-        // 2. 转换并填充 VO
-        return chatMessageList.stream().map(msg -> {
-            ChatMessageVO vo = ChatMessageConvert.objToVo(msg);
-            
-            // 撤回脱敏
-            if (Objects.equals(msg.getStatus(), MessageStatusEnum.RECALL.getCode())) {
-                vo.setContent("该消息已被撤回");
+        // 3. 填充扩展信息 (撤回脱敏、回复消息内容)
+        Map<Long, ChatMessage> chatMessageMap = chatMessageList.stream()
+                .collect(Collectors.toMap(ChatMessage::getId, m -> m));
+
+        voList.forEach(vo -> {
+            ChatMessage msg = chatMessageMap.get(vo.getId());
+            if (msg != null) {
+                // 撤回脱敏
+                if (Objects.equals(msg.getStatus(), MessageStatusEnum.RECALL.getCode())) {
+                    vo.setContent("该消息已被撤回");
+                }
+                // 填充回复内容
+                if (msg.getReplyMsgId() != null) {
+                    vo.setReplyMsg(buildReplyMsgVO(replyMsgMap.get(msg.getReplyMsgId())));
+                }
             }
-            
-            // 填充回复
-            if (msg.getReplyMsgId() != null) {
-                vo.setReplyMsg(buildReplyMsgVO(replyMsgMap.get(msg.getReplyMsgId())));
-            }
-            
-            return vo;
-        }).collect(Collectors.toList());
+        });
+
+        return voList;
     }
 
     /**
@@ -202,14 +184,14 @@ public class ChatMessageServiceImpl extends ServiceImpl<ChatMessageMapper, ChatM
      */
     @Override
     public Page<ChatMessageVO> getChatMessageVOPage(Page<ChatMessage> chatMessagePage, HttpServletRequest request) {
-        List<ChatMessage> chatMessageList = chatMessagePage.getRecords();
-        Page<ChatMessageVO> chatMessageVOPage = new Page<>(chatMessagePage.getCurrent(), chatMessagePage.getSize(), chatMessagePage.getTotal());
-        if (CollUtil.isEmpty(chatMessageList)) {
-            return chatMessageVOPage;
+        // 使用标准化 Convert 简化逻辑
+        List<ChatMessage> records = chatMessagePage.getRecords();
+        Page<ChatMessageVO> voPage = new Page<>(chatMessagePage.getCurrent(), chatMessagePage.getSize(), chatMessagePage.getTotal());
+        if (CollUtil.isEmpty(records)) {
+            return voPage;
         }
-        List<ChatMessageVO> chatMessageVOList = getChatMessageVO(chatMessageList, request);
-        chatMessageVOPage.setRecords(chatMessageVOList);
-        return chatMessageVOPage;
+        voPage.setRecords(getChatMessageVO(records, request));
+        return voPage;
     }
 
     @Override
@@ -218,7 +200,7 @@ public class ChatMessageServiceImpl extends ServiceImpl<ChatMessageMapper, ChatM
         if (chatMessage == null || userId == null) {
             throw new BusinessException(ErrorCode.PARAMS_ERROR);
         }
-        validChatMessage(chatMessage, true);
+        validChatMessage(chatMessage);
         log.info("用户发送消息: userId={}, roomId={}", userId, chatMessage.getRoomId());
 
         Long roomId = chatMessage.getRoomId();
@@ -234,7 +216,7 @@ public class ChatMessageServiceImpl extends ServiceImpl<ChatMessageMapper, ChatM
                             .eq(ChatPrivateRoom::getRoomId, roomId)
                             .last("LIMIT 1"));
             ThrowUtils.throwIf(privateRoom == null, ErrorCode.SYSTEM_ERROR, "私聊房间映射不存在");
-            
+
             Long peerUserId = Objects.equals(userId, privateRoom.getUserLow()) ? privateRoom.getUserHigh() : privateRoom.getUserLow();
             ThrowUtils.throwIf(!userFriendService.isMutualFriend(userId, peerUserId), ErrorCode.NO_AUTH_ERROR, "非好友无法发送消息");
         } else {
@@ -252,8 +234,10 @@ public class ChatMessageServiceImpl extends ServiceImpl<ChatMessageMapper, ChatM
         boolean result = this.save(chatMessage);
         ThrowUtils.throwIf(!result, ErrorCode.OPERATION_ERROR, "发送消息失败");
 
-        // 异步推送消息给房间成员并发布发送事件
-        pushMessageToRoomMembers(chatMessage, null);
+        // 推送消息给所有成员
+        ChatMessageVO vo = ChatMessageConvert.objToVo(chatMessage);
+        chatMqProducer.sendChatMessageGroupPush(chatMessage.getRoomId(), vo);
+
         eventPublisher.publishEvent(new ChatMessageSentEvent(this, chatMessage, userId));
 
         return chatMessage.getId();
@@ -293,7 +277,7 @@ public class ChatMessageServiceImpl extends ServiceImpl<ChatMessageMapper, ChatM
         if (roomId == null || lastReadMessageId == null || userId == null) {
             throw new BusinessException(ErrorCode.PARAMS_ERROR);
         }
-        
+
         // 1. 权限校验
         boolean isMember = chatRoomMemberService.isMember(roomId, userId);
         if (!isMember) {
@@ -338,23 +322,23 @@ public class ChatMessageServiceImpl extends ServiceImpl<ChatMessageMapper, ChatM
     @Transactional(rollbackFor = Exception.class)
     public boolean recallMessage(Long messageId, Long userId) {
         log.info("[ChatMessageServiceImpl] 撤回消息请求, messageId: {}, userId: {}", messageId, userId);
-        
+
         // 1. 获取并检查原始消息是否存在
         ChatMessage msg = this.getById(messageId);
         ThrowUtils.throwIf(msg == null, ErrorCode.NOT_FOUND_ERROR, "消息不存在");
-        
-        // 2. 权限校验：只能撤回自己发送的消息
-        if (msg == null || !Objects.equals(msg.getFromUserId(), userId)) {
+
+        // 2. 权限校验：只能撤回自己发送的消息 (B1 修复：移除冗余 msg == null 检查)
+        if (!Objects.equals(msg.getFromUserId(), userId)) {
             throw new BusinessException(ErrorCode.NO_AUTH_ERROR, "只能撤回自己的消息");
         }
-        
+
         // 3. 时限校验：限制在消息发送后的 2 分钟内可撤回
         long now = System.currentTimeMillis();
         long createTime = msg.getCreateTime().getTime();
         if (now - createTime > 2 * 60 * 1000) {
             throw new BusinessException(ErrorCode.OPERATION_ERROR, "消息发送超过 2 分钟，无法撤回");
         }
-        
+
         // 4. 更新数据库状态为已撤回 (状态码 1)
         if (Objects.equals(msg.getStatus(), MessageStatusEnum.RECALL.getCode())) {
             return true;
@@ -362,26 +346,12 @@ public class ChatMessageServiceImpl extends ServiceImpl<ChatMessageMapper, ChatM
         msg.setStatus(MessageStatusEnum.RECALL.getCode());
         boolean ok = this.updateById(msg);
         if (!ok) return false;
-        
+
         // 5. 发送撤回广播信号 (推送撤回消息的 VO 给所有成员)
         ChatMessageVO vo = ChatMessageConvert.objToVo(msg);
         chatMqProducer.sendChatMessageGroupPush(msg.getRoomId(), vo);
-        
+
         return true;
     }
 
-    /**
-     * 推送消息给房间所有成员
-     */
-    private void pushMessageToRoomMembers(ChatMessage chatMessage, List<ChatRoomMember> members) {
-        if (chatMessage == null || chatMessage.getRoomId() == null) {
-            return;
-        }
-
-        // 构建推送消息内容
-        ChatMessageVO vo = ChatMessageConvert.objToVo(chatMessage);
-
-        // 优化：不再发送成员列表，而是发送房间广播信令
-        chatMqProducer.sendChatMessageGroupPush(chatMessage.getRoomId(), vo);
-    }
 }

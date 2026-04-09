@@ -20,9 +20,8 @@ public interface UserFriendApplyService extends IService<UserFriendApply> {
      * 校验好友申请数据
      *
      * @param userFriendApply 好友申请实体
-     * @param add             是否为新增操作
      */
-    void validUserFriendApply(UserFriendApply userFriendApply, boolean add);
+    void validUserFriendApply(UserFriendApply userFriendApply);
 
     /**
      * 获取好友申请视图类

@@ -1,11 +1,13 @@
 package com.stephen.cloud.chat.convert;
 
+import cn.hutool.core.collection.CollUtil;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.stephen.cloud.api.chat.model.dto.ChatFriendApplyRequest;
 import com.stephen.cloud.api.chat.model.vo.ChatFriendApplyVO;
 import com.stephen.cloud.chat.model.entity.UserFriendApply;
 import org.springframework.beans.BeanUtils;
 
+import java.util.Collections;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -38,6 +40,9 @@ public class ChatFriendApplyConvert {
      * @return 好友申请视图列表
      */
     public static List<ChatFriendApplyVO> getChatFriendApplyVO(List<UserFriendApply> userFriendApplyList) {
+        if (CollUtil.isEmpty(userFriendApplyList)) {
+            return Collections.emptyList();
+        }
         return userFriendApplyList.stream().map(ChatFriendApplyConvert::objToVo).collect(Collectors.toList());
     }
 

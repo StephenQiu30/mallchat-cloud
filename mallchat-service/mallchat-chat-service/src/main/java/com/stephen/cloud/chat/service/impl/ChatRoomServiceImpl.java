@@ -6,11 +6,11 @@ import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.stephen.cloud.api.chat.model.vo.ChatRoomVO;
 import com.stephen.cloud.chat.convert.ChatRoomConvert;
-import com.stephen.cloud.chat.mapper.ChatPrivateRoomMapper;
 import com.stephen.cloud.chat.mapper.ChatRoomMapper;
 import com.stephen.cloud.chat.model.entity.ChatPrivateRoom;
 import com.stephen.cloud.chat.model.entity.ChatRoom;
 import com.stephen.cloud.chat.model.entity.ChatRoomMember;
+import com.stephen.cloud.chat.service.ChatPrivateRoomService;
 import com.stephen.cloud.chat.service.ChatRoomMemberService;
 import com.stephen.cloud.chat.service.ChatRoomService;
 import com.stephen.cloud.chat.service.ChatSessionService;
@@ -52,7 +52,7 @@ public class ChatRoomServiceImpl extends ServiceImpl<ChatRoomMapper, ChatRoom>
     private UserFriendService userFriendService;
 
     @Resource
-    private ChatPrivateRoomMapper chatPrivateRoomMapper;
+    private ChatPrivateRoomService chatPrivateRoomService;
 
     @Lazy
     @Resource
@@ -62,34 +62,16 @@ public class ChatRoomServiceImpl extends ServiceImpl<ChatRoomMapper, ChatRoom>
      * 校验数据
      *
      * @param chatRoom chatRoom
-     * @param add      对创建的数据进行校验
      */
     @Override
-    public void validChatRoom(ChatRoom chatRoom, boolean add) {
+    public void validChatRoom(ChatRoom chatRoom) {
         if (chatRoom == null) {
             throw new BusinessException(ErrorCode.PARAMS_ERROR);
         }
-        String name = chatRoom.getName();
-        Integer type = chatRoom.getType();
-
-        if (add) {
-            ThrowUtils.throwIf(StringUtils.isBlank(name), ErrorCode.PARAMS_ERROR, "房间名称不能为空");
-            ThrowUtils.throwIf(type == null, ErrorCode.PARAMS_ERROR, "房间类型不能为空");
+        // 核心权限或业务校验
+        if (StringUtils.isNotBlank(chatRoom.getName())) {
+            ThrowUtils.throwIf(chatRoom.getName().length() > 80, ErrorCode.PARAMS_ERROR, "房间名称过长");
         }
-        if (StringUtils.isNotBlank(name)) {
-            ThrowUtils.throwIf(name.length() > 80, ErrorCode.PARAMS_ERROR, "房间名称过长");
-        }
-    }
-
-    /**
-     * 获取当前登录用户 ID
-     *
-     * @param request request
-     * @return Long userId
-     */
-    @Override
-    public Long getLoginUserId(HttpServletRequest request) {
-        return SecurityUtils.getLoginUserId();
     }
 
     /**
@@ -113,10 +95,7 @@ public class ChatRoomServiceImpl extends ServiceImpl<ChatRoomMapper, ChatRoom>
      */
     @Override
     public List<ChatRoomVO> getChatRoomVO(List<ChatRoom> chatRoomList, HttpServletRequest request) {
-        if (CollUtil.isEmpty(chatRoomList)) {
-            return new ArrayList<>();
-        }
-        return chatRoomList.stream().map(chatRoom -> getChatRoomVO(chatRoom, request)).collect(Collectors.toList());
+        return ChatRoomConvert.getChatRoomVO(chatRoomList);
     }
 
     /**
@@ -128,19 +107,16 @@ public class ChatRoomServiceImpl extends ServiceImpl<ChatRoomMapper, ChatRoom>
      */
     @Override
     public Page<ChatRoomVO> getChatRoomVOPage(Page<ChatRoom> chatRoomPage, HttpServletRequest request) {
-        List<ChatRoom> chatRoomList = chatRoomPage.getRecords();
-        Page<ChatRoomVO> chatRoomVOPage = new Page<>(chatRoomPage.getCurrent(), chatRoomPage.getSize(), chatRoomPage.getTotal());
-        if (CollUtil.isEmpty(chatRoomList)) {
-            return chatRoomVOPage;
-        }
-        List<ChatRoomVO> chatRoomVOList = getChatRoomVO(chatRoomList, request);
-        chatRoomVOPage.setRecords(chatRoomVOList);
-        return chatRoomVOPage;
+        return ChatRoomConvert.getChatRoomVO(chatRoomPage);
     }
 
     @Override
     @Transactional(rollbackFor = Exception.class)
     public Long addChatRoom(ChatRoom chatRoom) {
+        if (chatRoom == null) {
+            throw new BusinessException(ErrorCode.PARAMS_ERROR);
+        }
+        validChatRoom(chatRoom);
         log.info("创建聊天室: {}", chatRoom);
         Long userId = SecurityUtils.getLoginUserId();
         chatRoom.setCreateUser(userId);
@@ -177,31 +153,12 @@ public class ChatRoomServiceImpl extends ServiceImpl<ChatRoomMapper, ChatRoom>
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void joinChatRoom(Long roomId, Long userId) {
-        log.info("用户加入聊天室: roomId={}, userId={}", roomId, userId);
-        ThrowUtils.throwIf(roomId == null || userId == null, ErrorCode.PARAMS_ERROR);
-
         // 1. 检查目标房间是否存在
         ChatRoom chatRoom = this.getById(roomId);
         ThrowUtils.throwIf(chatRoom == null, ErrorCode.NOT_FOUND_ERROR, "聊天室不存在");
 
-        // 2. 幂等校验：检查用户是否已在该房间成员列表中
-        long count = chatRoomMemberService.count(
-                new LambdaQueryWrapper<ChatRoomMember>()
-                        .eq(ChatRoomMember::getRoomId, roomId)
-                        .eq(ChatRoomMember::getUserId, userId)
-        );
-        if (count > 0) {
-            log.info("用户已在房间中: userId={}, roomId={}", userId, roomId);
-            return;
-        }
-
-        // 3. 构造并保存成员关系记录
-        ChatRoomMember member = new ChatRoomMember();
-        member.setRoomId(roomId);
-        member.setUserId(userId);
-        member.setRole(1); // 1-普通成员
-        boolean result = chatRoomMemberService.save(member);
-        ThrowUtils.throwIf(!result, ErrorCode.OPERATION_ERROR, "加入聊天室失败");
+        // 2. 核心逻辑收敛至 ChatRoomMemberService
+        chatRoomMemberService.addMember(roomId, userId);
     }
 
     @Override
@@ -220,7 +177,7 @@ public class ChatRoomServiceImpl extends ServiceImpl<ChatRoomMapper, ChatRoom>
         long userHigh = Math.max(userId, peerUserId);
 
         // 3. 检查是否已有私聊映射记录
-        ChatPrivateRoom existing = chatPrivateRoomMapper.selectOne(
+        ChatPrivateRoom existing = chatPrivateRoomService.getOne(
                 new LambdaQueryWrapper<ChatPrivateRoom>()
                         .eq(ChatPrivateRoom::getUserLow, userLow)
                         .eq(ChatPrivateRoom::getUserHigh, userHigh)
@@ -247,7 +204,7 @@ public class ChatRoomServiceImpl extends ServiceImpl<ChatRoomMapper, ChatRoom>
         mapping.setUserLow(userLow);
         mapping.setUserHigh(userHigh);
         mapping.setRoomId(chatRoom.getId());
-        chatPrivateRoomMapper.insert(mapping);
+        chatPrivateRoomService.save(mapping);
 
         // 5. 会话列表初始化：确保双方好友的会话列表中均出现该房间 (非活跃会话加载)
         chatSessionService.updateSession(userId, chatRoom.getId(), null, false);
