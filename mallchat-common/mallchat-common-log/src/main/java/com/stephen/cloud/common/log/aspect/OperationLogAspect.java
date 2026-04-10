@@ -4,6 +4,8 @@ import cn.hutool.json.JSONUtil;
 import com.stephen.cloud.common.log.annotation.OperationLog;
 import com.stephen.cloud.common.log.model.OperationLogContext;
 import com.stephen.cloud.common.log.service.OperationLogRecorder;
+import com.stephen.cloud.common.utils.IpUtils;
+import cn.dev33.satoken.stp.StpUtil;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
 import org.aspectj.lang.ProceedingJoinPoint;
@@ -72,13 +74,25 @@ public class OperationLogAspect {
             context.setPath(request.getRequestURI());
             context.setHttpRequest(request);
 
-            // 尝试获取操作人信息并设置到上下文中
+            // 尝试从 Sa-Token 获取操作人信息（如果已登录）
+            try {
+                if (StpUtil.isLogin()) {
+                    context.setOperatorId(StpUtil.getLoginIdAsLong());
+                }
+            } catch (Exception ignored) {
+            }
+
+            // 尝试从 Header 获取操作人信息（兜底方案）
             String userIdStr = request.getHeader("userId");
             String userName = request.getHeader("userName");
             if (cn.hutool.core.util.StrUtil.isNotBlank(userIdStr)) {
                 context.setOperatorId(cn.hutool.core.convert.Convert.toLong(userIdStr));
             }
             context.setOperatorName(userName);
+
+            // 提取客户端IP和UA
+            context.setClientIp(IpUtils.getClientIp(request));
+            context.setUserAgent(request.getHeader("User-Agent"));
 
             // 记录请求参数
             if (operationLog.recordParams()) {

@@ -84,11 +84,6 @@
             <artifactId>ip2region</artifactId>
         </dependency>
 
-        <!-- Logstash Logback Encoder (Required by logback-spring.xml) -->
-        <dependency>
-            <groupId>net.logstash.logback</groupId>
-            <artifactId>logstash-logback-encoder</artifactId>
-        </dependency>
     </dependencies>
 
 </project>

@@ -69,4 +69,14 @@ public class OperationLogContext {
      * 由各服务根据实际情况填充
      */
     private String operatorName;
+
+    /**
+     * 客户端IP
+     */
+    private String clientIp;
+
+    /**
+     * 浏览器标识
+     */
+    private String userAgent;
 }

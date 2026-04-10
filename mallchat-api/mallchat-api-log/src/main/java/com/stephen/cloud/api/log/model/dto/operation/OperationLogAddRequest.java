@@ -89,4 +89,10 @@ public class OperationLogAddRequest implements Serializable {
      */
     @Schema(description = "归属地")
     private String location;
+
+    /**
+     * 浏览器标识
+     */
+    @Schema(description = "浏览器标识")
+    private String userAgent;
 }

@@ -120,6 +120,7 @@ CREATE TABLE `operation_log`
     `error_message`   varchar(1024)     DEFAULT NULL COMMENT '错误信息',
     `client_ip`       varchar(64)       DEFAULT NULL COMMENT '客户端IP',
     `location`        varchar(256)      DEFAULT NULL COMMENT '归属地',
+    `user_agent`      varchar(512)      DEFAULT NULL COMMENT '浏览器标识',
     `create_time`     datetime NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
     `update_time`     datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
     `is_delete`       tinyint  NOT NULL DEFAULT 0 COMMENT '是否删除',

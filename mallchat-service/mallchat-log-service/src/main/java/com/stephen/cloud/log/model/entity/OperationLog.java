@@ -108,6 +108,12 @@ public class OperationLog implements Serializable {
     private String location;
 
     /**
+     * 浏览器标识
+     */
+    @Schema(description = "浏览器标识")
+    private String userAgent;
+
+    /**
      * 创建时间
      */
     @Schema(description = "创建时间")

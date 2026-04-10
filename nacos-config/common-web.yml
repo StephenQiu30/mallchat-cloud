@@ -78,14 +78,20 @@ sa-token:
   enable-sa: true
   enable-jwt: true
   token-name: Authorization
+  token-prefix: Bearer
   timeout: 2592000
   active-timeout: 604800
-  is-concurrent: false
+  is-concurrent: true
   is-share: true
-  token-style: uuid
+  token-style: jwt
   is-log: true
-  token-prefix: Bearer
   jwt-secret-key: ${dev.sa-token.jwt-secret-key}
+  alone-redis:
+    database: ${dev.redis.database}
+    host: ${dev.redis.host}
+    port: ${dev.redis.port}
+    password: ${dev.redis.password}
+    timeout: 5000
 
 # 请求参数加密校验配置
 encrypt:

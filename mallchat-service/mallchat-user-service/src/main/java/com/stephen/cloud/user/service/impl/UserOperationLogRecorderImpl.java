@@ -50,39 +50,34 @@ public class UserOperationLogRecorderImpl implements OperationLogRecorder {
             request.setSuccess(Boolean.TRUE.equals(context.getSuccess()) ? 1 : 0);
             request.setErrorMessage(context.getErrorMessage());
 
-            // 获取操作人信息
-            HttpServletRequest httpRequest = context.getHttpRequest();
-            if (httpRequest != null) {
-                // 优先从上下文中获取操作人信息（由 AOP 设置）
-                if (context.getOperatorId() != null) {
-                    request.setOperatorId(context.getOperatorId());
-                }
-                if (cn.hutool.core.util.StrUtil.isNotBlank(context.getOperatorName())) {
-                    request.setOperatorName(context.getOperatorName());
-                }
-
-                // 如果上下文没有，或者只有 ID 没有名字，尝试兜底获取
-                if (request.getOperatorId() == null || cn.hutool.core.util.StrUtil.isBlank(request.getOperatorName())) {
-                    try {
-                        // 尝试获取当前登录用户
-                        User loginUser = userService.getLoginUserPermitNull(httpRequest);
-                        if (loginUser != null) {
-                            if (request.getOperatorId() == null) {
-                                request.setOperatorId(loginUser.getId());
-                            }
-                            if (cn.hutool.core.util.StrUtil.isBlank(request.getOperatorName())) {
-                                request.setOperatorName(loginUser.getUserName());
-                            }
-                        }
-                    } catch (Exception e) {
-                        log.warn("获取操作人信息失败: {}", e.getMessage());
-                    }
-                }
-
-                // 获取IP地址
-                String clientIp = IpUtils.getClientIp(httpRequest);
+            // 获取 IP 地址和地理位置
+            String clientIp = context.getClientIp();
+            if (cn.hutool.core.util.StrUtil.isNotBlank(clientIp)) {
                 request.setClientIp(clientIp);
                 request.setLocation(IpUtils.getRegion(clientIp));
+            }
+
+            // 设置浏览器标识
+            request.setUserAgent(context.getUserAgent());
+
+            // 设置操作人信息
+            if (context.getOperatorId() != null) {
+                request.setOperatorId(context.getOperatorId());
+            }
+            if (cn.hutool.core.util.StrUtil.isNotBlank(context.getOperatorName())) {
+                request.setOperatorName(context.getOperatorName());
+            }
+
+            // 如果上下文没有名字但有 ID，尝试从数据库获取
+            if (request.getOperatorId() != null && cn.hutool.core.util.StrUtil.isBlank(request.getOperatorName())) {
+                try {
+                    User user = userService.getById(request.getOperatorId());
+                    if (user != null) {
+                        request.setOperatorName(user.getUserName());
+                    }
+                } catch (Exception e) {
+                    log.warn("无法通过 ID 获取用户信息: {}", e.getMessage());
+                }
             }
 
             // 调用日志服务记录操作日志

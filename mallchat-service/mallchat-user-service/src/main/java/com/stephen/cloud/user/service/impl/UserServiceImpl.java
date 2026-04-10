@@ -35,6 +35,7 @@ import com.stephen.cloud.common.mysql.utils.SqlUtils;
 import com.stephen.cloud.common.utils.IpUtils;
 import com.stephen.cloud.common.utils.RegexUtils;
 import com.stephen.cloud.user.config.AppleProperties;
+import com.stephen.cloud.user.config.WxMaProperties;
 import com.stephen.cloud.user.config.WxAppProperties;
 import com.stephen.cloud.user.convert.UserConvert;
 import com.stephen.cloud.user.mapper.UserMapper;
@@ -44,6 +45,7 @@ import com.stephen.cloud.user.service.UserService;
 import jakarta.annotation.Resource;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
+import me.chanjar.weixin.common.error.WxErrorException;
 import org.apache.commons.lang3.ObjectUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.beans.BeanUtils;
@@ -52,6 +54,7 @@ import org.springframework.mail.SimpleMailMessage;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
 import java.util.Date;
@@ -86,6 +89,9 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User>
 
     @Value("${spring.mail.username}")
     private String from;
+
+    @Resource
+    private WxMaProperties wxMaProperties;
 
     @Resource
     private WxAppProperties wxAppProperties;
@@ -415,8 +421,12 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User>
     }
 
     @Override
+    @Transactional(rollbackFor = Exception.class)
     public LoginUserVO userLoginByMa(String code) {
         ThrowUtils.throwIf(StringUtils.isBlank(code), ErrorCode.PARAMS_ERROR, "code 不能为空");
+        if (StringUtils.isAnyBlank(wxMaProperties.getAppId(), wxMaProperties.getAppSecret())) {
+            throw new BusinessException(ErrorCode.OPERATION_ERROR, "未配置微信小程序登录信息");
+        }
         try {
             WxMaJscode2SessionResult sessionInfo = wxMaService.getUserService().getSessionInfo(code);
             String unionId = sessionInfo.getUnionid();
@@ -425,44 +435,15 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User>
 
             String lockKey = "user:register:wx:" + (StringUtils.isNotBlank(unionId) ? unionId : openId);
             return lockUtils.lockEvent(lockKey, new TimeModel(5L, TimeUnit.SECONDS), () -> {
-                // 1. 尝试匹配用户
-                User user = null;
-                if (StringUtils.isNotBlank(unionId)) {
-                    user = this.getOne(new LambdaQueryWrapper<User>().eq(User::getWxUnionId, unionId));
-                }
-                if (user == null) {
-                    user = this.getOne(new LambdaQueryWrapper<User>().eq(User::getMaOpenId, openId));
-                }
+                // 1. 注册或获取用户
+                User user = getOrOrRegisterWechatUser(unionId, openId, loginType);
 
-                // 2. 匹配失败则创建新用户，成功则同步信息
-                if (user == null) {
-                    user = new User();
-                    user.setWxUnionId(unionId);
-                    user.setMaOpenId(openId);
-                    user.setUserName("微信用户_" + RandomUtil.randomString(6));
-                    user.setUserRole(UserRoleEnum.USER.getValue());
-                    ThrowUtils.throwIf(!this.save(user), ErrorCode.OPERATION_ERROR, "用户注册失败");
-                } else {
-                    boolean updated = false;
-                    if (StringUtils.isBlank(user.getMaOpenId())) {
-                        user.setMaOpenId(openId);
-                        updated = true;
-                    }
-                    if (StringUtils.isBlank(user.getWxUnionId()) && StringUtils.isNotBlank(unionId)) {
-                        user.setWxUnionId(unionId);
-                        updated = true;
-                    }
-                    if (updated) {
-                        this.updateById(user);
-                    }
-                }
-
-                // 3. 更新登录状态并执行 Sa-Token 登录
+                // 2. 更新最后登录时间并保存 (合并更新)
                 user.setLastLoginTime(new Date());
                 this.updateById(user);
                 StpUtil.login(user.getId());
 
-                // 4. 记录登录过程（日志、缓存等）
+                // 3. 记录登录过程（异步逻辑）
                 UserLoginLogRecordRequest logRecordRequest = new UserLoginLogRecordRequest();
                 logRecordRequest.setUser(user);
                 logRecordRequest.setLoginType(loginType);
@@ -472,15 +453,24 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User>
 
                 return this.getLoginUserVO(user);
             }, () -> {
-                throw new BusinessException(ErrorCode.OPERATION_ERROR, "登录人数过多，请稍后再试");
+                throw new BusinessException(ErrorCode.OPERATION_ERROR, "系统繁忙，请稍后再试");
             });
+        } catch (BusinessException e) {
+            throw e;
+        } catch (WxErrorException e) {
+            log.warn("微信小程序登录调用异常, errCode: {}, errorMsg: {}", e.getError().getErrorCode(), e.getError().getErrorMsg());
+            if (e.getError().getErrorCode() == 40029) {
+                throw new BusinessException(ErrorCode.PARAMS_ERROR, "微信登录凭证无效或已过期，请重新打开小程序尝试");
+            }
+            throw new BusinessException(ErrorCode.OPERATION_ERROR, "微信授权失败，请稍后重试");
         } catch (Exception e) {
-            log.error("userLoginByMa error", e);
-            throw new BusinessException(ErrorCode.OPERATION_ERROR, "小程序登录失败: " + e.getMessage());
+            log.error("微信小程序登录失败: {}", e.getMessage(), e);
+            throw new BusinessException(ErrorCode.OPERATION_ERROR, "登录失败: " + e.getMessage());
         }
     }
 
     @Override
+    @Transactional(rollbackFor = Exception.class)
     public LoginUserVO userLoginByApp(String code) {
         ThrowUtils.throwIf(StringUtils.isBlank(code), ErrorCode.PARAMS_ERROR, "code 不能为空");
         if (StringUtils.isAnyBlank(wxAppProperties.getAppId(), wxAppProperties.getAppSecret())) {
@@ -503,44 +493,15 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User>
             LoginTypeEnum loginType = LoginTypeEnum.WECHAT_APP;
             String lockKey = "user:register:wx:" + (StringUtils.isNotBlank(unionId) ? unionId : openId);
             return lockUtils.lockEvent(lockKey, new TimeModel(5L, TimeUnit.SECONDS), () -> {
-                // 1. 尝试匹配用户
-                User user = null;
-                if (StringUtils.isNotBlank(unionId)) {
-                    user = this.getOne(new LambdaQueryWrapper<User>().eq(User::getWxUnionId, unionId));
-                }
-                if (user == null) {
-                    user = this.getOne(new LambdaQueryWrapper<User>().eq(User::getWxOpenId, openId));
-                }
+                // 1. 注册或获取用户
+                User user = getOrOrRegisterWechatUser(unionId, openId, loginType);
 
-                // 2. 匹配失败则创建新用户，成功则同步信息
-                if (user == null) {
-                    user = new User();
-                    user.setWxUnionId(unionId);
-                    user.setWxOpenId(openId);
-                    user.setUserName("微信用户_" + RandomUtil.randomString(6));
-                    user.setUserRole(UserRoleEnum.USER.getValue());
-                    ThrowUtils.throwIf(!this.save(user), ErrorCode.OPERATION_ERROR, "用户注册失败");
-                } else {
-                    boolean updated = false;
-                    if (StringUtils.isBlank(user.getWxOpenId())) {
-                        user.setWxOpenId(openId);
-                        updated = true;
-                    }
-                    if (StringUtils.isBlank(user.getWxUnionId()) && StringUtils.isNotBlank(unionId)) {
-                        user.setWxUnionId(unionId);
-                        updated = true;
-                    }
-                    if (updated) {
-                        this.updateById(user);
-                    }
-                }
-
-                // 3. 更新登录状态并执行 Sa-Token 登录
+                // 2. 更新最后登录时间并保存 (合并更新)
                 user.setLastLoginTime(new Date());
                 this.updateById(user);
                 StpUtil.login(user.getId());
 
-                // 4. 记录登录过程（日志、缓存等）
+                // 3. 记录登录过程（异步逻辑）
                 UserLoginLogRecordRequest logRecordRequest = new UserLoginLogRecordRequest();
                 logRecordRequest.setUser(user);
                 logRecordRequest.setLoginType(loginType);
@@ -550,12 +511,70 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User>
 
                 return this.getLoginUserVO(user);
             }, () -> {
-                throw new BusinessException(ErrorCode.OPERATION_ERROR, "登录人数过多，请稍后再试");
+                throw new BusinessException(ErrorCode.OPERATION_ERROR, "系统繁忙，请稍后再试");
             });
+        } catch (BusinessException e) {
+            throw e;
         } catch (Exception e) {
-            log.error("userLoginByApp error", e);
-            throw new BusinessException(ErrorCode.OPERATION_ERROR, "App 登录失败: " + e.getMessage());
+            log.error("微信 App 登录失败: {}", e.getMessage(), e);
+            throw new BusinessException(ErrorCode.OPERATION_ERROR, "登录失败: " + e.getMessage());
         }
+    }
+
+    /**
+     * 统一注册或匹配微信用户逻辑 (UnionID 优先)
+     *
+     * @param unionId   微信 UnionID
+     * @param openId    微信 OpenID
+     * @param loginType 登录类型
+     * @return {@link User}
+     */
+    private User getOrOrRegisterWechatUser(String unionId, String openId, LoginTypeEnum loginType) {
+        User user = null;
+        // 1. 优先通过 UnionID 匹配
+        if (StringUtils.isNotBlank(unionId)) {
+            user = this.getOne(new LambdaQueryWrapper<User>().eq(User::getWxUnionId, unionId));
+        }
+        // 2. 其次通过 OpenID 匹配
+        if (user == null) {
+            LambdaQueryWrapper<User> queryWrapper = new LambdaQueryWrapper<>();
+            if (LoginTypeEnum.WECHAT_MA.equals(loginType)) {
+                queryWrapper.eq(User::getMaOpenId, openId);
+            } else {
+                queryWrapper.eq(User::getWxOpenId, openId);
+            }
+            user = this.getOne(queryWrapper);
+        }
+
+        // 3. 用户不存在，执行注册
+        if (user == null) {
+            user = new User();
+            user.setWxUnionId(unionId);
+            if (LoginTypeEnum.WECHAT_MA.equals(loginType)) {
+                user.setMaOpenId(openId);
+            } else {
+                user.setWxOpenId(openId);
+            }
+            user.setUserName("微信用户_" + RandomUtil.randomString(6));
+            user.setUserRole(UserRoleEnum.USER.getValue());
+            ThrowUtils.throwIf(!this.save(user), ErrorCode.OPERATION_ERROR, "用户注册失败");
+            return user;
+        }
+
+        // 4. 用户已存在，同步缺失的信息
+        if (LoginTypeEnum.WECHAT_MA.equals(loginType)) {
+            if (StringUtils.isBlank(user.getMaOpenId())) {
+                user.setMaOpenId(openId);
+            }
+        } else {
+            if (StringUtils.isBlank(user.getWxOpenId())) {
+                user.setWxOpenId(openId);
+            }
+        }
+        if (StringUtils.isNotBlank(unionId) && StringUtils.isBlank(user.getWxUnionId())) {
+            user.setWxUnionId(unionId);
+        }
+        return user;
     }
 
     /**

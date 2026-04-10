@@ -38,7 +38,6 @@ spring:
           - /api/user/register
           - /api/user/login/**
           - /api/user/logout
-          - /api/user/get/login
           - /api/notification/page
           - /doc.html
           - /swagger-ui/**
