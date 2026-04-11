@@ -17,6 +17,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.annotation.Resource;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.lang3.StringUtils;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -116,6 +117,40 @@ public class UserController {
             throw new BusinessException(ErrorCode.PARAMS_ERROR);
         }
         LoginUserVO loginUserVO = userService.userLoginByApple(loginRequest);
+        return ResultUtils.success(loginUserVO);
+    }
+
+    /**
+     * 发送邮箱验证码
+     *
+     * @param emailCodeRequest 邮箱验证码请求
+     * @return 是否成功发送
+     */
+    @PostMapping("/login/email/code")
+    @Operation(summary = "发送邮箱验证码", description = "向指定邮箱发送 6 位数登录验证码")
+    @OperationLog(module = "用户认证", action = "发送邮箱验证码")
+    public BaseResponse<Boolean> sendEmailCode(@RequestBody UserEmailCodeRequest emailCodeRequest) {
+        if (emailCodeRequest == null || StringUtils.isBlank(emailCodeRequest.getEmail())) {
+            throw new BusinessException(ErrorCode.PARAMS_ERROR, "邮箱地址不能为空");
+        }
+        userService.sendEmailCode(emailCodeRequest.getEmail());
+        return ResultUtils.success(true);
+    }
+
+    /**
+     * 邮箱登录
+     *
+     * @param loginRequest 邮箱登录请求
+     * @return 登录用户信息
+     */
+    @PostMapping("/login/email")
+    @Operation(summary = "邮箱登录", description = "通过邮箱和验证码进行登录或注册")
+    @OperationLog(module = "用户认证", action = "邮箱登录")
+    public BaseResponse<LoginUserVO> userLoginByEmail(@RequestBody UserEmailLoginRequest loginRequest) {
+        if (loginRequest == null) {
+            throw new BusinessException(ErrorCode.PARAMS_ERROR);
+        }
+        LoginUserVO loginUserVO = userService.userLoginByEmail(loginRequest.getEmail(), loginRequest.getCode());
         return ResultUtils.success(loginUserVO);
     }
 

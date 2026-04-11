@@ -33,6 +33,7 @@ public class AiChatRequest implements Serializable {
     /**
      * 模型类型 (dashscope, ollama)
      */
+    @Builder.Default
     @Schema(description = "模型类型 (dashscope: 通义千问, ollama: 本地模型)", example = "dashscope")
     private String modelType = "dashscope";
 
