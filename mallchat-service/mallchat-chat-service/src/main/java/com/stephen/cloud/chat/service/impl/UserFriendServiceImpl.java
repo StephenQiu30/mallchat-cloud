@@ -11,7 +11,9 @@ import com.stephen.cloud.api.user.model.vo.UserVO;
 import com.stephen.cloud.chat.convert.ChatFriendConvert;
 import com.stephen.cloud.chat.mapper.UserFriendMapper;
 import com.stephen.cloud.chat.model.entity.UserFriend;
+import com.stephen.cloud.chat.service.ChatOnlineStatusService;
 import com.stephen.cloud.chat.service.UserFriendService;
+import com.stephen.cloud.common.cache.constants.ChatCacheConstant;
 import com.stephen.cloud.common.cache.utils.CacheUtils;
 import com.stephen.cloud.common.common.ErrorCode;
 import com.stephen.cloud.common.common.ThrowUtils;
@@ -43,7 +45,8 @@ public class UserFriendServiceImpl extends ServiceImpl<UserFriendMapper, UserFri
     @Resource
     private CacheUtils cacheUtils;
 
-    private static final String USER_FRIEND_CACHE_KEY = "chat:user:friends:";
+    @Resource
+    private ChatOnlineStatusService chatOnlineStatusService;
 
     /**
      * 校验好友数据
@@ -110,6 +113,7 @@ public class UserFriendServiceImpl extends ServiceImpl<UserFriendMapper, UserFri
                 chatFriendUserVO.setUserName(userVO.getUserName());
                 chatFriendUserVO.setUserAvatar(userVO.getUserAvatar());
             }
+            chatFriendUserVO.setOnlineStatus(chatOnlineStatusService.getOnlineStatus(friendUserId));
         }
         return chatFriendUserVO;
     }
@@ -130,6 +134,7 @@ public class UserFriendServiceImpl extends ServiceImpl<UserFriendMapper, UserFri
         List<Long> friendUserIdList = userFriendList.stream().map(UserFriend::getFriendUserId).collect(Collectors.toList());
         Map<Long, List<UserVO>> userIdUserVOListMap = userFeignClient.getUserVOByIds(friendUserIdList).getData().stream()
                 .collect(Collectors.groupingBy(UserVO::getId));
+        Map<Long, Integer> onlineStatusMap = chatOnlineStatusService.getOnlineStatusMap(friendUserIdList);
         // 填充信息
         return userFriendList.stream().map(userFriend -> {
             ChatFriendUserVO chatFriendUserVO = ChatFriendConvert.objToVo(userFriend);
@@ -142,6 +147,7 @@ public class UserFriendServiceImpl extends ServiceImpl<UserFriendMapper, UserFri
                 chatFriendUserVO.setUserName(userVO.getUserName());
                 chatFriendUserVO.setUserAvatar(userVO.getUserAvatar());
             }
+            chatFriendUserVO.setOnlineStatus(onlineStatusMap.getOrDefault(friendUserId, 0));
             return chatFriendUserVO;
         }).collect(Collectors.toList());
     }
@@ -167,7 +173,7 @@ public class UserFriendServiceImpl extends ServiceImpl<UserFriendMapper, UserFri
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void addFriend(Long userId, Long friendUserId) {
-        log.info("添加好友: userId={}, friendUserId={}", userId, friendUserId);
+        log.info("[UserFriendServiceImpl] 添加好友: userId={}, friendUserId={}", userId, friendUserId);
         ThrowUtils.throwIf(userId == null || friendUserId == null, ErrorCode.PARAMS_ERROR);
         ThrowUtils.throwIf(userId.equals(friendUserId), ErrorCode.PARAMS_ERROR, "不能添加自己为好友");
 
@@ -202,7 +208,7 @@ public class UserFriendServiceImpl extends ServiceImpl<UserFriendMapper, UserFri
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void removeFriend(Long userId, Long friendUserId) {
-        log.info("移除好友: userId={}, friendUserId={}", userId, friendUserId);
+        log.info("[UserFriendServiceImpl] 移除好友: userId={}, friendUserId={}", userId, friendUserId);
         ThrowUtils.throwIf(userId == null || friendUserId == null, ErrorCode.PARAMS_ERROR);
 
         boolean ok = this.remove(new LambdaQueryWrapper<UserFriend>()
@@ -212,8 +218,8 @@ public class UserFriendServiceImpl extends ServiceImpl<UserFriendMapper, UserFri
 
         if (ok) {
             // Remove from Redis
-            cacheUtils.sRemove(USER_FRIEND_CACHE_KEY + userId, String.valueOf(friendUserId));
-            cacheUtils.sRemove(USER_FRIEND_CACHE_KEY + friendUserId, String.valueOf(userId));
+            cacheUtils.sRemove(ChatCacheConstant.getUserFriendKey(userId), String.valueOf(friendUserId));
+            cacheUtils.sRemove(ChatCacheConstant.getUserFriendKey(friendUserId), String.valueOf(userId));
         }
     }
 
@@ -231,7 +237,7 @@ public class UserFriendServiceImpl extends ServiceImpl<UserFriendMapper, UserFri
         if (userId == null || friendUserId == null) {
             return false;
         }
-        String key = USER_FRIEND_CACHE_KEY + userId;
+        String key = ChatCacheConstant.getUserFriendKey(userId);
         // Try Cache first
         if (cacheUtils.exists(key)) {
             return cacheUtils.sIsMember(key, String.valueOf(friendUserId));
@@ -243,15 +249,15 @@ public class UserFriendServiceImpl extends ServiceImpl<UserFriendMapper, UserFri
     }
 
     private void syncFriendToCache(Long userId, Long friendUserId) {
-        String key = USER_FRIEND_CACHE_KEY + userId;
+        String key = ChatCacheConstant.getUserFriendKey(userId);
         cacheUtils.sAdd(key, String.valueOf(friendUserId));
-        cacheUtils.expire(key, 86400 * 7); // 7 days
+        cacheUtils.expire(key, ChatCacheConstant.USER_FRIEND_CACHE_EXPIRE_SECONDS);
     }
 
     private void loadFriendCache(Long userId) {
         List<UserFriend> friends = this.list(new LambdaQueryWrapper<UserFriend>()
                 .eq(UserFriend::getUserId, userId));
-        String key = USER_FRIEND_CACHE_KEY + userId;
+        String key = ChatCacheConstant.getUserFriendKey(userId);
         if (CollUtil.isNotEmpty(friends)) {
             Set<String> friendIds = friends.stream()
                     .map(f -> String.valueOf(f.getFriendUserId()))
@@ -259,9 +265,9 @@ public class UserFriendServiceImpl extends ServiceImpl<UserFriendMapper, UserFri
             cacheUtils.sAddAll(key, friendIds);
         } else {
             // 空好友列表也需要标识，防止缓存穿透，注意 SET 类型不能用 putString
-            cacheUtils.sAdd(key, "EMPTY");
+            cacheUtils.sAdd(key, ChatCacheConstant.EMPTY_SET_PLACEHOLDER);
             cacheUtils.expire(key, 60);
         }
-        cacheUtils.expire(key, 86400 * 7);
+        cacheUtils.expire(key, ChatCacheConstant.USER_FRIEND_CACHE_EXPIRE_SECONDS);
     }
 }

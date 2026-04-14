@@ -57,9 +57,9 @@ public interface ChatMessageService extends IService<ChatMessage> {
      *
      * @param chatMessage 消息实体
      * @param userId      发送者 ID
-     * @return 消息 ID
+     * @return 消息视图
      */
-    Long sendMessage(ChatMessage chatMessage, Long userId);
+    ChatMessageVO sendMessage(ChatMessage chatMessage, Long userId);
 
     /**
      * 获取聊天室历史消息

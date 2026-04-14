@@ -57,10 +57,12 @@ public class ChatGroupInfoServiceImpl extends ServiceImpl<ChatGroupInfoMapper, C
     }
 
     @Override
-    public void initGroupInfo(Long roomId, String groupName, Long userId) {
+    public void initGroupInfo(Long roomId, String groupName, String groupAvatar, String announcement, Long userId) {
         ChatGroupInfo groupInfo = new ChatGroupInfo();
         groupInfo.setRoomId(roomId);
         groupInfo.setGroupName(groupName);
+        groupInfo.setGroupAvatar(groupAvatar);
+        groupInfo.setAnnouncement(announcement);
         groupInfo.setCreateUser(userId);
         this.save(groupInfo);
     }

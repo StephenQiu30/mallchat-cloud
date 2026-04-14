@@ -39,12 +39,12 @@ public class ChatMessageController {
      *
      * @param chatMessageSendRequest 发送消息请求
      * @param request                HTTP 请求
-     * @return 消息 ID
+     * @return 消息视图
      */
     @PostMapping("/send")
     @OperationLog(module = "消息管理", action = "发送消息")
     @Operation(summary = "发送消息", description = "向指定房间发送一条消息（支持文本、图片、文件）")
-    public BaseResponse<Long> sendMessage(@Validated @RequestBody ChatMessageSendRequest chatMessageSendRequest) {
+    public BaseResponse<ChatMessageVO> sendMessage(@Validated @RequestBody ChatMessageSendRequest chatMessageSendRequest) {
         // 请求参数非空校验
         ThrowUtils.throwIf(chatMessageSendRequest == null, ErrorCode.PARAMS_ERROR);
         // 获取当前登录用户 ID
@@ -52,8 +52,8 @@ public class ChatMessageController {
         // 将 DTO 转换为实体类
         ChatMessage chatMessage = ChatMessageConvert.addRequestToObj(chatMessageSendRequest);
         // 调用 Service 执行发送逻辑
-        Long messageId = chatMessageService.sendMessage(chatMessage, userId);
-        return ResultUtils.success(messageId);
+        ChatMessageVO messageVO = chatMessageService.sendMessage(chatMessage, userId);
+        return ResultUtils.success(messageVO);
     }
 
     /**

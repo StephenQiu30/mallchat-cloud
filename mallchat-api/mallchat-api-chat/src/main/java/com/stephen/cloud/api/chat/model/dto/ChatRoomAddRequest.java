@@ -2,10 +2,10 @@ package com.stephen.cloud.api.chat.model.dto;
 
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.NotNull;
 import lombok.Data;
 
 import java.io.Serializable;
+import java.util.List;
 
 /**
  * 创建聊天室请求
@@ -24,17 +24,22 @@ public class ChatRoomAddRequest implements Serializable {
     private String name;
 
     /**
-     * 房间类型：1-群聊，2-私聊
-     */
-    @Schema(description = "房间类型：1-群聊，2-私聊", requiredMode = Schema.RequiredMode.REQUIRED, example = "1")
-    @NotNull(message = "房间类型不能为空")
-    private Integer type;
-
-    /**
      * 房间头像
      */
     @Schema(description = "房间头像", example = "https://example.com/avatar.png")
     private String avatar;
+
+    /**
+     * 群公告
+     */
+    @Schema(description = "群公告", example = "欢迎加入交流群")
+    private String announcement;
+
+    /**
+     * 初始群成员
+     */
+    @Schema(description = "初始群成员ID列表", example = "[2,3]")
+    private List<Long> memberIds;
 
     private static final long serialVersionUID = 1L;
 }

@@ -22,6 +22,8 @@ import com.stephen.cloud.api.user.model.dto.UserQueryRequest;
 import com.stephen.cloud.api.user.model.enums.UserRoleEnum;
 import com.stephen.cloud.api.user.model.vo.LoginUserVO;
 import com.stephen.cloud.api.user.model.vo.UserVO;
+import com.stephen.cloud.common.auth.config.enums.DeviceTypeEnum;
+import com.stephen.cloud.common.auth.config.utils.DeviceUtils;
 import com.stephen.cloud.common.auth.utils.SecurityUtils;
 import com.stephen.cloud.common.cache.model.TimeModel;
 import com.stephen.cloud.common.cache.utils.CacheUtils;
@@ -55,6 +57,8 @@ import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.context.request.RequestContextHolder;
+import org.springframework.web.context.request.ServletRequestAttributes;
 
 import java.util.ArrayList;
 import java.util.Date;
@@ -405,6 +409,7 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User>
             user.setLastLoginTime(new Date());
             this.updateById(user);
             StpUtil.login(user.getId());
+            recordLoginDeviceMetadata();
 
             // 4. 记录登录日志与 Session 状态
             UserLoginLogRecordRequest logRecordRequest = new UserLoginLogRecordRequest();
@@ -442,6 +447,7 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User>
                 user.setLastLoginTime(new Date());
                 this.updateById(user);
                 StpUtil.login(user.getId());
+                recordLoginDeviceMetadata();
 
                 // 3. 记录登录过程（异步逻辑）
                 UserLoginLogRecordRequest logRecordRequest = new UserLoginLogRecordRequest();
@@ -500,6 +506,7 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User>
                 user.setLastLoginTime(new Date());
                 this.updateById(user);
                 StpUtil.login(user.getId());
+                recordLoginDeviceMetadata();
 
                 // 3. 记录登录过程（异步逻辑）
                 UserLoginLogRecordRequest logRecordRequest = new UserLoginLogRecordRequest();
@@ -612,6 +619,7 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User>
             user.setLastLoginTime(new Date());
             this.updateById(user);
             StpUtil.login(user.getId());
+            recordLoginDeviceMetadata();
 
             // 记录登录过程
             UserLoginLogRecordRequest logRecordRequest = new UserLoginLogRecordRequest();
@@ -625,6 +633,23 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User>
         }, () -> {
             throw new BusinessException(ErrorCode.OPERATION_ERROR, "系统繁忙，请稍后再试");
         });
+    }
+
+    private void recordLoginDeviceMetadata() {
+        String deviceType = DeviceTypeEnum.UNKNOWN.getValue();
+        try {
+            ServletRequestAttributes attributes = (ServletRequestAttributes) RequestContextHolder.getRequestAttributes();
+            if (attributes != null && attributes.getRequest() != null) {
+                deviceType = DeviceUtils.getRequestDevice(attributes.getRequest());
+            }
+        } catch (Exception e) {
+            log.warn("识别登录设备失败，使用 UNKNOWN", e);
+        }
+        try {
+            StpUtil.getTokenSession().set("deviceType", deviceType);
+        } catch (Exception e) {
+            log.warn("写入设备元数据失败", e);
+        }
     }
 
 }

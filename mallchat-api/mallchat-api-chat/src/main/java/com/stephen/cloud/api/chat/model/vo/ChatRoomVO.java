@@ -46,6 +46,24 @@ public class ChatRoomVO implements Serializable {
     private String avatar;
 
     /**
+     * 房间拥有者
+     */
+    @Schema(description = "房间拥有者ID", example = "1")
+    private Long ownerUserId;
+
+    /**
+     * 成员数量
+     */
+    @Schema(description = "成员数量", example = "5")
+    private Integer memberCount;
+
+    /**
+     * 群公告
+     */
+    @Schema(description = "群公告", example = "欢迎加入交流群")
+    private String announcement;
+
+    /**
      * 创建时间
      */
     @Schema(description = "创建时间")

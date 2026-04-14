@@ -54,7 +54,9 @@ public interface ChatGroupInfoService extends IService<ChatGroupInfo> {
      *
      * @param roomId    虚拟房间ID
      * @param groupName 群名称
+     * @param groupAvatar 群头像
+     * @param announcement 群公告
      * @param userId    创建者
      */
-    void initGroupInfo(Long roomId, String groupName, Long userId);
+    void initGroupInfo(Long roomId, String groupName, String groupAvatar, String announcement, Long userId);
 }

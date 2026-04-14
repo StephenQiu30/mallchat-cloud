@@ -32,6 +32,11 @@ public class ChatMessage implements Serializable {
     private Long fromUserId;
 
     /**
+     * 客户端消息ID
+     */
+    private String clientMsgId;
+
+    /**
      * 消息内容
      */
     private String content;

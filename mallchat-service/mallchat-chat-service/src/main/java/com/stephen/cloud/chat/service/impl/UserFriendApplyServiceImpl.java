@@ -18,7 +18,6 @@ import com.stephen.cloud.chat.service.UserFriendService;
 import com.stephen.cloud.common.common.ErrorCode;
 import com.stephen.cloud.common.common.ThrowUtils;
 import com.stephen.cloud.common.exception.BusinessException;
-import com.stephen.cloud.common.rabbitmq.enums.WebSocketMessageTypeEnum;
 import jakarta.annotation.Resource;
 import jakarta.servlet.http.HttpServletRequest;
 import org.apache.commons.lang3.StringUtils;
@@ -167,6 +166,7 @@ public class UserFriendApplyServiceImpl extends ServiceImpl<UserFriendApplyMappe
         apply.setUserId(userId);
         apply.setStatus(1); // 1-待处理
         this.save(apply);
+        chatMqProducer.sendFriendApply(targetId, getUserFriendApplyVO(apply, null), "friend_apply:" + apply.getId());
         return apply.getId();
     }
 
@@ -199,7 +199,7 @@ public class UserFriendApplyServiceImpl extends ServiceImpl<UserFriendApplyMappe
 
         // 发送 WebSocket 通知
         String bizId = "friend_approve:" + apply.getId();
-        chatMqProducer.sendWebSocketPush(apply.getUserId(), WebSocketMessageTypeEnum.FRIEND_APPROVE, "您的好友申请已通过", bizId);
+        chatMqProducer.sendFriendApprove(apply.getUserId(), getUserFriendApplyVO(apply, null), bizId);
 
         return this.updateById(apply);
     }

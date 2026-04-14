@@ -33,32 +33,23 @@ public class WebSocketBroadcastHandler implements RabbitMqHandler<WebSocketMessa
         String msgId = rabbitMessage.getMsgId();
         log.info("[WebSocketBroadcastHandler] 收到 WebSocket 广播/中转消息, msgId: {}", msgId);
 
-        String messageJson = JSONUtil.toJsonStr(wsMessage);
+        String messageJson = JSONUtil.toJsonStr(wsMessage.getData() != null ? wsMessage.getData() : wsMessage);
 
         // 1. 如果是特定单用户推送（中转过来的）
         if (wsMessage.getUserId() != null) {
             String userIdStr = String.valueOf(wsMessage.getUserId());
-            if (channelManager.isOnline(userIdStr)) {
-                io.netty.channel.Channel channel = channelManager.getChannel(userIdStr);
-                if (channel != null && channel.isActive()) {
-                    channel.writeAndFlush(new TextWebSocketFrame(messageJson));
-                    log.info("[WebSocketBroadcastHandler] 中转推送成功, userId: {}, msgId: {}", userIdStr, msgId);
-                }
+            int successCount = channelManager.writeToUser(userIdStr, messageJson);
+            if (successCount > 0) {
+                log.info("[WebSocketBroadcastHandler] 中转推送成功, userId: {}, connections: {}, msgId: {}",
+                        userIdStr, successCount, msgId);
             }
             return;
         }
 
         // 2. 如果是特定多用户推送
         if (wsMessage.getUserIds() != null && !wsMessage.getUserIds().isEmpty()) {
-            wsMessage.getUserIds().forEach(uid -> {
-                String uidStr = String.valueOf(uid);
-                if (channelManager.isOnline(uidStr)) {
-                    io.netty.channel.Channel channel = channelManager.getChannel(uidStr);
-                    if (channel != null && channel.isActive()) {
-                        channel.writeAndFlush(new TextWebSocketFrame(messageJson));
-                    }
-                }
-            });
+            wsMessage.getUserIds().forEach(uid ->
+                    channelManager.writeToUser(String.valueOf(uid), messageJson));
             return;
         }
 

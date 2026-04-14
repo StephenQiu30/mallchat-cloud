@@ -1,9 +1,11 @@
 package com.stephen.cloud.chat.listener;
 
 import cn.hutool.core.collection.CollUtil;
+import com.stephen.cloud.api.chat.model.vo.ChatSessionVO;
 import com.stephen.cloud.chat.event.ChatMessageSentEvent;
 import com.stephen.cloud.chat.model.entity.ChatMessage;
 import com.stephen.cloud.chat.model.entity.ChatRoomMember;
+import com.stephen.cloud.chat.mq.producer.ChatMqProducer;
 import com.stephen.cloud.chat.service.ChatRoomMemberService;
 import com.stephen.cloud.chat.service.ChatSessionService;
 import jakarta.annotation.Resource;
@@ -29,6 +31,9 @@ public class ChatSessionListener {
     @Resource
     private ChatRoomMemberService chatRoomMemberService;
 
+    @Resource
+    private ChatMqProducer chatMqProducer;
+
     /**
      * 监听消息发送事件，自动更新会话列表
      *
@@ -52,5 +57,13 @@ public class ChatSessionListener {
         // 2. 批量更新所有成员的会话列表 (优化：由循环单次更新改为批量更新)
         List<Long> userIds = members.stream().map(ChatRoomMember::getUserId).collect(Collectors.toList());
         chatSessionService.updateSessionBatch(userIds, roomId, chatMessage.getId(), userId);
+
+        for (Long targetUserId : userIds) {
+            ChatSessionVO sessionVO = chatSessionService.getSessionVO(roomId, targetUserId);
+            if (sessionVO != null) {
+                chatMqProducer.sendSessionUpdate(targetUserId, roomId, sessionVO,
+                        "session_msg:" + roomId + ":" + targetUserId + ":" + chatMessage.getId());
+            }
+        }
     }
 }

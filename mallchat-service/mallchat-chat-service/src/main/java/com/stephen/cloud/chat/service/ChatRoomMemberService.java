@@ -48,6 +48,33 @@ public interface ChatRoomMemberService extends IService<ChatRoomMember> {
     void addMember(Long roomId, Long userId);
 
     /**
+     * 添加成员（指定角色）
+     *
+     * @param roomId 房间 ID
+     * @param userId 用户 ID
+     * @param role   成员角色
+     */
+    void addMember(Long roomId, Long userId, Integer role);
+
+    /**
+     * 获取指定成员
+     *
+     * @param roomId 房间 ID
+     * @param userId 用户 ID
+     * @return 房间成员
+     */
+    ChatRoomMember getMember(Long roomId, Long userId);
+
+    /**
+     * 是否为群主
+     *
+     * @param roomId 房间 ID
+     * @param userId 用户 ID
+     * @return 是否为群主
+     */
+    boolean isOwner(Long roomId, Long userId);
+
+    /**
      * 获取成员视图类
      *
      * @param chatRoomMember 房间成员

@@ -1,9 +1,11 @@
 package com.stephen.cloud.notification.mq.handler;
 
 import cn.hutool.json.JSONUtil;
+import com.stephen.cloud.common.cache.constants.ChatCacheConstant;
 import com.stephen.cloud.common.cache.utils.CacheUtils;
 import com.stephen.cloud.common.rabbitmq.consumer.RabbitMqHandler;
 import com.stephen.cloud.common.rabbitmq.enums.MqBizTypeEnum;
+import com.stephen.cloud.common.rabbitmq.enums.WebSocketPushTypeEnum;
 import com.stephen.cloud.common.rabbitmq.model.RabbitMessage;
 import com.stephen.cloud.common.rabbitmq.model.WebSocketMessage;
 import com.stephen.cloud.common.websocket.manager.ChannelManager;
@@ -53,7 +55,7 @@ public class ChatMessagePushHandler implements RabbitMqHandler<WebSocketMessage>
         log.info("[ChatMessagePushHandler] 收到推送请求, type: {}, roomId: {}, msgId: {}",
                 pushType, wsMessage.getRoomId(), msgId);
 
-        if ("broadcast".equalsIgnoreCase(pushType)) {
+        if (WebSocketPushTypeEnum.BROADCAST.getValue().equalsIgnoreCase(pushType)) {
             // 如果指定了房间 ID，进行房间级别的准广播 (只推送到房间成员)
             if (wsMessage.getRoomId() != null) {
                 pushToRoomMembers(wsMessage);
@@ -86,16 +88,11 @@ public class ChatMessagePushHandler implements RabbitMqHandler<WebSocketMessage>
      */
     private void pushToMultipleUsers(WebSocketMessage wsMessage) {
         List<Long> userIds = wsMessage.getUserIds();
-        String messageJson = JSONUtil.toJsonStr(wsMessage);
+        String messageJson = JSONUtil.toJsonStr(wsMessage.getData() != null ? wsMessage.getData() : wsMessage);
         int successCount = 0;
 
         for (Long userId : userIds) {
-            // 只推送到本地在线的用户
-            io.netty.channel.Channel channel = channelManager.getChannel(String.valueOf(userId));
-            if (channel != null && channel.isActive()) {
-                channel.writeAndFlush(new TextWebSocketFrame(messageJson));
-                successCount++;
-            }
+            successCount += channelManager.writeToUser(String.valueOf(userId), messageJson);
         }
 
         if (successCount > 0) {
@@ -111,11 +108,9 @@ public class ChatMessagePushHandler implements RabbitMqHandler<WebSocketMessage>
      */
     private void pushToRoomMembers(WebSocketMessage wsMessage) {
         Long roomId = wsMessage.getRoomId();
-        String messageJson = JSONUtil.toJsonStr(wsMessage);
+        String messageJson = JSONUtil.toJsonStr(wsMessage.getData() != null ? wsMessage.getData() : wsMessage);
 
-        // 拼接 Redis Key (必须与 chat-service 保持一致)
-        String key = "mallchat:chat:room:members:" + roomId;
-        // 获取所有成员 ID
+        String key = ChatCacheConstant.getRoomMemberKey(roomId);
         java.util.Set<String> memberIds = cacheUtils.sMembers(key);
 
         if (memberIds == null || memberIds.isEmpty()) {
@@ -125,11 +120,7 @@ public class ChatMessagePushHandler implements RabbitMqHandler<WebSocketMessage>
 
         int successCount = 0;
         for (String userIdStr : memberIds) {
-            io.netty.channel.Channel channel = channelManager.getChannel(userIdStr);
-            if (channel != null && channel.isActive()) {
-                channel.writeAndFlush(new TextWebSocketFrame(messageJson));
-                successCount++;
-            }
+            successCount += channelManager.writeToUser(userIdStr, messageJson);
         }
 
         if (successCount > 0) {
@@ -143,7 +134,7 @@ public class ChatMessagePushHandler implements RabbitMqHandler<WebSocketMessage>
      * @param wsMessage WebSocket 包装消息
      */
     private void broadcast(WebSocketMessage wsMessage) {
-        String messageJson = JSONUtil.toJsonStr(wsMessage);
+        String messageJson = JSONUtil.toJsonStr(wsMessage.getData() != null ? wsMessage.getData() : wsMessage);
         channelManager.getAllChannels().writeAndFlush(new TextWebSocketFrame(messageJson));
         log.info("[ChatMessagePushHandler] 已完成本地全量广播推送");
     }

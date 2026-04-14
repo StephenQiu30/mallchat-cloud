@@ -9,7 +9,9 @@ import com.stephen.cloud.api.user.client.UserFeignClient;
 import com.stephen.cloud.api.user.model.vo.UserVO;
 import com.stephen.cloud.chat.convert.ChatSessionConvert;
 import com.stephen.cloud.chat.mapper.ChatSessionMapper;
+import com.stephen.cloud.chat.mq.producer.ChatMqProducer;
 import com.stephen.cloud.chat.model.entity.*;
+import com.stephen.cloud.chat.support.ChatMessageHelper;
 import com.stephen.cloud.chat.service.*;
 import com.stephen.cloud.common.auth.utils.SecurityUtils;
 import com.stephen.cloud.common.common.ErrorCode;
@@ -48,6 +50,12 @@ public class ChatSessionServiceImpl extends ServiceImpl<ChatSessionMapper, ChatS
     @Resource
     private ChatPrivateRoomService chatPrivateRoomService;
 
+    @Resource
+    private ChatOnlineStatusService chatOnlineStatusService;
+
+    @Resource
+    private ChatMqProducer chatMqProducer;
+
     @Override
     public List<ChatSessionVO> listMySessions(Long userId) {
         log.info("[ChatSessionServiceImpl] 获取用户会话列表, userId: {}", userId);
@@ -57,7 +65,7 @@ public class ChatSessionServiceImpl extends ServiceImpl<ChatSessionMapper, ChatS
                 .orderByDesc(ChatSession::getActiveTime);
 
         List<ChatSession> sessions = this.list(queryWrapper);
-        return getChatSessionVO(sessions, (HttpServletRequest) null);
+        return buildSessionVOList(sessions, userId);
     }
 
     /**
@@ -72,7 +80,11 @@ public class ChatSessionServiceImpl extends ServiceImpl<ChatSessionMapper, ChatS
         if (chatSession == null) {
             return null;
         }
-        List<ChatSessionVO> vos = getChatSessionVO(Collections.singletonList(chatSession), request);
+        Long currentUserId = SecurityUtils.getLoginUserIdPermitNull();
+        if (currentUserId == null) {
+            currentUserId = chatSession.getUserId();
+        }
+        List<ChatSessionVO> vos = buildSessionVOList(Collections.singletonList(chatSession), currentUserId);
         return vos.get(0);
     }
 
@@ -88,7 +100,34 @@ public class ChatSessionServiceImpl extends ServiceImpl<ChatSessionMapper, ChatS
         if (sessions.isEmpty()) {
             return Collections.emptyList();
         }
-        Long userId = SecurityUtils.getLoginUserId();
+        Long currentUserId = SecurityUtils.getLoginUserIdPermitNull();
+        if (currentUserId != null) {
+            return buildSessionVOList(sessions, currentUserId);
+        }
+
+        Map<Long, List<ChatSession>> sessionMap = sessions.stream().collect(Collectors.groupingBy(ChatSession::getUserId));
+        List<ChatSessionVO> result = new ArrayList<>();
+        sessionMap.forEach((userId, userSessions) -> result.addAll(buildSessionVOList(userSessions, userId)));
+        return result;
+    }
+
+    @Override
+    public ChatSessionVO getSessionVO(Long roomId, Long userId) {
+        ThrowUtils.throwIf(roomId == null || userId == null, ErrorCode.PARAMS_ERROR);
+        ChatSession session = this.getOne(new LambdaQueryWrapper<ChatSession>()
+                .eq(ChatSession::getUserId, userId)
+                .eq(ChatSession::getRoomId, roomId)
+                .last("LIMIT 1"));
+        if (session == null) {
+            return null;
+        }
+        return buildSessionVOList(Collections.singletonList(session), userId).stream().findFirst().orElse(null);
+    }
+
+    private List<ChatSessionVO> buildSessionVOList(List<ChatSession> sessions, Long userId) {
+        if (CollUtil.isEmpty(sessions) || userId == null) {
+            return Collections.emptyList();
+        }
 
         // 1. 批量查询基础数据 (房间、消息)
         List<Long> roomIds = sessions.stream().map(ChatSession::getRoomId).toList();
@@ -130,6 +169,7 @@ public class ChatSessionServiceImpl extends ServiceImpl<ChatSessionMapper, ChatS
                 log.error("[ChatSessionServiceImpl] 批量获取用户信息失败", e);
             }
         }
+        Map<Long, Integer> onlineStatusMap = chatOnlineStatusService.getOnlineStatusMap(peerIds);
 
         // 4. 组装 VO
         Map<Long, UserVO> finalUserMap = userMap;
@@ -153,6 +193,7 @@ public class ChatSessionServiceImpl extends ServiceImpl<ChatSessionMapper, ChatS
                         vo.setName(peer.getUserName());
                         vo.setAvatar(peer.getUserAvatar());
                     }
+                    vo.setOnlineStatus(onlineStatusMap.getOrDefault(peerId, 0));
                 }
             }
 
@@ -162,13 +203,7 @@ public class ChatSessionServiceImpl extends ServiceImpl<ChatSessionMapper, ChatS
                 if (Objects.equals(lastMsg.getStatus(), MessageStatusEnum.RECALL.getCode())) {
                     vo.setLastMessage("[该消息已被撤回]");
                 } else {
-                    // 处理非文本消息的占位符展示 (inline 逻辑减少跨服务调用)
-                    String preview = switch (Optional.ofNullable(lastMsg.getType()).orElse(1)) {
-                        case 2 -> "[图片]";
-                        case 3 -> "[文件]";
-                        default -> lastMsg.getContent();
-                    };
-                    vo.setLastMessage(preview);
+                    vo.setLastMessage(ChatMessageHelper.buildPreview(lastMsg.getType(), lastMsg.getContent()));
                 }
             }
 
@@ -184,14 +219,26 @@ public class ChatSessionServiceImpl extends ServiceImpl<ChatSessionMapper, ChatS
                 .eq(ChatSession::getRoomId, roomId));
         ThrowUtils.throwIf(session == null, ErrorCode.NOT_FOUND_ERROR);
         session.setTopStatus(topStatus);
-        return this.updateById(session);
+        boolean updated = this.updateById(session);
+        if (updated) {
+            ChatSessionVO sessionVO = getSessionVO(roomId, userId);
+            if (sessionVO != null) {
+                chatMqProducer.sendSessionUpdate(userId, roomId, sessionVO,
+                        "session_top:" + roomId + ":" + userId + ":" + topStatus);
+            }
+        }
+        return updated;
     }
 
     @Override
     public boolean deleteSession(Long roomId, Long userId) {
         LambdaQueryWrapper<ChatSession> queryWrapper = new LambdaQueryWrapper<>();
         queryWrapper.eq(ChatSession::getRoomId, roomId).eq(ChatSession::getUserId, userId);
-        return this.remove(queryWrapper);
+        boolean removed = this.remove(queryWrapper);
+        if (removed) {
+            chatMqProducer.sendSessionDelete(userId, roomId, "session_delete:" + roomId + ":" + userId);
+        }
+        return removed;
     }
 
     @Override

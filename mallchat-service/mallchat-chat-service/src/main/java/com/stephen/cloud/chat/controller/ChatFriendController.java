@@ -2,7 +2,6 @@ package com.stephen.cloud.chat.controller;
 
 import com.stephen.cloud.api.chat.model.dto.ChatFriendAddRequest;
 import com.stephen.cloud.api.chat.model.vo.ChatFriendUserVO;
-import com.stephen.cloud.chat.service.ChatRoomService;
 import com.stephen.cloud.chat.service.UserFriendService;
 import com.stephen.cloud.common.auth.utils.SecurityUtils;
 import com.stephen.cloud.common.common.BaseResponse;
@@ -33,9 +32,6 @@ public class ChatFriendController {
 
     @Resource
     private UserFriendService userFriendService;
-
-    @Resource
-    private ChatRoomService chatRoomService;
 
     /**
      * 添加好友（双向关系，幂等）

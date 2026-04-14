@@ -1,16 +1,30 @@
 package com.stephen.cloud.common.websocket.manager;
 
+import com.stephen.cloud.common.cache.constants.ChatCacheConstant;
 import com.stephen.cloud.common.cache.utils.CacheUtils;
+import com.stephen.cloud.common.constants.WebSocketConstant;
+import com.stephen.cloud.common.rabbitmq.enums.ImWebSocketEventTypeEnum;
+import com.stephen.cloud.common.rabbitmq.enums.MqBizTypeEnum;
+import com.stephen.cloud.common.rabbitmq.enums.WebSocketMessageTypeEnum;
+import com.stephen.cloud.common.rabbitmq.enums.WebSocketPushTypeEnum;
+import com.stephen.cloud.common.rabbitmq.model.ImWebSocketEvent;
+import com.stephen.cloud.common.rabbitmq.model.WebSocketMessage;
+import com.stephen.cloud.common.rabbitmq.producer.RabbitMqSender;
 import io.netty.channel.Channel;
 import io.netty.channel.group.ChannelGroup;
 import io.netty.channel.group.DefaultChannelGroup;
+import io.netty.handler.codec.http.websocketx.TextWebSocketFrame;
 import io.netty.util.concurrent.GlobalEventExecutor;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
@@ -25,12 +39,15 @@ public class ChannelManager {
     @Resource
     private CacheUtils cacheUtils;
 
-    private String serverId; // 当前服务器实例标识 (IP:Port)
+    @Resource
+    private RabbitMqSender rabbitMqSender;
+
+    private String serverId;
 
     /**
-     * 本地连接映射：userId -> Channel
+     * 本地连接映射：userId -> (channelId -> Channel)
      */
-    private final Map<String, Channel> userChannelMap = new ConcurrentHashMap<>();
+    private final Map<String, Map<String, Channel>> userChannelMap = new ConcurrentHashMap<>();
 
     /**
      * 本地连接映射：channelId -> userId
@@ -38,159 +55,199 @@ public class ChannelManager {
     private final Map<String, String> channelUserMap = new ConcurrentHashMap<>();
 
     /**
+     * 本地连接映射：channelId -> distributedConnectionId
+     */
+    private final Map<String, String> channelConnectionMap = new ConcurrentHashMap<>();
+
+    /**
      * 所有连接的 Channel 组
      */
     private final ChannelGroup channels = new DefaultChannelGroup(GlobalEventExecutor.INSTANCE);
 
-    /**
-     * Redis Key 前缀
-     */
-    private static final String REDIS_KEY_PREFIX = "ws:user:";
-
-    /**
-     * 连接信息过期时间（秒）
-     */
-    private static final int EXPIRE_TIME = 86400; // 24小时
-
-    /**
-     * 添加连接
-     *
-     * @param userId  用户 ID
-     * @param channel Channel
-     */
     public void addChannel(String userId, Channel channel) {
         if (serverId == null) {
-            log.warn("serverId 未设置，分布式推送可能受限");
-        }
-        // 先检查是否存在旧连接，如果存在则关闭
-        Channel oldChannel = userChannelMap.get(userId);
-        if (oldChannel != null && oldChannel.isActive()) {
-            log.warn("用户 {} 存在旧连接，关闭旧连接 {}", userId, oldChannel.id().asShortText());
-            // 从映射中移除旧连接
-            channelUserMap.remove(oldChannel.id().asLongText());
-            channels.remove(oldChannel);
-            // 关闭旧连接
-            oldChannel.close();
+            log.warn("[ChannelManager] serverId 未设置，分布式推送可能受限");
         }
 
-        // 添加到本地映射
-        userChannelMap.put(userId, channel);
-        channelUserMap.put(channel.id().asLongText(), userId);
+        boolean wasOnline = isUserOnlineDistributed(userId);
+        String channelId = channel.id().asLongText();
+        String connectionId = buildConnectionId(channel);
+
+        userChannelMap.computeIfAbsent(userId, key -> new ConcurrentHashMap<>()).put(channelId, channel);
+        channelUserMap.put(channelId, userId);
+        channelConnectionMap.put(channelId, connectionId);
         channels.add(channel);
 
-        // 存储到 Redis
-        String key = REDIS_KEY_PREFIX + userId;
-        Map<String, String> connectionInfo = new HashMap<>();
-        connectionInfo.put("channelId", channel.id().asLongText());
-        connectionInfo.put("serverId", serverId); // 存储服务器标识
-        connectionInfo.put("connectTime", String.valueOf(System.currentTimeMillis()));
+        persistConnection(userId, connectionId, channelId);
+        log.info("[ChannelManager] 用户连接成功, userId: {}, channelId: {}, connectionId: {}",
+                userId, channel.id().asShortText(), connectionId);
 
-        // 使用 CacheUtils 存储（设置过期时间，由心跳机制续期）
-        cacheUtils.setHash(key, connectionInfo, EXPIRE_TIME);
-
-        log.info("用户连接成功, userId: {}, channelId: {}", userId, channel.id().asShortText());
-    }
-
-    /**
-     * 移除连接
-     *
-     * @param channel Channel
-     */
-    public void removeChannel(Channel channel) {
-        String channelId = channel.id().asLongText();
-        String userId = channelUserMap.get(channelId);
-
-        if (userId != null) {
-            // 从本地映射中移除
-            userChannelMap.remove(userId);
-            channelUserMap.remove(channelId);
-            channels.remove(channel);
-
-            // 从 Redis 中移除
-            String key = REDIS_KEY_PREFIX + userId;
-            cacheUtils.delete(key);
-
-            log.info("用户断开连接, userId: {}, channelId: {}", userId, channel.id().asShortText());
+        if (!wasOnline && isUserOnlineDistributed(userId)) {
+            notifyOnlineStatusChanged(userId, true);
         }
     }
 
-    /**
-     * 获取用户的 Channel
-     *
-     * @param userId 用户 ID
-     * @return Channel
-     */
+    public void removeChannel(Channel channel) {
+        String channelId = channel.id().asLongText();
+        String userId = channelUserMap.remove(channelId);
+        String connectionId = channelConnectionMap.remove(channelId);
+
+        if (userId == null) {
+            return;
+        }
+
+        Map<String, Channel> channelMap = userChannelMap.get(userId);
+        if (channelMap != null) {
+            channelMap.remove(channelId);
+            if (channelMap.isEmpty()) {
+                userChannelMap.remove(userId);
+            }
+        }
+        channels.remove(channel);
+
+        removePersistedConnection(userId, connectionId);
+        log.info("[ChannelManager] 用户断开连接, userId: {}, channelId: {}", userId, channel.id().asShortText());
+
+        if (!isUserOnlineDistributed(userId)) {
+            notifyOnlineStatusChanged(userId, false);
+        }
+    }
+
     public Channel getChannel(String userId) {
-        return userChannelMap.get(userId);
+        return getChannels(userId).stream().findFirst().orElse(null);
     }
 
-    /**
-     * 检查用户是否在线
-     *
-     * @param userId 用户 ID
-     * @return 是否在线
-     */
+    public List<Channel> getChannels(String userId) {
+        Map<String, Channel> channelMap = userChannelMap.get(userId);
+        if (channelMap == null || channelMap.isEmpty()) {
+            return List.of();
+        }
+        return channelMap.values().stream()
+                .filter(Channel::isActive)
+                .toList();
+    }
+
     public boolean isOnline(String userId) {
-        Channel channel = userChannelMap.get(userId);
-        return channel != null && channel.isActive();
+        return !getChannels(userId).isEmpty();
     }
 
-    /**
-     * 获取所有连接的 Channel 组
-     *
-     * @return ChannelGroup
-     */
     public ChannelGroup getAllChannels() {
         return channels;
     }
 
-    /**
-     * 获取在线用户数
-     *
-     * @return 在线用户数
-     */
     public int getOnlineCount() {
-        return userChannelMap.size();
+        return userChannelMap.values().stream().mapToInt(Map::size).sum();
     }
 
-    /**
-     * 获取所有在线用户 ID
-     *
-     * @return 在线用户 ID 列表
-     */
-    public java.util.List<String> getOnlineUserIds() {
-        return new java.util.ArrayList<>(userChannelMap.keySet());
+    public List<String> getOnlineUserIds() {
+        return new ArrayList<>(userChannelMap.keySet());
     }
 
-    /**
-     * 刷新用户连接的 Redis 过期时间
-     *
-     * @param userId 用户 ID
-     */
     public void refreshUserConnection(String userId) {
-        String key = REDIS_KEY_PREFIX + userId;
-        // 刷新 Redis 中的连接信息，延长过期时间
-        if (cacheUtils.exists(key)) {
-            // 重新获取连接信息并设置过期时间
-            Map<String, String> connectionInfo = cacheUtils.getHash(key);
-            if (connectionInfo != null && !connectionInfo.isEmpty()) {
-                cacheUtils.setHash(key, connectionInfo, EXPIRE_TIME);
-            }
+        String userConnectionsKey = WebSocketConstant.WS_USER_CONNECTIONS_KEY + userId;
+        Set<String> connectionIds = cacheUtils.sMembers(userConnectionsKey);
+        if (connectionIds == null || connectionIds.isEmpty()) {
+            return;
         }
+        connectionIds.forEach(connectionId -> {
+            String metaKey = WebSocketConstant.WS_CONNECTION_META_KEY + connectionId;
+            Map<String, String> connectionInfo = cacheUtils.getHash(metaKey);
+            if (connectionInfo != null && !connectionInfo.isEmpty()) {
+                cacheUtils.setHash(metaKey, connectionInfo, WebSocketConstant.WS_CONNECTION_EXPIRE_SECONDS);
+            }
+        });
+        cacheUtils.expire(userConnectionsKey, WebSocketConstant.WS_CONNECTION_EXPIRE_SECONDS);
     }
 
-    /**
-     * 设置当前服务器实例标识
-     */
     public void setServerId(String serverId) {
         this.serverId = serverId;
     }
 
-    /**
-     * 获取用户连接的服务器 ID
-     */
     public String getUserServerId(String userId) {
-        String key = REDIS_KEY_PREFIX + userId;
-        return cacheUtils.getHashField(key, "serverId");
+        Set<String> connectionIds = cacheUtils.sMembers(WebSocketConstant.WS_USER_CONNECTIONS_KEY + userId);
+        if (connectionIds == null || connectionIds.isEmpty()) {
+            return null;
+        }
+        String firstConnectionId = connectionIds.iterator().next();
+        return cacheUtils.getHashField(WebSocketConstant.WS_CONNECTION_META_KEY + firstConnectionId, "serverId");
+    }
+
+    public int writeToUser(String userId, String messageJson) {
+        List<Channel> userChannels = getChannels(userId);
+        if (userChannels.isEmpty()) {
+            return 0;
+        }
+        userChannels.forEach(channel -> channel.writeAndFlush(new TextWebSocketFrame(messageJson)));
+        return userChannels.size();
+    }
+
+    private void persistConnection(String userId, String connectionId, String channelId) {
+        String userConnectionsKey = WebSocketConstant.WS_USER_CONNECTIONS_KEY + userId;
+        cacheUtils.sAdd(userConnectionsKey, connectionId);
+        cacheUtils.expire(userConnectionsKey, WebSocketConstant.WS_CONNECTION_EXPIRE_SECONDS);
+
+        String metaKey = WebSocketConstant.WS_CONNECTION_META_KEY + connectionId;
+        Map<String, String> connectionInfo = new HashMap<>();
+        connectionInfo.put("channelId", channelId);
+        connectionInfo.put("serverId", serverId);
+        connectionInfo.put("connectTime", String.valueOf(System.currentTimeMillis()));
+        connectionInfo.put("userId", userId);
+        cacheUtils.setHash(metaKey, connectionInfo, WebSocketConstant.WS_CONNECTION_EXPIRE_SECONDS);
+    }
+
+    private void removePersistedConnection(String userId, String connectionId) {
+        if (connectionId == null) {
+            return;
+        }
+        String userConnectionsKey = WebSocketConstant.WS_USER_CONNECTIONS_KEY + userId;
+        cacheUtils.sRemove(userConnectionsKey, connectionId);
+        cacheUtils.delete(WebSocketConstant.WS_CONNECTION_META_KEY + connectionId);
+
+        Set<String> remains = cacheUtils.sMembers(userConnectionsKey);
+        if (remains == null || remains.isEmpty()) {
+            cacheUtils.delete(userConnectionsKey);
+        }
+    }
+
+    private String buildConnectionId(Channel channel) {
+        String channelId = channel.id().asLongText();
+        return (serverId == null ? "unknown" : serverId) + ":" + channelId;
+    }
+
+    private boolean isUserOnlineDistributed(String userId) {
+        Set<String> connectionIds = cacheUtils.sMembers(WebSocketConstant.WS_USER_CONNECTIONS_KEY + userId);
+        return connectionIds != null && !connectionIds.isEmpty();
+    }
+
+    private void notifyOnlineStatusChanged(String userId, boolean online) {
+        try {
+            Set<String> friendIds = cacheUtils.sMembers(ChatCacheConstant.getUserFriendKey(userId));
+            Set<Long> targetUserIds = new LinkedHashSet<>();
+            targetUserIds.add(Long.valueOf(userId));
+            if (friendIds != null) {
+                friendIds.stream()
+                        .filter(friendId -> friendId != null && !ChatCacheConstant.EMPTY_SET_PLACEHOLDER.equals(friendId))
+                        .map(Long::valueOf)
+                        .forEach(targetUserIds::add);
+            }
+
+            ImWebSocketEvent event = ImWebSocketEvent.builder()
+                    .type(ImWebSocketEventTypeEnum.ONLINE_STATUS.getCode())
+                    .bizId("online_status:" + userId + ":" + (online ? 1 : 0))
+                    .data(Map.of("userId", Long.valueOf(userId), "onlineStatus", online ? 1 : 0))
+                    .build();
+
+            WebSocketMessage wsMessage = WebSocketMessage.builder()
+                    .userIds(targetUserIds.stream().toList())
+                    .pushType(targetUserIds.size() == 1 ? WebSocketPushTypeEnum.SINGLE.getValue() : WebSocketPushTypeEnum.MULTIPLE.getValue())
+                    .type(WebSocketMessageTypeEnum.MESSAGE.getCode())
+                    .bizId(event.getBizId())
+                    .data(event)
+                    .build();
+
+            rabbitMqSender.send(MqBizTypeEnum.WEBSOCKET_PUSH, event.getBizId(), wsMessage);
+        } catch (Exception e) {
+            log.error("[ChannelManager] 广播在线状态变更失败, userId={}, online={}", userId, online, e);
+        }
     }
 }

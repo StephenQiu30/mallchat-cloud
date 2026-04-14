@@ -1,7 +1,6 @@
 package com.stephen.cloud.api.chat.model.dto;
 
 import io.swagger.v3.oas.annotations.media.Schema;
-import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import lombok.Data;
 
@@ -24,10 +23,16 @@ public class ChatMessageSendRequest implements Serializable {
     private Long roomId;
 
     /**
+     * 客户端消息ID
+     */
+    @Schema(description = "客户端消息ID，用于幂等控制", requiredMode = Schema.RequiredMode.REQUIRED, example = "pc-1710000000000-1")
+    @NotNull(message = "客户端消息ID不能为空")
+    private String clientMsgId;
+
+    /**
      * 消息内容
      */
-    @Schema(description = "消息内容", requiredMode = Schema.RequiredMode.REQUIRED, example = "Hello, World!")
-    @NotBlank(message = "消息内容不能为空")
+    @Schema(description = "消息内容，文本消息必填；图片/文件消息可为空", example = "Hello, World!")
     private String content;
 
     /**
@@ -40,7 +45,7 @@ public class ChatMessageSendRequest implements Serializable {
     /**
      * 消息扩展内容（JSON 字符串）
      */
-    @Schema(description = "消息扩展内容（JSON 字符串）", example = "{\"url\":\"...\"}")
+    @Schema(description = "消息扩展内容（JSON 字符串）", example = "{\"url\":\"https://...\",\"width\":100,\"height\":100,\"size\":1024}")
     private String extra;
 
     /**

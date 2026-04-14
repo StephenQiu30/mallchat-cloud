@@ -2,7 +2,10 @@ package com.stephen.cloud.chat.controller;
 
 import com.stephen.cloud.api.chat.model.dto.ChatPrivateRoomRequest;
 import com.stephen.cloud.api.chat.model.dto.ChatRoomAddRequest;
+import com.stephen.cloud.api.chat.model.dto.ChatRoomInviteRequest;
+import com.stephen.cloud.api.chat.model.vo.ChatRoomMemberVO;
 import com.stephen.cloud.api.chat.model.vo.ChatRoomVO;
+import com.stephen.cloud.api.chat.model.enums.ChatRoomTypeEnum;
 import com.stephen.cloud.chat.convert.ChatRoomConvert;
 import com.stephen.cloud.chat.model.entity.ChatRoom;
 import com.stephen.cloud.chat.service.ChatRoomService;
@@ -44,14 +47,17 @@ public class ChatRoomController {
      */
     @PostMapping("/add")
     @OperationLog(module = "聊天室管理", action = "创建聊天室")
-    @Operation(summary = "创建聊天室", description = "创建一个新的聊天室（群聊或私聊会话）")
+    @Operation(summary = "创建群聊", description = "创建一个新的群聊并初始化成员")
     public BaseResponse<Long> addChatRoom(@Validated @RequestBody ChatRoomAddRequest chatRoomAddRequest) {
         // 请求参数非空校验
         ThrowUtils.throwIf(chatRoomAddRequest == null, ErrorCode.PARAMS_ERROR);
         // 将 DTO 转换为实体
         ChatRoom chatRoom = ChatRoomConvert.addRequestToObj(chatRoomAddRequest);
+        chatRoom.setType(ChatRoomTypeEnum.GROUP.getCode());
         // 调用业务层执行创建逻辑
-        Long roomId = chatRoomService.addChatRoom(chatRoom);
+        Long userId = SecurityUtils.getLoginUserId();
+        Long roomId = chatRoomService.addChatRoom(chatRoom, chatRoomAddRequest.getMemberIds(),
+                chatRoomAddRequest.getAnnouncement(), userId);
         return ResultUtils.success(roomId);
     }
 
@@ -67,6 +73,67 @@ public class ChatRoomController {
         Long userId = SecurityUtils.getLoginUserId();
         List<ChatRoomVO> rooms = chatRoomService.listUserChatRooms(userId);
         return ResultUtils.success(rooms);
+    }
+
+    /**
+     * 获取房间详情
+     */
+    @GetMapping("/detail")
+    @Operation(summary = "获取房间详情", description = "获取群聊或私聊详情")
+    public BaseResponse<ChatRoomVO> getRoomDetail(@Parameter(description = "房间ID", required = true) @RequestParam Long roomId) {
+        ThrowUtils.throwIf(roomId == null || roomId <= 0, ErrorCode.PARAMS_ERROR);
+        Long userId = SecurityUtils.getLoginUserId();
+        return ResultUtils.success(chatRoomService.getRoomDetail(roomId, userId));
+    }
+
+    /**
+     * 获取房间成员
+     */
+    @GetMapping("/member/list")
+    @Operation(summary = "获取房间成员", description = "获取指定房间的成员列表")
+    public BaseResponse<List<ChatRoomMemberVO>> listRoomMembers(@Parameter(description = "房间ID", required = true) @RequestParam Long roomId) {
+        ThrowUtils.throwIf(roomId == null || roomId <= 0, ErrorCode.PARAMS_ERROR);
+        Long userId = SecurityUtils.getLoginUserId();
+        return ResultUtils.success(chatRoomService.listRoomMembers(roomId, userId));
+    }
+
+    /**
+     * 邀请成员入群
+     */
+    @PostMapping("/invite")
+    @OperationLog(module = "聊天室管理", action = "邀请成员")
+    @Operation(summary = "邀请成员入群", description = "邀请自己的好友加入指定群聊")
+    public BaseResponse<Boolean> inviteMembers(@Validated @RequestBody ChatRoomInviteRequest request) {
+        ThrowUtils.throwIf(request == null || request.getRoomId() == null, ErrorCode.PARAMS_ERROR);
+        Long userId = SecurityUtils.getLoginUserId();
+        chatRoomService.inviteMembers(request.getRoomId(), request.getMemberIds(), userId);
+        return ResultUtils.success(true);
+    }
+
+    /**
+     * 退出群聊
+     */
+    @PostMapping("/quit")
+    @OperationLog(module = "聊天室管理", action = "退出群聊")
+    @Operation(summary = "退出群聊", description = "当前用户退出指定群聊")
+    public BaseResponse<Boolean> quitRoom(@Parameter(description = "房间ID", required = true) @RequestParam Long roomId) {
+        ThrowUtils.throwIf(roomId == null || roomId <= 0, ErrorCode.PARAMS_ERROR);
+        Long userId = SecurityUtils.getLoginUserId();
+        chatRoomService.quitRoom(roomId, userId);
+        return ResultUtils.success(true);
+    }
+
+    /**
+     * 解散群聊
+     */
+    @PostMapping("/dismiss")
+    @OperationLog(module = "聊天室管理", action = "解散群聊")
+    @Operation(summary = "解散群聊", description = "群主解散指定群聊")
+    public BaseResponse<Boolean> dismissRoom(@Parameter(description = "房间ID", required = true) @RequestParam Long roomId) {
+        ThrowUtils.throwIf(roomId == null || roomId <= 0, ErrorCode.PARAMS_ERROR);
+        Long userId = SecurityUtils.getLoginUserId();
+        chatRoomService.dismissRoom(roomId, userId);
+        return ResultUtils.success(true);
     }
 
     /**

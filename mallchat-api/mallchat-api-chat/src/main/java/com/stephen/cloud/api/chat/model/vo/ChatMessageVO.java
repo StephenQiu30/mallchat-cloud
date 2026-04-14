@@ -40,6 +40,12 @@ public class ChatMessageVO implements Serializable {
     private Long fromUserId;
 
     /**
+     * 客户端消息ID
+     */
+    @Schema(description = "客户端消息ID", example = "pc-1710000000000-1")
+    private String clientMsgId;
+
+    /**
      * 发送者姓名 (冗余)
      */
     @Schema(description = "发送者姓名", example = "Stephen")

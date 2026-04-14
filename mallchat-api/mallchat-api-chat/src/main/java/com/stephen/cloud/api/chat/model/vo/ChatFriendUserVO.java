@@ -24,5 +24,8 @@ public class ChatFriendUserVO implements Serializable {
     @Schema(description = "头像")
     private String userAvatar;
 
+    @Schema(description = "在线状态：0-离线，1-在线")
+    private Integer onlineStatus;
+
     private static final long serialVersionUID = 1L;
 }

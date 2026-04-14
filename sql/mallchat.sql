@@ -291,6 +291,7 @@ CREATE TABLE `chat_message`
     `id`           bigint   NOT NULL AUTO_INCREMENT COMMENT '消息ID',
     `room_id`      bigint   NOT NULL COMMENT '房间ID',
     `from_user_id` bigint   NOT NULL COMMENT '发送者ID',
+    `client_msg_id` varchar(64) NOT NULL COMMENT '客户端消息ID',
     `content`      text     NOT NULL COMMENT '消息内容',
     `extra`        json              DEFAULT NULL COMMENT '消息扩展内容（如图片/文件详细信息）',
     `type`         tinyint  NOT NULL DEFAULT 1 COMMENT '消息类型：1-文本，2-图片，3-文件',
@@ -300,6 +301,7 @@ CREATE TABLE `chat_message`
     `update_time`  datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
     `is_delete`    tinyint  NOT NULL DEFAULT 0 COMMENT '是否删除',
     PRIMARY KEY (`id`),
+    UNIQUE KEY `uk_from_user_client_msg` (`from_user_id`, `client_msg_id`),
     KEY `idx_from_user_id` (`from_user_id`),
     KEY `idx_room_id_id` (`room_id`, `id` DESC),
     KEY `idx_reply_msg_id` (`reply_msg_id`)

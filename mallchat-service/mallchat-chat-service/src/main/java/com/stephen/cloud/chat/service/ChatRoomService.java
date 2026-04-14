@@ -2,6 +2,7 @@ package com.stephen.cloud.chat.service;
 
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.IService;
+import com.stephen.cloud.api.chat.model.vo.ChatRoomMemberVO;
 import com.stephen.cloud.api.chat.model.vo.ChatRoomVO;
 import com.stephen.cloud.chat.model.entity.ChatRoom;
 import jakarta.servlet.http.HttpServletRequest;
@@ -55,12 +56,15 @@ public interface ChatRoomService extends IService<ChatRoom> {
     Page<ChatRoomVO> getChatRoomVOPage(Page<ChatRoom> chatRoomPage, HttpServletRequest request);
 
     /**
-     * 创建聊天室 (群聊或私聊)
+     * 创建群聊
      *
      * @param chatRoom 聊天室实体
+     * @param memberIds 邀请成员
+     * @param announcement 群公告
+     * @param userId 创建者
      * @return 房间 ID
      */
-    Long addChatRoom(ChatRoom chatRoom);
+    Long addChatRoom(ChatRoom chatRoom, List<Long> memberIds, String announcement, Long userId);
 
     /**
      * 获取用户参与的聊天室列表
@@ -86,4 +90,47 @@ public interface ChatRoomService extends IService<ChatRoom> {
      * @return 房间 ID
      */
     Long getOrCreatePrivateRoom(Long peerUserId, Long userId);
+
+    /**
+     * 获取房间详情
+     *
+     * @param roomId 房间 ID
+     * @param userId 当前用户 ID
+     * @return 房间详情
+     */
+    ChatRoomVO getRoomDetail(Long roomId, Long userId);
+
+    /**
+     * 获取房间成员列表
+     *
+     * @param roomId 房间 ID
+     * @param userId 当前用户 ID
+     * @return 成员列表
+     */
+    List<ChatRoomMemberVO> listRoomMembers(Long roomId, Long userId);
+
+    /**
+     * 邀请成员入群
+     *
+     * @param roomId 房间 ID
+     * @param memberIds 成员列表
+     * @param userId 邀请人
+     */
+    void inviteMembers(Long roomId, List<Long> memberIds, Long userId);
+
+    /**
+     * 退出群聊
+     *
+     * @param roomId 房间 ID
+     * @param userId 当前用户
+     */
+    void quitRoom(Long roomId, Long userId);
+
+    /**
+     * 解散群聊
+     *
+     * @param roomId 房间 ID
+     * @param userId 当前用户
+     */
+    void dismissRoom(Long roomId, Long userId);
 }

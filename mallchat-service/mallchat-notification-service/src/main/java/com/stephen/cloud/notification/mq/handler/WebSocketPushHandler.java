@@ -5,7 +5,6 @@ import com.stephen.cloud.common.rabbitmq.consumer.RabbitMqHandler;
 import com.stephen.cloud.common.rabbitmq.enums.MqBizTypeEnum;
 import com.stephen.cloud.common.rabbitmq.model.RabbitMessage;
 import com.stephen.cloud.common.rabbitmq.model.WebSocketMessage;
-import com.stephen.cloud.common.rabbitmq.producer.RabbitMqSender;
 import com.stephen.cloud.common.websocket.manager.ChannelManager;
 import io.netty.handler.codec.http.websocketx.TextWebSocketFrame;
 import jakarta.annotation.Resource;
@@ -31,9 +30,6 @@ public class WebSocketPushHandler implements RabbitMqHandler<WebSocketMessage> {
 
     @Resource
     private ChannelManager channelManager;
-
-    @Resource
-    private RabbitMqSender mqSender;
 
     @Override
     public String getBizType() {
@@ -63,42 +59,20 @@ public class WebSocketPushHandler implements RabbitMqHandler<WebSocketMessage> {
     private void pushToSingleUser(WebSocketMessage wsMessage) {
         Long userId = wsMessage.getUserId();
         String userIdStr = String.valueOf(userId);
-
-        if (!channelManager.isOnline(userIdStr)) {
-            log.info("[WebSocketPushHandler] 用户 {} 不在本服务器实例, 尝试跨实例中转推送", userId);
-            // 避免无限循环中转：如果已经带有 RELAY 标记，则不再中转
-            if (!"RELAY".equals(wsMessage.getBizId())) {
-                wsMessage.setBizId("RELAY");
-                mqSender.send(MqBizTypeEnum.WEBSOCKET_BROADCAST, wsMessage);
-            }
-            return;
+        String messageJson = JSONUtil.toJsonStr(wsMessage.getData() != null ? wsMessage.getData() : wsMessage);
+        int successCount = channelManager.writeToUser(userIdStr, messageJson);
+        if (successCount > 0) {
+            log.info("[WebSocketPushHandler] 成功向本地用户 {} 的 {} 个连接推送 WebSocket 消息", userId, successCount);
         }
-
-        io.netty.channel.Channel channel = channelManager.getChannel(userIdStr);
-        if (channel == null || !channel.isActive()) {
-            log.warn("[WebSocketPushHandler] 用户 {} 的 WebSocket 连接不可用", userId);
-            return;
-        }
-
-        channel.writeAndFlush(new TextWebSocketFrame(JSONUtil.toJsonStr(wsMessage)));
-        log.info("[WebSocketPushHandler] 成功向本地用户 {} 推送 WebSocket 消息", userId);
     }
 
     private void pushToMultipleUsers(WebSocketMessage wsMessage) {
         List<Long> userIds = wsMessage.getUserIds();
-        String messageJson = JSONUtil.toJsonStr(wsMessage);
+        String messageJson = JSONUtil.toJsonStr(wsMessage.getData() != null ? wsMessage.getData() : wsMessage);
         int successCount = 0;
 
         for (Long userId : userIds) {
-            String userIdStr = String.valueOf(userId);
-            if (!channelManager.isOnline(userIdStr)) {
-                continue;
-            }
-            io.netty.channel.Channel channel = channelManager.getChannel(userIdStr);
-            if (channel != null && channel.isActive()) {
-                channel.writeAndFlush(new TextWebSocketFrame(messageJson));
-                successCount++;
-            }
+            successCount += channelManager.writeToUser(String.valueOf(userId), messageJson);
         }
 
         log.info("[WebSocketPushHandler] 成功向 {} 个本地在线用户推送消息 (目标用户总数: {})",

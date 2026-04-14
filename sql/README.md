@@ -8,7 +8,7 @@
 
 | 数据库名       | 核心表                                                                                                                                 |
 |:-----------|:------------------------------------------------------------------------------------------------------------------------------------|
-| `mallchat` | `user`, `notification`, `ai_chat_record`, `api_access_log`, `operation_log`, `user_login_log`, `email_record`, `file_upload_record` |
+| `mallchat` | `user`, `notification`, `ai_chat_record`, `api_access_log`, `operation_log`, `user_login_log`, `email_record`, `file_upload_record`, `user_friend`, `chat_room`, `chat_room_member`, `chat_message`, `chat_private_room`, `user_friend_apply`, `chat_session`, `chat_group_info` |
 
 ## 🛠️ 初始化步骤
 

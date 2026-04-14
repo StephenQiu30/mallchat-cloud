@@ -63,5 +63,11 @@ public class ChatSessionVO implements Serializable {
     @Schema(description = "最后活跃时间")
     private Date activeTime;
 
+    /**
+     * 在线状态：0-离线，1-在线
+     */
+    @Schema(description = "在线状态：0-离线，1-在线", example = "1")
+    private Integer onlineStatus;
+
     private static final long serialVersionUID = 1L;
 }

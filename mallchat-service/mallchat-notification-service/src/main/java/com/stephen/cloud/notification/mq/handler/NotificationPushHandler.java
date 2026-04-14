@@ -76,19 +76,9 @@ public class NotificationPushHandler implements RabbitMqHandler<NotificationMess
 
     private void pushToSingleUser(Long userId, WebSocketMessage wsMessage) {
         String userIdStr = String.valueOf(userId);
-
-        if (!channelManager.isOnline(userIdStr)) {
-            log.debug("[NotificationPushHandler] 用户 {} 不在本服务器实例, 忽略推送", userId);
-            return;
+        int successCount = channelManager.writeToUser(userIdStr, JSONUtil.toJsonStr(wsMessage));
+        if (successCount > 0) {
+            log.info("[NotificationPushHandler] 成功向用户 {} 的 {} 个本地连接推送实时通知消息", userId, successCount);
         }
-
-        io.netty.channel.Channel channel = channelManager.getChannel(userIdStr);
-        if (channel == null || !channel.isActive()) {
-            log.warn("[NotificationPushHandler] 用户 {} 的 WebSocket 连接不可用", userId);
-            return;
-        }
-
-        channel.writeAndFlush(new TextWebSocketFrame(JSONUtil.toJsonStr(wsMessage)));
-        log.info("[NotificationPushHandler] 成功向用户 {} 推送实时通知消息", userId);
     }
 }

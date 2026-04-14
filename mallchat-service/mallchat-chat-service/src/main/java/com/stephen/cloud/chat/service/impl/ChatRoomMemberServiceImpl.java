@@ -4,6 +4,7 @@ import cn.hutool.core.collection.CollUtil;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
+import com.stephen.cloud.api.chat.model.enums.ChatRoomRoleEnum;
 import com.stephen.cloud.api.chat.model.vo.ChatRoomMemberVO;
 import com.stephen.cloud.api.user.client.UserFeignClient;
 import com.stephen.cloud.api.user.model.vo.UserVO;
@@ -11,6 +12,7 @@ import com.stephen.cloud.chat.convert.ChatRoomMemberConvert;
 import com.stephen.cloud.chat.mapper.ChatRoomMemberMapper;
 import com.stephen.cloud.chat.model.entity.ChatRoomMember;
 import com.stephen.cloud.chat.service.ChatRoomMemberService;
+import com.stephen.cloud.common.cache.constants.ChatCacheConstant;
 import com.stephen.cloud.common.cache.utils.CacheUtils;
 import com.stephen.cloud.common.common.ErrorCode;
 import com.stephen.cloud.common.common.ThrowUtils;
@@ -38,8 +40,6 @@ public class ChatRoomMemberServiceImpl extends ServiceImpl<ChatRoomMemberMapper,
     @Resource
     private UserFeignClient userFeignClient;
 
-    private static final String ROOM_MEMBER_CACHE_KEY = "chat:room:members:";
-
     /**
      * 校验房间成员
      *
@@ -57,8 +57,10 @@ public class ChatRoomMemberServiceImpl extends ServiceImpl<ChatRoomMemberMapper,
 
     @Override
     public boolean isMember(Long roomId, Long userId) {
-        if (roomId == null || userId == null) return false;
-        String key = ROOM_MEMBER_CACHE_KEY + roomId;
+        if (roomId == null || userId == null) {
+            return false;
+        }
+        String key = ChatCacheConstant.getRoomMemberKey(roomId);
 
         boolean isMember = cacheUtils.sIsMember(key, String.valueOf(userId));
         if (isMember) {
@@ -89,28 +91,54 @@ public class ChatRoomMemberServiceImpl extends ServiceImpl<ChatRoomMemberMapper,
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void addMember(Long roomId, Long userId) {
-        log.info("用户加入聊天室: roomId={}, userId={}", roomId, userId);
+        addMember(roomId, userId, ChatRoomRoleEnum.MEMBER.getCode());
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void addMember(Long roomId, Long userId, Integer role) {
+        log.info("[ChatRoomMemberServiceImpl] 用户加入聊天室: roomId={}, userId={}", roomId, userId);
         ThrowUtils.throwIf(roomId == null || userId == null, ErrorCode.PARAMS_ERROR);
 
         // 幂等校验与保存逻辑
-        ChatRoomMember existing = this.getOne(new LambdaQueryWrapper<ChatRoomMember>()
-                .eq(ChatRoomMember::getRoomId, roomId)
-                .eq(ChatRoomMember::getUserId, userId));
+        ChatRoomMember existing = getMember(roomId, userId);
         if (existing != null) {
-            log.info("用户已在房间中: userId={}, roomId={}", userId, roomId);
+            log.info("[ChatRoomMemberServiceImpl] 用户已在房间中: userId={}, roomId={}", userId, roomId);
+            if (role != null && !role.equals(existing.getRole())) {
+                existing.setRole(role);
+                this.updateById(existing);
+            }
             return;
         }
 
         ChatRoomMember member = new ChatRoomMember();
         member.setRoomId(roomId);
         member.setUserId(userId);
-        member.setRole(1); // 1-普通成员
+        member.setRole(role == null ? ChatRoomRoleEnum.MEMBER.getCode() : role);
         boolean result = this.save(member);
         ThrowUtils.throwIf(!result, ErrorCode.OPERATION_ERROR, "加入聊天室失败");
 
         // 同步清除或更新缓存
-        String key = ROOM_MEMBER_CACHE_KEY + roomId;
+        String key = ChatCacheConstant.getRoomMemberKey(roomId);
         cacheUtils.sAdd(key, String.valueOf(userId));
+        cacheUtils.expire(key, ChatCacheConstant.ROOM_MEMBER_CACHE_EXPIRE_SECONDS);
+    }
+
+    @Override
+    public ChatRoomMember getMember(Long roomId, Long userId) {
+        if (roomId == null || userId == null) {
+            return null;
+        }
+        return this.getOne(new LambdaQueryWrapper<ChatRoomMember>()
+                .eq(ChatRoomMember::getRoomId, roomId)
+                .eq(ChatRoomMember::getUserId, userId)
+                .last("LIMIT 1"));
+    }
+
+    @Override
+    public boolean isOwner(Long roomId, Long userId) {
+        ChatRoomMember member = getMember(roomId, userId);
+        return member != null && ChatRoomRoleEnum.OWNER.getCode().equals(member.getRole());
     }
 
     @Override
@@ -173,7 +201,7 @@ public class ChatRoomMemberServiceImpl extends ServiceImpl<ChatRoomMemberMapper,
                 .eq(ChatRoomMember::getUserId, userId));
 
         // 2. 从 Redis 缓存删除
-        String key = ROOM_MEMBER_CACHE_KEY + roomId;
+        String key = ChatCacheConstant.getRoomMemberKey(roomId);
         cacheUtils.sRemove(key, String.valueOf(userId));
     }
 
@@ -182,12 +210,11 @@ public class ChatRoomMemberServiceImpl extends ServiceImpl<ChatRoomMemberMapper,
                 .eq(ChatRoomMember::getRoomId, roomId));
         if (members == null || members.isEmpty()) return;
 
-        String key = ROOM_MEMBER_CACHE_KEY + roomId;
+        String key = ChatCacheConstant.getRoomMemberKey(roomId);
         Set<String> userIdStrs = members.stream()
                 .map(m -> String.valueOf(m.getUserId()))
                 .collect(Collectors.toSet());
         cacheUtils.sAddAll(key, userIdStrs);
-        // Set an expiry for member list to avoid stale data issues
-        cacheUtils.expire(key, 86400); // 1 day
+        cacheUtils.expire(key, ChatCacheConstant.ROOM_MEMBER_CACHE_EXPIRE_SECONDS);
     }
 }

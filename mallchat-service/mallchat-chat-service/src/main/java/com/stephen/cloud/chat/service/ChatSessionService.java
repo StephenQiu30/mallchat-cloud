@@ -41,6 +41,15 @@ public interface ChatSessionService extends IService<ChatSession> {
     List<ChatSessionVO> getChatSessionVO(List<ChatSession> chatSessionList, HttpServletRequest request);
 
     /**
+     * 获取指定房间的会话视图
+     *
+     * @param roomId 房间 ID
+     * @param userId 用户 ID
+     * @return 会话视图
+     */
+    ChatSessionVO getSessionVO(Long roomId, Long userId);
+
+    /**
      * 置顶会话
      *
      * @param roomId    房间ID
