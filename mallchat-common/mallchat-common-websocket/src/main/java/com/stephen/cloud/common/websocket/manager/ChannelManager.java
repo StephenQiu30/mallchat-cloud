@@ -20,12 +20,14 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.Function;
 
 /**
  * WebSocket 连接管理器
@@ -41,6 +43,8 @@ public class ChannelManager {
 
     @Resource
     private RabbitMqSender rabbitMqSender;
+
+    private Function<Long, Set<Long>> friendIdsResolver = userId -> Collections.emptySet();
 
     private String serverId;
 
@@ -163,6 +167,10 @@ public class ChannelManager {
         this.serverId = serverId;
     }
 
+    public void setFriendIdsResolver(Function<Long, Set<Long>> friendIdsResolver) {
+        this.friendIdsResolver = friendIdsResolver == null ? userId -> Collections.emptySet() : friendIdsResolver;
+    }
+
     public String getUserServerId(String userId) {
         Set<String> connectionIds = cacheUtils.sMembers(WebSocketConstant.WS_USER_CONNECTIONS_KEY + userId);
         if (connectionIds == null || connectionIds.isEmpty()) {
@@ -221,20 +229,15 @@ public class ChannelManager {
 
     private void notifyOnlineStatusChanged(String userId, boolean online) {
         try {
-            Set<String> friendIds = cacheUtils.sMembers(ChatCacheConstant.getUserFriendKey(userId));
             Set<Long> targetUserIds = new LinkedHashSet<>();
-            targetUserIds.add(Long.valueOf(userId));
-            if (friendIds != null) {
-                friendIds.stream()
-                        .filter(friendId -> friendId != null && !ChatCacheConstant.EMPTY_SET_PLACEHOLDER.equals(friendId))
-                        .map(Long::valueOf)
-                        .forEach(targetUserIds::add);
-            }
+            Long currentUserId = Long.valueOf(userId);
+            targetUserIds.add(currentUserId);
+            targetUserIds.addAll(friendIdsResolver.apply(currentUserId));
 
             ImWebSocketEvent event = ImWebSocketEvent.builder()
                     .type(ImWebSocketEventTypeEnum.ONLINE_STATUS.getCode())
                     .bizId("online_status:" + userId + ":" + (online ? 1 : 0))
-                    .data(Map.of("userId", Long.valueOf(userId), "onlineStatus", online ? 1 : 0))
+                    .data(Map.of("userId", currentUserId, "onlineStatus", online ? 1 : 0))
                     .build();
 
             WebSocketMessage wsMessage = WebSocketMessage.builder()

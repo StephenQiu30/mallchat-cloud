@@ -56,6 +56,12 @@
             <artifactId>mallchat-common-cache</artifactId>
         </dependency>
 
+        <!-- Common WebSocket -->
+        <dependency>
+            <groupId>com.stephen.cloud</groupId>
+            <artifactId>mallchat-common-websocket</artifactId>
+        </dependency>
+
         <!-- Common RabbitMQ -->
         <dependency>
             <groupId>com.stephen.cloud</groupId>

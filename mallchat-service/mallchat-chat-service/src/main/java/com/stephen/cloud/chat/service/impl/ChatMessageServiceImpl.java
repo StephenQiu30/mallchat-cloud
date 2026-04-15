@@ -2,7 +2,7 @@ package com.stephen.cloud.chat.service.impl;
 
 import cn.hutool.core.collection.CollUtil;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
-import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
+import com.baomidou.mybatisplus.core.conditions.update.UpdateWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.stephen.cloud.api.chat.model.enums.ChatMessageTypeEnum;
@@ -223,11 +223,15 @@ public class ChatMessageServiceImpl extends ServiceImpl<ChatMessageMapper, ChatM
         member.setLastReadMessageId(lastReadMessageId);
         chatRoomMemberService.updateById(member);
 
-        chatSessionService.update(new LambdaUpdateWrapper<com.stephen.cloud.chat.model.entity.ChatSession>()
-                .set(com.stephen.cloud.chat.model.entity.ChatSession::getUnreadCount, 0)
-                .set(com.stephen.cloud.chat.model.entity.ChatSession::getLastReadMessageId, lastReadMessageId)
-                .eq(com.stephen.cloud.chat.model.entity.ChatSession::getUserId, userId)
-                .eq(com.stephen.cloud.chat.model.entity.ChatSession::getRoomId, roomId));
+        long unreadCount = this.count(new LambdaQueryWrapper<ChatMessage>()
+                .eq(ChatMessage::getRoomId, roomId)
+                .gt(ChatMessage::getId, lastReadMessageId)
+                .ne(ChatMessage::getFromUserId, userId));
+        chatSessionService.update(new UpdateWrapper<com.stephen.cloud.chat.model.entity.ChatSession>()
+                .set("unread_count", (int) unreadCount)
+                .set("last_read_message_id", lastReadMessageId)
+                .eq("user_id", userId)
+                .eq("room_id", roomId));
 
         Map<String, Object> readPayload = Map.of(
                 "roomId", roomId,

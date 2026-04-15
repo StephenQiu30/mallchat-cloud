@@ -248,6 +248,26 @@ public class UserFriendServiceImpl extends ServiceImpl<UserFriendMapper, UserFri
         return cacheUtils.sIsMember(key, String.valueOf(friendUserId));
     }
 
+    @Override
+    public Set<Long> listFriendIdsForNotification(Long userId) {
+        if (userId == null) {
+            return Collections.emptySet();
+        }
+        String key = ChatCacheConstant.getUserFriendKey(userId);
+        Set<String> friendIds = cacheUtils.sMembers(key);
+        if (!cacheUtils.exists(key)) {
+            loadFriendCache(userId);
+            friendIds = cacheUtils.sMembers(key);
+        }
+        if (CollUtil.isEmpty(friendIds)) {
+            return Collections.emptySet();
+        }
+        return friendIds.stream()
+                .filter(friendId -> friendId != null && !ChatCacheConstant.EMPTY_SET_PLACEHOLDER.equals(friendId))
+                .map(Long::valueOf)
+                .collect(Collectors.toCollection(LinkedHashSet::new));
+    }
+
     private void syncFriendToCache(Long userId, Long friendUserId) {
         String key = ChatCacheConstant.getUserFriendKey(userId);
         cacheUtils.sAdd(key, String.valueOf(friendUserId));

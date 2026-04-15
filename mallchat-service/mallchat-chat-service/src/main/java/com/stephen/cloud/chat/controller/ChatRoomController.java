@@ -14,6 +14,7 @@ import com.stephen.cloud.common.common.BaseResponse;
 import com.stephen.cloud.common.common.ErrorCode;
 import com.stephen.cloud.common.common.ResultUtils;
 import com.stephen.cloud.common.common.ThrowUtils;
+import com.stephen.cloud.common.exception.BusinessException;
 import com.stephen.cloud.common.log.annotation.OperationLog;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -139,18 +140,15 @@ public class ChatRoomController {
     /**
      * 加入聊天室
      *
-     * @param roomId  房间 ID
-     * @param request 请求对象
+     * @param roomId 房间 ID
      * @return 是否成功
      */
     @PostMapping("/join")
     @OperationLog(module = "聊天室管理", action = "加入聊天室")
-    @Operation(summary = "加入聊天室", description = "将当前用户加入到指定的聊天室")
+    @Operation(summary = "加入聊天室", description = "当前 MVP 阶段不支持公开加入聊天室，成员进入需走受控路径")
     public BaseResponse<Boolean> joinChatRoom(@Parameter(description = "房间ID", required = true) @RequestParam Long roomId) {
         ThrowUtils.throwIf(roomId == null || roomId <= 0, ErrorCode.PARAMS_ERROR);
-        Long userId = SecurityUtils.getLoginUserId();
-        chatRoomService.joinChatRoom(roomId, userId);
-        return ResultUtils.success(true);
+        throw new BusinessException(ErrorCode.FORBIDDEN_ERROR, "当前版本不支持公开加入聊天室，请通过建群、邀请或私聊初始化进入房间");
     }
 
     /**

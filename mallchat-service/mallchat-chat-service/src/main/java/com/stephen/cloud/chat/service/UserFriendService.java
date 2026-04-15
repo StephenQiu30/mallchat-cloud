@@ -8,6 +8,7 @@ import com.stephen.cloud.api.chat.model.vo.ChatFriendUserVO;
 import com.stephen.cloud.chat.model.entity.UserFriend;
 import jakarta.servlet.http.HttpServletRequest;
 
+import java.util.Set;
 import java.util.List;
 
 /**
@@ -86,6 +87,14 @@ public interface UserFriendService extends IService<UserFriend> {
      * @return 是否互为好友
      */
     boolean isMutualFriend(Long userId, Long friendUserId);
+
+    /**
+     * 获取用于在线状态通知的好友用户 ID 集合
+     *
+     * @param userId 当前用户 ID
+     * @return 好友用户 ID 集合
+     */
+    Set<Long> listFriendIdsForNotification(Long userId);
 
     /**
      * 移除好友（双向记录，并同步清除缓存）

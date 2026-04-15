@@ -1,6 +1,5 @@
 package com.stephen.cloud.common.websocket.manager;
 
-import com.stephen.cloud.common.cache.constants.ChatCacheConstant;
 import com.stephen.cloud.common.cache.utils.CacheUtils;
 import com.stephen.cloud.common.constants.WebSocketConstant;
 import com.stephen.cloud.common.rabbitmq.enums.MqBizTypeEnum;
@@ -34,11 +33,12 @@ class ChannelManagerTest {
         ReflectionTestUtils.setField(channelManager, "cacheUtils", cacheUtils);
         ReflectionTestUtils.setField(channelManager, "rabbitMqSender", rabbitMqSender);
         channelManager.setServerId("server-a");
+        channelManager.setFriendIdsResolver(userId -> Set.of());
     }
 
     @Test
     void shouldNotifyFriendsWhenFirstConnectionComesOnline() {
-        cacheUtils.setMembers(ChatCacheConstant.getUserFriendKey(1L), Set.of("2"));
+        channelManager.setFriendIdsResolver(userId -> Set.of(2L));
         EmbeddedChannel channel = new EmbeddedChannel();
 
         channelManager.addChannel("1", channel);
@@ -55,7 +55,7 @@ class ChannelManagerTest {
 
     @Test
     void shouldOnlyNotifyOfflineWhenLastConnectionIsRemoved() {
-        cacheUtils.setMembers(ChatCacheConstant.getUserFriendKey(1L), Set.of("2"));
+        channelManager.setFriendIdsResolver(userId -> Set.of(2L));
         EmbeddedChannel channel = new EmbeddedChannel();
 
         channelManager.addChannel("1", channel);
@@ -71,6 +71,17 @@ class ChannelManagerTest {
         ImWebSocketEvent event = (ImWebSocketEvent) message.getData();
         Map<?, ?> data = (Map<?, ?>) event.getData();
         Assertions.assertEquals(0, data.get("onlineStatus"));
+    }
+
+    @Test
+    void shouldHandleEmptyFriendResolverResult() {
+        EmbeddedChannel channel = new EmbeddedChannel();
+
+        channelManager.addChannel("1", channel);
+
+        WebSocketMessage message = (WebSocketMessage) rabbitMqSender.lastPayload;
+        Assertions.assertEquals(Set.of(1L), new HashSet<>(message.getUserIds()));
+        channel.close();
     }
 
     private static class RecordingRabbitMqSender extends RabbitMqSender {

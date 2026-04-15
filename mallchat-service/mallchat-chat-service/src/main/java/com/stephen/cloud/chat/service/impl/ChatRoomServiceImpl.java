@@ -145,7 +145,7 @@ public class ChatRoomServiceImpl extends ServiceImpl<ChatRoomMapper, ChatRoom>
     public void joinChatRoom(Long roomId, Long userId) {
         ChatRoom chatRoom = this.getById(roomId);
         ThrowUtils.throwIf(chatRoom == null, ErrorCode.NOT_FOUND_ERROR, "聊天室不存在");
-        chatRoomMemberService.addMember(roomId, userId);
+        throw new BusinessException(ErrorCode.FORBIDDEN_ERROR, "当前版本不支持通过公开入口加入聊天室");
     }
 
     @Override
@@ -173,8 +173,8 @@ public class ChatRoomServiceImpl extends ServiceImpl<ChatRoomMapper, ChatRoom>
         boolean saved = this.save(chatRoom);
         ThrowUtils.throwIf(!saved, ErrorCode.OPERATION_ERROR, "创建私聊房间失败");
 
-        joinChatRoom(chatRoom.getId(), userId);
-        joinChatRoom(chatRoom.getId(), peerUserId);
+        chatRoomMemberService.addMember(chatRoom.getId(), userId);
+        chatRoomMemberService.addMember(chatRoom.getId(), peerUserId);
 
         ChatPrivateRoom mapping = new ChatPrivateRoom();
         mapping.setUserLow(userLow);

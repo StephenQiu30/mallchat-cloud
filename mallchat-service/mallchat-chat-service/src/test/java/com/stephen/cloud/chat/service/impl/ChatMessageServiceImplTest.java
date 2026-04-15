@@ -1,6 +1,7 @@
 package com.stephen.cloud.chat.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.Wrapper;
+import com.baomidou.mybatisplus.core.conditions.update.UpdateWrapper;
 import com.stephen.cloud.api.chat.model.enums.ChatMessageTypeEnum;
 import com.stephen.cloud.api.chat.model.enums.ChatRoomTypeEnum;
 import com.stephen.cloud.api.chat.model.enums.MessageStatusEnum;
@@ -27,6 +28,7 @@ import java.lang.reflect.Proxy;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
+import java.util.Map;
 
 class ChatMessageServiceImplTest {
 
@@ -38,6 +40,7 @@ class ChatMessageServiceImplTest {
     private ChatPrivateRoom privateRoom;
     private ChatRoomMember roomMember;
     private ChatSessionVO sessionVO;
+    private long unreadCountAfterBoundary;
 
     @BeforeEach
     void setUp() {
@@ -58,6 +61,7 @@ class ChatMessageServiceImplTest {
         sessionVO = new ChatSessionVO();
         sessionVO.setRoomId(1L);
         sessionVO.setUnreadCount(0);
+        unreadCountAfterBoundary = 0L;
 
         ReflectionTestUtils.setField(chatMessageService, "chatRoomMemberService", createChatRoomMemberService());
         ReflectionTestUtils.setField(chatMessageService, "chatMqProducer", chatMqProducer);
@@ -97,6 +101,51 @@ class ChatMessageServiceImplTest {
                 () -> chatMessageService.markMessageRead(1L, 8L, 1L));
 
         Assertions.assertEquals(ErrorCode.PARAMS_ERROR.getCode(), exception.getCode());
+        Assertions.assertNull(chatMqProducer.lastReadPayload);
+        Assertions.assertNull(chatMqProducer.lastSessionUpdateUserId);
+    }
+
+    @Test
+    void shouldKeepUnreadCountAfterPartialRead() {
+        ChatMessage stored = createStoredMessage(8L, 1L);
+        chatMessageService.messageById = stored;
+        roomMember.setLastReadMessageId(5L);
+        unreadCountAfterBoundary = 2L;
+
+        boolean result = chatMessageService.markMessageRead(1L, 8L, 1L);
+
+        Assertions.assertTrue(result);
+        Assertions.assertEquals(8L, roomMember.getLastReadMessageId());
+        Assertions.assertEquals(2, chatMessageService.updatedUnreadCount);
+        Assertions.assertEquals(8L, chatMessageService.updatedLastReadMessageId);
+        Assertions.assertNotNull(chatMqProducer.lastReadPayload);
+        Assertions.assertEquals(1L, chatMqProducer.lastSessionUpdateUserId);
+    }
+
+    @Test
+    void shouldClearUnreadCountAfterReadingNewestMessage() {
+        ChatMessage stored = createStoredMessage(10L, 1L);
+        chatMessageService.messageById = stored;
+        roomMember.setLastReadMessageId(8L);
+        unreadCountAfterBoundary = 0L;
+
+        boolean result = chatMessageService.markMessageRead(1L, 10L, 1L);
+
+        Assertions.assertTrue(result);
+        Assertions.assertEquals(0, chatMessageService.updatedUnreadCount);
+        Assertions.assertEquals(10L, chatMessageService.updatedLastReadMessageId);
+    }
+
+    @Test
+    void shouldIgnoreStaleReadBoundary() {
+        ChatMessage stored = createStoredMessage(7L, 1L);
+        chatMessageService.messageById = stored;
+        roomMember.setLastReadMessageId(8L);
+
+        boolean result = chatMessageService.markMessageRead(1L, 7L, 1L);
+
+        Assertions.assertTrue(result);
+        Assertions.assertFalse(chatMessageService.sessionUpdateInvoked);
         Assertions.assertNull(chatMqProducer.lastReadPayload);
         Assertions.assertNull(chatMqProducer.lastSessionUpdateUserId);
     }
@@ -182,6 +231,15 @@ class ChatMessageServiceImplTest {
                         case "getSessionVO" -> sessionVO;
                         case "update" -> {
                             chatMessageService.sessionUpdateInvoked = true;
+                            UpdateWrapper<?> wrapper = (UpdateWrapper<?>) args[0];
+                            Map<String, Object> values = wrapper.getParamNameValuePairs();
+                            values.values().forEach(value -> {
+                                if (value instanceof Integer integer) {
+                                    chatMessageService.updatedUnreadCount = integer;
+                                } else if (value instanceof Long longValue && !longValue.equals(1L)) {
+                                    chatMessageService.updatedLastReadMessageId = longValue;
+                                }
+                            });
                             yield true;
                         }
                         default -> defaultValue(method.getReturnType());
@@ -203,13 +261,15 @@ class ChatMessageServiceImplTest {
         );
     }
 
-    private static class TestableChatMessageServiceImpl extends ChatMessageServiceImpl {
+    private class TestableChatMessageServiceImpl extends ChatMessageServiceImpl {
         private ChatMessage existingByClient;
         private ChatMessage messageById;
         private List<ChatMessage> listResult = new ArrayList<>();
         private boolean saveResult = true;
         private boolean updateResult = true;
         private boolean sessionUpdateInvoked;
+        private int updatedUnreadCount = -1;
+        private Long updatedLastReadMessageId;
 
         @Override
         public ChatMessage getOne(Wrapper<ChatMessage> queryWrapper) {
@@ -240,6 +300,11 @@ class ChatMessageServiceImplTest {
         @Override
         public List<ChatMessage> list(Wrapper<ChatMessage> queryWrapper) {
             return new ArrayList<>(listResult);
+        }
+
+        @Override
+        public long count(Wrapper<ChatMessage> queryWrapper) {
+            return unreadCountAfterBoundary;
         }
 
         @Override
