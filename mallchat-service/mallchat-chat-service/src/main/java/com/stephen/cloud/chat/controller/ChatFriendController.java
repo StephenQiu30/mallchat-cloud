@@ -8,6 +8,7 @@ import com.stephen.cloud.common.common.BaseResponse;
 import com.stephen.cloud.common.common.ErrorCode;
 import com.stephen.cloud.common.common.ResultUtils;
 import com.stephen.cloud.common.common.ThrowUtils;
+import com.stephen.cloud.common.exception.BusinessException;
 import com.stephen.cloud.common.log.annotation.OperationLog;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -47,11 +48,7 @@ public class ChatFriendController {
                                            HttpServletRequest servletRequest) {
         // 参数校验
         ThrowUtils.throwIf(request == null || request.getFriendUserId() == null, ErrorCode.PARAMS_ERROR);
-        // 获取当前用户 ID
-        Long userId = SecurityUtils.getLoginUserId();
-        // 执行建立双向好友关系逻辑
-        userFriendService.addFriend(userId, request.getFriendUserId());
-        return ResultUtils.success(true);
+        throw new BusinessException(ErrorCode.FORBIDDEN_ERROR, "MVP阶段请通过好友申请与审批流程建立好友关系");
     }
 
     /**

@@ -150,17 +150,27 @@ public class UserFriendApplyServiceImpl extends ServiceImpl<UserFriendApplyMappe
 
         Long targetId = apply.getTargetId();
         ThrowUtils.throwIf(targetId.equals(userId), ErrorCode.PARAMS_ERROR, "不能添加自己为好友");
+        UserVO targetUser = userFeignClient.getUserVOById(targetId).getData();
+        ThrowUtils.throwIf(targetUser == null, ErrorCode.NOT_FOUND_ERROR, "目标用户不存在");
 
         // 校验是否已经是好友，避免重复申请
         ThrowUtils.throwIf(userFriendService.isMutualFriend(userId, targetId), ErrorCode.OPERATION_ERROR, "已经是好友了");
 
-        // 幂等校验：检查是否有待审核的相同申请
+        // 幂等校验：同一对用户任意时刻只允许存在一条待处理申请
         UserFriendApply existing = this.getOne(new LambdaQueryWrapper<UserFriendApply>()
-                .eq(UserFriendApply::getUserId, userId)
-                .eq(UserFriendApply::getTargetId, targetId)
-                .eq(UserFriendApply::getStatus, 1));
+                .eq(UserFriendApply::getStatus, 1)
+                .and(wrapper -> wrapper
+                        .eq(UserFriendApply::getUserId, userId)
+                        .eq(UserFriendApply::getTargetId, targetId)
+                        .or()
+                        .eq(UserFriendApply::getUserId, targetId)
+                        .eq(UserFriendApply::getTargetId, userId))
+                .last("LIMIT 1"));
         if (existing != null) {
-            return existing.getId();
+            if (existing.getUserId().equals(userId) && existing.getTargetId().equals(targetId)) {
+                return existing.getId();
+            }
+            throw new BusinessException(ErrorCode.OPERATION_ERROR, "对方已向你发起好友申请，请前往申请列表处理");
         }
 
         apply.setUserId(userId);
