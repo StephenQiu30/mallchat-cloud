@@ -149,8 +149,8 @@ public class UserFriendApplyServiceImpl extends ServiceImpl<UserFriendApplyMappe
         validUserFriendApply(apply);
 
         Long targetId = apply.getTargetId();
-        UserVO targetUser = userFeignClient.getUserVOById(targetId).getData();
         ThrowUtils.throwIf(targetId.equals(userId), ErrorCode.PARAMS_ERROR, "不能添加自己为好友");
+        UserVO targetUser = userFeignClient.getUserVOById(targetId).getData();
         ThrowUtils.throwIf(targetUser == null, ErrorCode.NOT_FOUND_ERROR, "目标用户不存在");
 
         // 校验是否已经是好友，避免重复申请
