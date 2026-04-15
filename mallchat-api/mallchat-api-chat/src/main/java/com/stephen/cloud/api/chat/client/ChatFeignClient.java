@@ -39,10 +39,10 @@ public interface ChatFeignClient {
      * 发送聊天记录
      *
      * @param chatMessageSendRequest 发送消息请求
-     * @return 消息 ID
+     * @return 消息视图
      */
     @PostMapping("/message/send")
-    BaseResponse<Long> sendMessage(@RequestBody ChatMessageSendRequest chatMessageSendRequest);
+    BaseResponse<ChatMessageVO> sendMessage(@RequestBody ChatMessageSendRequest chatMessageSendRequest);
 
     /**
      * 获取历史消息
