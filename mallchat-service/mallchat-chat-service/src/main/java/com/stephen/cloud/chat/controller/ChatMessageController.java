@@ -96,6 +96,26 @@ public class ChatMessageController {
     }
 
     /**
+     * 获取接收游标后的新消息
+     *
+     * @param roomId         房间 ID
+     * @param afterMessageId 客户端最后收到的消息 ID
+     * @param limit          数量
+     * @return 游标后的消息列表
+     */
+    @GetMapping("/list/after/vo")
+    @Operation(summary = "获取游标后的新消息", description = "获取指定房间中客户端最后收到消息之后的新消息，用于重连补偿")
+    public BaseResponse<List<ChatMessageVO>> listMessagesAfter(
+            @Parameter(description = "房间ID", required = true) @RequestParam Long roomId,
+            @Parameter(description = "客户端最后收到的消息ID") @RequestParam(required = false) Long afterMessageId,
+            @Parameter(description = "加载消息数量", example = "100") @RequestParam(defaultValue = "100") Integer limit) {
+        ThrowUtils.throwIf(roomId == null || roomId <= 0, ErrorCode.PARAMS_ERROR);
+        Long userId = SecurityUtils.getLoginUserId();
+        List<ChatMessageVO> messages = chatMessageService.listMessagesAfter(roomId, afterMessageId, limit, userId);
+        return ResultUtils.success(messages);
+    }
+
+    /**
      * 撤回消息
      *
      * @param deleteRequest 撤回请求 (使用 id 字段作为消息 ID)

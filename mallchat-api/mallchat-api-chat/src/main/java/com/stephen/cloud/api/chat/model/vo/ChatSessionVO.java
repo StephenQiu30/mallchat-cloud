@@ -46,6 +46,18 @@ public class ChatSessionVO implements Serializable {
     private String lastMessage;
 
     /**
+     * 最后一条消息ID
+     */
+    @Schema(description = "最后一条消息ID", example = "10")
+    private Long lastMessageId;
+
+    /**
+     * 最后一条已读消息ID
+     */
+    @Schema(description = "最后一条已读消息ID", example = "8")
+    private Long lastReadMessageId;
+
+    /**
      * 未读数
      */
     @Schema(description = "未读数", example = "5")

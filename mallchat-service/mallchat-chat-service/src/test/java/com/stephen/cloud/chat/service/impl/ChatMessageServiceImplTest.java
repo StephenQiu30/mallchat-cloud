@@ -97,6 +97,45 @@ class ChatMessageServiceImplTest {
     }
 
     @Test
+    void shouldReturnReconnectCompensationMessagesAfterCursorInChronologicalOrder() {
+        chatMessageService.listResult = List.of(createStoredMessage(6L, 1L), createStoredMessage(7L, 1L));
+
+        List<ChatMessageVO> messages = chatMessageService.listMessagesAfter(1L, 5L, 100, 1L);
+
+        Assertions.assertEquals(List.of(6L, 7L), messages.stream().map(ChatMessageVO::getId).toList());
+    }
+
+    @Test
+    void shouldReturnEmptyReconnectCompensationMessagesWhenNoNewMessages() {
+        chatMessageService.listResult = List.of();
+
+        List<ChatMessageVO> messages = chatMessageService.listMessagesAfter(1L, 99L, 100, 1L);
+
+        Assertions.assertTrue(messages.isEmpty());
+    }
+
+    @Test
+    void shouldRejectReconnectCompensationWhenUserIsNotRoomMember() {
+        member = false;
+
+        BusinessException exception = Assertions.assertThrows(BusinessException.class,
+                () -> chatMessageService.listMessagesAfter(1L, 5L, 100, 1L));
+
+        Assertions.assertEquals(ErrorCode.NO_AUTH_ERROR.getCode(), exception.getCode());
+    }
+
+    @Test
+    void shouldCapReconnectCompensationLimit() {
+        Assertions.assertEquals(200, ChatMessageServiceImpl.normalizeReconnectCompensationLimit(999));
+    }
+
+    @Test
+    void shouldUseDefaultReconnectCompensationLimitWhenInvalid() {
+        Assertions.assertEquals(100, ChatMessageServiceImpl.normalizeReconnectCompensationLimit(0));
+        Assertions.assertEquals(100, ChatMessageServiceImpl.normalizeReconnectCompensationLimit(null));
+    }
+
+    @Test
     void shouldRejectReadWhenMessageDoesNotBelongToRoom() {
         ChatMessage stored = createStoredMessage(8L, 1L);
         stored.setRoomId(2L);

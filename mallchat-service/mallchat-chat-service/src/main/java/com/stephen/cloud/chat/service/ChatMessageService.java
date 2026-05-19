@@ -73,6 +73,17 @@ public interface ChatMessageService extends IService<ChatMessage> {
     List<ChatMessageVO> listHistoryMessages(Long roomId, Long lastMessageId, Integer limit, Long userId);
 
     /**
+     * 获取接收游标之后的新消息
+     *
+     * @param roomId         房间 ID
+     * @param afterMessageId 客户端最后收到的消息 ID
+     * @param limit          数量
+     * @param userId         当前用户 ID
+     * @return 游标后的消息列表
+     */
+    List<ChatMessageVO> listMessagesAfter(Long roomId, Long afterMessageId, Integer limit, Long userId);
+
+    /**
      * 上报已读游标
      *
      * @param roomId            房间 ID

@@ -3,9 +3,7 @@
 ## Purpose
 
 Define how MallChat session state follows message creation, unread count updates, and read-boundary changes.
-
 ## Requirements
-
 ### Requirement: Session state updates follow message lifecycle
 The system SHALL update session last message, unread count, last read boundary, and activity time whenever room messages are produced or read.
 
@@ -24,3 +22,16 @@ The system SHALL update session last message, unread count, last read boundary, 
 #### Scenario: Ignore stale read boundary updates
 - **WHEN** a user submits a read boundary that is older than or equal to the currently stored boundary
 - **THEN** the system SHALL NOT increase unread count or move the stored last-read boundary backward
+
+### Requirement: Session list exposes message cursor state
+The system SHALL expose session message cursor fields so clients can distinguish the latest persisted message from the user's read boundary.
+
+#### Scenario: Session item includes cursor fields
+- **WHEN** an authenticated user queries their chat session list
+- **THEN** each session item includes `lastMessageId`
+- **AND** each session item includes `lastReadMessageId`
+
+#### Scenario: Receive cursor and read cursor remain separate
+- **WHEN** a client decides whether reconnect compensation is needed
+- **THEN** it can compare its last received message id with the session `lastMessageId`
+- **AND** it SHALL NOT need to treat `lastReadMessageId` as the reconnect compensation cursor

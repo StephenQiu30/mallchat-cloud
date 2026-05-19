@@ -58,6 +58,20 @@ public interface ChatFeignClient {
             @RequestParam(value = "lastMessageId", required = false) Long lastMessageId,
             @RequestParam(value = "limit", defaultValue = "20") Integer limit);
 
+    /**
+     * 获取接收游标后的新消息
+     *
+     * @param roomId         房间 ID
+     * @param afterMessageId 客户端最后收到的消息 ID
+     * @param limit          限制数量
+     * @return 消息列表
+     */
+    @GetMapping("/message/list/after/vo")
+    BaseResponse<List<ChatMessageVO>> listMessagesAfter(
+            @RequestParam("roomId") Long roomId,
+            @RequestParam(value = "afterMessageId", required = false) Long afterMessageId,
+            @RequestParam(value = "limit", defaultValue = "100") Integer limit);
+
     @PostMapping("/friend/add")
     BaseResponse<Boolean> addFriend(@RequestBody ChatFriendAddRequest request);
 

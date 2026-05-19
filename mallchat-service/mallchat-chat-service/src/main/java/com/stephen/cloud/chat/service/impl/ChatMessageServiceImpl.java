@@ -57,6 +57,9 @@ import java.util.stream.Collectors;
 public class ChatMessageServiceImpl extends ServiceImpl<ChatMessageMapper, ChatMessage>
         implements ChatMessageService {
 
+    private static final int DEFAULT_RECONNECT_COMPENSATION_LIMIT = 100;
+    private static final int MAX_RECONNECT_COMPENSATION_LIMIT = 200;
+
     @Resource
     private ChatRoomMemberService chatRoomMemberService;
 
@@ -202,6 +205,30 @@ public class ChatMessageServiceImpl extends ServiceImpl<ChatMessageMapper, ChatM
     }
 
     @Override
+    public List<ChatMessageVO> listMessagesAfter(Long roomId, Long afterMessageId, Integer limit, Long userId) {
+        ThrowUtils.throwIf(roomId == null || userId == null, ErrorCode.PARAMS_ERROR);
+        ThrowUtils.throwIf(!chatRoomMemberService.isMember(roomId, userId), ErrorCode.NO_AUTH_ERROR, "您不在此聊天室中");
+
+        int normalizedLimit = normalizeReconnectCompensationLimit(limit);
+        LambdaQueryWrapper<ChatMessage> queryWrapper = new LambdaQueryWrapper<ChatMessage>()
+                .eq(ChatMessage::getRoomId, roomId);
+
+        List<ChatMessage> messages;
+        if (afterMessageId != null && afterMessageId > 0) {
+            messages = this.list(queryWrapper
+                    .gt(ChatMessage::getId, afterMessageId)
+                    .orderByAsc(ChatMessage::getId)
+                    .last("limit " + normalizedLimit));
+        } else {
+            messages = this.list(queryWrapper
+                    .orderByDesc(ChatMessage::getId)
+                    .last("limit " + normalizedLimit));
+            Collections.reverse(messages);
+        }
+        return getChatMessageVO(messages, null);
+    }
+
+    @Override
     @Transactional(rollbackFor = Exception.class)
     public boolean markMessageRead(Long roomId, Long lastReadMessageId, Long userId) {
         ThrowUtils.throwIf(roomId == null || lastReadMessageId == null || userId == null, ErrorCode.PARAMS_ERROR);
@@ -293,6 +320,13 @@ public class ChatMessageServiceImpl extends ServiceImpl<ChatMessageMapper, ChatM
 
     private List<Long> listRoomMemberUserIds(Long roomId) {
         return extractRoomMemberUserIds(chatRoomMemberService.listByRoomId(roomId));
+    }
+
+    static int normalizeReconnectCompensationLimit(Integer limit) {
+        if (limit == null || limit <= 0) {
+            return DEFAULT_RECONNECT_COMPENSATION_LIMIT;
+        }
+        return Math.min(limit, MAX_RECONNECT_COMPENSATION_LIMIT);
     }
 
     private List<Long> extractRoomMemberUserIds(List<ChatRoomMember> members) {
