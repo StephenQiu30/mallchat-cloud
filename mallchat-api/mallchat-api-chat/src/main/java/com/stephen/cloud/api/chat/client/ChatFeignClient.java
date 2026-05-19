@@ -6,6 +6,7 @@ import com.stephen.cloud.api.chat.model.dto.ChatMessageSendRequest;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.stephen.cloud.api.chat.model.dto.ChatPrivateRoomRequest;
 import com.stephen.cloud.api.chat.model.vo.ChatFriendUserVO;
+import com.stephen.cloud.api.chat.model.vo.ChatMessageReadStatusVO;
 import com.stephen.cloud.api.chat.model.vo.ChatMessageVO;
 import com.stephen.cloud.api.chat.model.vo.ChatRoomVO;
 import com.stephen.cloud.common.common.BaseResponse;
@@ -94,4 +95,9 @@ public interface ChatFeignClient {
 
     @PostMapping("/message/read")
     BaseResponse<Boolean> markMessageRead(@RequestBody ChatMessageReadRequest request);
+
+    @GetMapping("/message/read/status")
+    BaseResponse<ChatMessageReadStatusVO> getMessageReadStatus(
+            @RequestParam("roomId") Long roomId,
+            @RequestParam("messageId") Long messageId);
 }

@@ -2,6 +2,7 @@ package com.stephen.cloud.chat.controller;
 
 import com.stephen.cloud.api.chat.model.dto.ChatMessageReadRequest;
 import com.stephen.cloud.api.chat.model.dto.ChatMessageSendRequest;
+import com.stephen.cloud.api.chat.model.vo.ChatMessageReadStatusVO;
 import com.stephen.cloud.api.chat.model.vo.ChatMessageVO;
 import com.stephen.cloud.chat.convert.ChatMessageConvert;
 import com.stephen.cloud.chat.model.entity.ChatMessage;
@@ -73,6 +74,24 @@ public class ChatMessageController {
         Long userId = SecurityUtils.getLoginUserId();
         boolean ok = chatMessageService.markMessageRead(request.getRoomId(), request.getLastReadMessageId(), userId);
         return ResultUtils.success(ok);
+    }
+
+    /**
+     * 获取消息已读统计摘要
+     *
+     * @param roomId    房间 ID
+     * @param messageId 消息 ID
+     * @return 已读统计摘要
+     */
+    @GetMapping("/read/status")
+    @Operation(summary = "获取消息已读统计", description = "发送者查询单条消息的聚合已读/未读人数")
+    public BaseResponse<ChatMessageReadStatusVO> getMessageReadStatus(
+            @Parameter(description = "房间ID", required = true) @RequestParam Long roomId,
+            @Parameter(description = "消息ID", required = true) @RequestParam Long messageId) {
+        ThrowUtils.throwIf(roomId == null || roomId <= 0 || messageId == null || messageId <= 0, ErrorCode.PARAMS_ERROR);
+        Long userId = SecurityUtils.getLoginUserId();
+        ChatMessageReadStatusVO statusVO = chatMessageService.getMessageReadStatus(roomId, messageId, userId);
+        return ResultUtils.success(statusVO);
     }
 
     /**

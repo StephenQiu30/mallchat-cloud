@@ -8,6 +8,7 @@ import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.stephen.cloud.api.chat.model.enums.ChatMessageTypeEnum;
 import com.stephen.cloud.api.chat.model.enums.ChatRoomTypeEnum;
 import com.stephen.cloud.api.chat.model.enums.MessageStatusEnum;
+import com.stephen.cloud.api.chat.model.vo.ChatMessageReadStatusVO;
 import com.stephen.cloud.api.chat.model.vo.ChatMessageVO;
 import com.stephen.cloud.api.chat.model.vo.ChatSessionVO;
 import com.stephen.cloud.api.chat.model.vo.ReplyMsgVO;
@@ -276,6 +277,39 @@ public class ChatMessageServiceImpl extends ServiceImpl<ChatMessageMapper, ChatM
                     "session_update:" + roomId + ":" + userId + ":" + lastReadMessageId);
         }
         return true;
+    }
+
+    @Override
+    public ChatMessageReadStatusVO getMessageReadStatus(Long roomId, Long messageId, Long userId) {
+        ThrowUtils.throwIf(roomId == null || messageId == null || userId == null, ErrorCode.PARAMS_ERROR);
+        ThrowUtils.throwIf(!chatRoomMemberService.isMember(roomId, userId), ErrorCode.NO_AUTH_ERROR, "您不在此聊天室中");
+
+        ChatMessage message = this.getOne(new LambdaQueryWrapper<ChatMessage>()
+                .eq(ChatMessage::getId, messageId)
+                .eq(ChatMessage::getRoomId, roomId)
+                .last("LIMIT 1"));
+        ThrowUtils.throwIf(message == null, ErrorCode.NOT_FOUND_ERROR, "消息不存在");
+        ThrowUtils.throwIf(!Objects.equals(message.getFromUserId(), userId), ErrorCode.NO_AUTH_ERROR, "只能查询自己发送消息的已读统计");
+
+        List<ChatRoomMember> members = chatRoomMemberService.listByRoomId(roomId);
+        Map<Long, ChatRoomMember> memberMap = CollUtil.isEmpty(members)
+                ? Collections.emptyMap()
+                : members.stream()
+                .filter(item -> item.getUserId() != null)
+                .collect(Collectors.toMap(ChatRoomMember::getUserId, item -> item, (left, right) -> left, LinkedHashMap::new));
+
+        int totalCount = memberMap.size();
+        int readCount = (int) memberMap.values().stream()
+                .filter(member -> Objects.equals(member.getUserId(), message.getFromUserId())
+                        || (member.getLastReadMessageId() != null && member.getLastReadMessageId() >= messageId))
+                .count();
+        return ChatMessageReadStatusVO.builder()
+                .roomId(roomId)
+                .messageId(messageId)
+                .totalCount(totalCount)
+                .readCount(readCount)
+                .unreadCount(totalCount - readCount)
+                .build();
     }
 
     @Override

@@ -2,6 +2,7 @@ package com.stephen.cloud.chat.service;
 
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.IService;
+import com.stephen.cloud.api.chat.model.vo.ChatMessageReadStatusVO;
 import com.stephen.cloud.api.chat.model.vo.ChatMessageVO;
 import com.stephen.cloud.chat.model.entity.ChatMessage;
 import jakarta.servlet.http.HttpServletRequest;
@@ -92,6 +93,16 @@ public interface ChatMessageService extends IService<ChatMessage> {
      * @return 是否更新成功
      */
     boolean markMessageRead(Long roomId, Long lastReadMessageId, Long userId);
+
+    /**
+     * 获取消息已读统计摘要
+     *
+     * @param roomId    房间 ID
+     * @param messageId 消息 ID
+     * @param userId    当前用户 ID
+     * @return 已读统计摘要
+     */
+    ChatMessageReadStatusVO getMessageReadStatus(Long roomId, Long messageId, Long userId);
 
     /**
      * 撤回消息
