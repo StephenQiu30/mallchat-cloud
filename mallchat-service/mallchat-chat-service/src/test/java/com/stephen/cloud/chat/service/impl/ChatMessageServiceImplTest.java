@@ -7,6 +7,8 @@ import com.stephen.cloud.api.chat.model.enums.ChatRoomTypeEnum;
 import com.stephen.cloud.api.chat.model.enums.MessageStatusEnum;
 import com.stephen.cloud.api.chat.model.vo.ChatMessageVO;
 import com.stephen.cloud.api.chat.model.vo.ChatSessionVO;
+import com.stephen.cloud.api.user.client.UserFeignClient;
+import com.stephen.cloud.api.user.model.vo.UserVO;
 import com.stephen.cloud.chat.model.entity.ChatMessage;
 import com.stephen.cloud.chat.model.entity.ChatPrivateRoom;
 import com.stephen.cloud.chat.model.entity.ChatRoom;
@@ -18,15 +20,19 @@ import com.stephen.cloud.chat.service.ChatRoomService;
 import com.stephen.cloud.chat.service.ChatSessionService;
 import com.stephen.cloud.chat.service.UserFriendService;
 import com.stephen.cloud.common.common.ErrorCode;
+import com.stephen.cloud.common.common.ResultUtils;
 import com.stephen.cloud.common.exception.BusinessException;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.test.util.ReflectionTestUtils;
 
+import java.io.Serializable;
 import java.lang.reflect.Proxy;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Date;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -42,6 +48,8 @@ class ChatMessageServiceImplTest {
     private List<ChatRoomMember> roomMembers;
     private ChatSessionVO sessionVO;
     private long unreadCountAfterBoundary;
+    private Map<Long, ChatMessage> replyMessagesById;
+    private Map<Long, UserVO> usersById;
 
     @BeforeEach
     void setUp() {
@@ -64,6 +72,10 @@ class ChatMessageServiceImplTest {
         sessionVO.setRoomId(1L);
         sessionVO.setUnreadCount(0);
         unreadCountAfterBoundary = 0L;
+        replyMessagesById = new HashMap<>();
+        usersById = new HashMap<>();
+        usersById.put(1L, buildUser(1L, "Alice"));
+        usersById.put(2L, buildUser(2L, "Bob"));
 
         ReflectionTestUtils.setField(chatMessageService, "chatRoomMemberService", createChatRoomMemberService());
         ReflectionTestUtils.setField(chatMessageService, "chatMqProducer", chatMqProducer);
@@ -71,6 +83,7 @@ class ChatMessageServiceImplTest {
         ReflectionTestUtils.setField(chatMessageService, "chatPrivateRoomService", createChatPrivateRoomService());
         ReflectionTestUtils.setField(chatMessageService, "chatSessionService", createChatSessionService());
         ReflectionTestUtils.setField(chatMessageService, "userFriendService", createUserFriendService());
+        ReflectionTestUtils.setField(chatMessageService, "userFeignClient", createUserFeignClient());
         ReflectionTestUtils.setField(chatMessageService, "eventPublisher",
                 (org.springframework.context.ApplicationEventPublisher) event -> {
                 });
@@ -252,6 +265,93 @@ class ChatMessageServiceImplTest {
         Assertions.assertEquals(List.of(1L, 2L), chatMqProducer.lastRecallUserIds);
     }
 
+    @Test
+    void shouldSendReplyMessageInSameRoomAndReturnReplyPreview() {
+        ChatMessage replyMessage = createStoredMessage(10L, 1L);
+        replyMessage.setFromUserId(2L);
+        replyMessage.setContent("original message");
+        chatMessageService.messageById = replyMessage;
+        replyMessagesById.put(10L, replyMessage);
+        ChatMessage message = createTextMessage(1L, "reply-1", "reply text");
+        message.setReplyMsgId(10L);
+
+        ChatMessageVO result = chatMessageService.sendMessage(message, 1L);
+
+        Assertions.assertEquals(10L, chatMessageService.messageById.getReplyMsgId());
+        Assertions.assertNotNull(result.getReplyMsg());
+        Assertions.assertEquals(10L, result.getReplyMsg().getId());
+        Assertions.assertEquals("original message", result.getReplyMsg().getContent());
+        Assertions.assertEquals("Bob", result.getReplyMsg().getUserName());
+    }
+
+    @Test
+    void shouldRejectReplyMessageFromAnotherRoom() {
+        ChatMessage replyMessage = createStoredMessage(10L, 2L);
+        chatMessageService.messageById = replyMessage;
+        ChatMessage message = createTextMessage(1L, "reply-2", "reply text");
+        message.setReplyMsgId(10L);
+
+        BusinessException exception = Assertions.assertThrows(BusinessException.class,
+                () -> chatMessageService.sendMessage(message, 1L));
+
+        Assertions.assertEquals(ErrorCode.PARAMS_ERROR.getCode(), exception.getCode());
+    }
+
+    @Test
+    void shouldRejectReplyMessageWhenReferencedMessageDoesNotExist() {
+        ChatMessage message = createTextMessage(1L, "reply-3", "reply text");
+        message.setReplyMsgId(404L);
+
+        BusinessException exception = Assertions.assertThrows(BusinessException.class,
+                () -> chatMessageService.sendMessage(message, 1L));
+
+        Assertions.assertEquals(ErrorCode.PARAMS_ERROR.getCode(), exception.getCode());
+        Assertions.assertNull(chatMessageService.messageById);
+        Assertions.assertNull(chatMqProducer.lastGroupPushRoomId);
+    }
+
+    @Test
+    void shouldRejectReplyMessageWhenSenderHasNoSendPermission() {
+        mutualFriend = false;
+        ChatMessage message = createTextMessage(1L, "reply-4", "reply text");
+        message.setReplyMsgId(10L);
+
+        BusinessException exception = Assertions.assertThrows(BusinessException.class,
+                () -> chatMessageService.sendMessage(message, 1L));
+
+        Assertions.assertEquals(ErrorCode.NO_AUTH_ERROR.getCode(), exception.getCode());
+        Assertions.assertNull(chatMessageService.messageById);
+        Assertions.assertNull(chatMqProducer.lastGroupPushRoomId);
+    }
+
+    @Test
+    void shouldMaskRecalledReplyPreview() {
+        ChatMessage current = createStoredMessage(20L, 1L);
+        current.setReplyMsgId(10L);
+        ChatMessage replyMessage = createStoredMessage(10L, 1L);
+        replyMessage.setContent("secret original");
+        replyMessage.setStatus(MessageStatusEnum.RECALL.getCode());
+        replyMessagesById.put(10L, replyMessage);
+
+        ChatMessageVO result = chatMessageService.getChatMessageVO(current, null);
+
+        Assertions.assertNotNull(result.getReplyMsg());
+        Assertions.assertEquals("该消息已被撤回", result.getReplyMsg().getContent());
+    }
+
+    @Test
+    void shouldHideReplyPreviewWhenStoredReplyMessageBelongsToAnotherRoom() {
+        ChatMessage current = createStoredMessage(20L, 1L);
+        current.setReplyMsgId(10L);
+        ChatMessage replyMessage = createStoredMessage(10L, 2L);
+        replyMessage.setContent("cross room secret");
+        replyMessagesById.put(10L, replyMessage);
+
+        ChatMessageVO result = chatMessageService.getChatMessageVO(current, null);
+
+        Assertions.assertNull(result.getReplyMsg());
+    }
+
     private ChatMessage createTextMessage(Long roomId, String clientMsgId, String content) {
         ChatMessage message = new ChatMessage();
         message.setRoomId(roomId);
@@ -268,6 +368,13 @@ class ChatMessageServiceImplTest {
         message.setStatus(MessageStatusEnum.NORMAL.getCode());
         message.setCreateTime(new Date());
         return message;
+    }
+
+    private UserVO buildUser(Long id, String name) {
+        UserVO user = new UserVO();
+        user.setId(id);
+        user.setUserName(name);
+        return user;
     }
 
     private ChatRoomService createChatRoomService() {
@@ -351,6 +458,24 @@ class ChatMessageServiceImplTest {
         );
     }
 
+    private UserFeignClient createUserFeignClient() {
+        return (UserFeignClient) Proxy.newProxyInstance(
+                UserFeignClient.class.getClassLoader(),
+                new Class[]{UserFeignClient.class},
+                (proxy, method, args) -> {
+                    if ("getUserVOByIds".equals(method.getName())) {
+                        @SuppressWarnings("unchecked")
+                        List<Long> ids = (List<Long>) args[0];
+                        return ResultUtils.success(ids.stream()
+                                .map(usersById::get)
+                                .filter(java.util.Objects::nonNull)
+                                .toList());
+                    }
+                    return defaultValue(method.getReturnType());
+                }
+        );
+    }
+
     private class TestableChatMessageServiceImpl extends ChatMessageServiceImpl {
         private ChatMessage existingByClient;
         private ChatMessage messageById;
@@ -393,38 +518,18 @@ class ChatMessageServiceImplTest {
         }
 
         @Override
-        public long count(Wrapper<ChatMessage> queryWrapper) {
-            return unreadCountAfterBoundary;
-        }
-
-        @Override
-        public List<ChatMessageVO> getChatMessageVO(List<ChatMessage> chatMessageList, jakarta.servlet.http.HttpServletRequest request) {
-            return chatMessageList.stream()
-                    .map(item -> ChatMessageVO.builder()
-                            .id(item.getId())
-                            .roomId(item.getRoomId())
-                            .fromUserId(item.getFromUserId())
-                            .content(item.getContent())
-                            .type(item.getType())
-                            .status(item.getStatus())
-                            .build())
+        public List<ChatMessage> listByIds(Collection<? extends Serializable> idList) {
+            return idList.stream()
+                    .map(id -> replyMessagesById.get((Long) id))
+                    .filter(java.util.Objects::nonNull)
                     .toList();
         }
 
         @Override
-        public ChatMessageVO getChatMessageVO(ChatMessage chatMessage, jakarta.servlet.http.HttpServletRequest request) {
-            if (chatMessage == null) {
-                return null;
-            }
-            return ChatMessageVO.builder()
-                    .id(chatMessage.getId())
-                    .roomId(chatMessage.getRoomId())
-                    .fromUserId(chatMessage.getFromUserId())
-                    .content(chatMessage.getContent())
-                    .type(chatMessage.getType())
-                    .status(chatMessage.getStatus())
-                    .build();
+        public long count(Wrapper<ChatMessage> queryWrapper) {
+            return unreadCountAfterBoundary;
         }
+
     }
 
     private static class FakeChatMqProducer extends ChatMqProducer {
