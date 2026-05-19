@@ -1,6 +1,7 @@
 package com.stephen.cloud.chat.service.impl;
 
 import com.stephen.cloud.api.chat.model.enums.ChatRoomTypeEnum;
+import com.stephen.cloud.api.chat.model.enums.ChatRoomRoleEnum;
 import com.stephen.cloud.api.chat.model.vo.ChatSessionVO;
 import com.stephen.cloud.chat.model.entity.ChatGroupInfo;
 import com.stephen.cloud.chat.model.entity.ChatRoom;
@@ -42,6 +43,14 @@ class ChatRoomServiceImplTest {
     private List<Object> sessionUpdatePayloads;
     private List<String> sessionUpdateBizIds;
     private boolean sessionPushThrows;
+    private ChatRoomMember targetMember;
+    private Long leftRoomId;
+    private Long leftUserId;
+    private Long removedSessionRoomId;
+    private Long removedSessionUserId;
+    private List<Long> sessionDeleteUsers;
+    private boolean sessionDeleteThrows;
+    private boolean sessionRemoveThrows;
 
     @BeforeEach
     void setUp() {
@@ -56,6 +65,7 @@ class ChatRoomServiceImplTest {
         sessionUpdateUsers = new ArrayList<>();
         sessionUpdatePayloads = new ArrayList<>();
         sessionUpdateBizIds = new ArrayList<>();
+        sessionDeleteUsers = new ArrayList<>();
     }
 
     @Test
@@ -240,6 +250,131 @@ class ChatRoomServiceImplTest {
         Assertions.assertTrue(groupInfoValidated);
     }
 
+    @Test
+    void shouldRejectMemberRemovalForPrivateRoom() {
+        chatRoomService.stubRoom = new ChatRoom();
+        chatRoomService.stubRoom.setId(90L);
+        chatRoomService.stubRoom.setType(ChatRoomTypeEnum.PRIVATE.getCode());
+        currentUserIsOwner = true;
+
+        BusinessException exception = Assertions.assertThrows(BusinessException.class,
+                () -> chatRoomService.removeMember(90L, 2L, 1L));
+
+        Assertions.assertEquals(ErrorCode.PARAMS_ERROR.getCode(), exception.getCode());
+        assertNoRemovalSideEffects();
+    }
+
+    @Test
+    void shouldRejectMemberRemovalForNonOwner() {
+        chatRoomService.stubRoom = buildGroupRoom();
+        currentUserIsOwner = false;
+        targetMember = buildMember(90L, 2L, ChatRoomRoleEnum.MEMBER.getCode());
+
+        BusinessException exception = Assertions.assertThrows(BusinessException.class,
+                () -> chatRoomService.removeMember(90L, 2L, 3L));
+
+        Assertions.assertEquals(ErrorCode.NO_AUTH_ERROR.getCode(), exception.getCode());
+        assertNoRemovalSideEffects();
+    }
+
+    @Test
+    void shouldRejectMemberRemovalWhenTargetMissing() {
+        chatRoomService.stubRoom = buildGroupRoom();
+        currentUserIsOwner = true;
+        targetMember = null;
+
+        BusinessException exception = Assertions.assertThrows(BusinessException.class,
+                () -> chatRoomService.removeMember(90L, 2L, 1L));
+
+        Assertions.assertEquals(ErrorCode.NOT_FOUND_ERROR.getCode(), exception.getCode());
+        assertNoRemovalSideEffects();
+    }
+
+    @Test
+    void shouldRejectMemberRemovalForSelf() {
+        chatRoomService.stubRoom = buildGroupRoom();
+        currentUserIsOwner = true;
+        targetMember = buildMember(90L, 1L, ChatRoomRoleEnum.OWNER.getCode());
+
+        BusinessException exception = Assertions.assertThrows(BusinessException.class,
+                () -> chatRoomService.removeMember(90L, 1L, 1L));
+
+        Assertions.assertEquals(ErrorCode.PARAMS_ERROR.getCode(), exception.getCode());
+        assertNoRemovalSideEffects();
+    }
+
+    @Test
+    void shouldRejectMemberRemovalForOwnerAccount() {
+        chatRoomService.stubRoom = buildGroupRoom();
+        currentUserIsOwner = true;
+        targetMember = buildMember(90L, 2L, ChatRoomRoleEnum.OWNER.getCode());
+
+        BusinessException exception = Assertions.assertThrows(BusinessException.class,
+                () -> chatRoomService.removeMember(90L, 2L, 1L));
+
+        Assertions.assertEquals(ErrorCode.OPERATION_ERROR.getCode(), exception.getCode());
+        assertNoRemovalSideEffects();
+    }
+
+    @Test
+    void shouldRejectMemberRemovalForAdminRole() {
+        chatRoomService.stubRoom = buildGroupRoom();
+        currentUserIsOwner = true;
+        targetMember = buildMember(90L, 2L, ChatRoomRoleEnum.ADMIN.getCode());
+
+        BusinessException exception = Assertions.assertThrows(BusinessException.class,
+                () -> chatRoomService.removeMember(90L, 2L, 1L));
+
+        Assertions.assertEquals(ErrorCode.NO_AUTH_ERROR.getCode(), exception.getCode());
+        assertNoRemovalSideEffects();
+    }
+
+    @Test
+    void shouldRemoveGroupMemberAndDeleteTargetSession() {
+        chatRoomService.stubRoom = buildGroupRoom();
+        currentUserIsOwner = true;
+        targetMember = buildMember(90L, 2L, ChatRoomRoleEnum.MEMBER.getCode());
+
+        chatRoomService.removeMember(90L, 2L, 1L);
+
+        Assertions.assertEquals(90L, leftRoomId);
+        Assertions.assertEquals(2L, leftUserId);
+        Assertions.assertEquals(90L, removedSessionRoomId);
+        Assertions.assertEquals(2L, removedSessionUserId);
+        Assertions.assertEquals(List.of(2L), sessionDeleteUsers);
+    }
+
+    @Test
+    void shouldNotFailMemberRemovalWhenSessionDeletePushThrows() {
+        chatRoomService.stubRoom = buildGroupRoom();
+        currentUserIsOwner = true;
+        targetMember = buildMember(90L, 2L, ChatRoomRoleEnum.MEMBER.getCode());
+        sessionDeleteThrows = true;
+
+        Assertions.assertDoesNotThrow(() -> chatRoomService.removeMember(90L, 2L, 1L));
+
+        Assertions.assertEquals(90L, leftRoomId);
+        Assertions.assertEquals(2L, leftUserId);
+        Assertions.assertEquals(90L, removedSessionRoomId);
+        Assertions.assertEquals(2L, removedSessionUserId);
+    }
+
+    @Test
+    void shouldFailMemberRemovalWhenSessionDeletePersistenceThrows() {
+        chatRoomService.stubRoom = buildGroupRoom();
+        currentUserIsOwner = true;
+        targetMember = buildMember(90L, 2L, ChatRoomRoleEnum.MEMBER.getCode());
+        sessionRemoveThrows = true;
+
+        RuntimeException exception = Assertions.assertThrows(RuntimeException.class,
+                () -> chatRoomService.removeMember(90L, 2L, 1L));
+
+        Assertions.assertEquals("session remove failed", exception.getMessage());
+        Assertions.assertNull(leftRoomId);
+        Assertions.assertNull(leftUserId);
+        Assertions.assertTrue(sessionDeleteUsers.isEmpty());
+    }
+
     private UserFriendService createUserFriendService() {
         return (UserFriendService) Proxy.newProxyInstance(
                 UserFriendService.class.getClassLoader(),
@@ -292,6 +427,14 @@ class ChatRoomServiceImplTest {
                     if ("listByRoomId".equals(method.getName())) {
                         return roomMembers;
                     }
+                    if ("getMember".equals(method.getName())) {
+                        return targetMember;
+                    }
+                    if ("leaveRoom".equals(method.getName())) {
+                        leftRoomId = (Long) args[0];
+                        leftUserId = (Long) args[1];
+                        return null;
+                    }
                     return defaultValue(method.getReturnType());
                 }
         );
@@ -337,6 +480,14 @@ class ChatRoomServiceImplTest {
                         }
                         return sessionVO;
                     }
+                    if ("remove".equals(method.getName())) {
+                        if (sessionRemoveThrows) {
+                            throw new RuntimeException("session remove failed");
+                        }
+                        removedSessionRoomId = targetMember == null ? null : targetMember.getRoomId();
+                        removedSessionUserId = targetMember == null ? null : targetMember.getUserId();
+                        return true;
+                    }
                     return defaultValue(method.getReturnType());
                 }
         );
@@ -353,6 +504,14 @@ class ChatRoomServiceImplTest {
                 sessionUpdatePayloads.add(data);
                 sessionUpdateBizIds.add(bizId);
             }
+
+            @Override
+            public void sendSessionDelete(Long userId, Long roomId, String bizId) {
+                if (sessionDeleteThrows) {
+                    throw new RuntimeException("session delete failed");
+                }
+                sessionDeleteUsers.add(userId);
+            }
         };
     }
 
@@ -367,10 +526,23 @@ class ChatRoomServiceImplTest {
     }
 
     private ChatRoomMember buildMember(Long roomId, Long userId) {
+        return buildMember(roomId, userId, ChatRoomRoleEnum.MEMBER.getCode());
+    }
+
+    private ChatRoomMember buildMember(Long roomId, Long userId, Integer role) {
         ChatRoomMember member = new ChatRoomMember();
         member.setRoomId(roomId);
         member.setUserId(userId);
+        member.setRole(role);
         return member;
+    }
+
+    private void assertNoRemovalSideEffects() {
+        Assertions.assertNull(leftRoomId);
+        Assertions.assertNull(leftUserId);
+        Assertions.assertNull(removedSessionRoomId);
+        Assertions.assertNull(removedSessionUserId);
+        Assertions.assertTrue(sessionDeleteUsers.isEmpty());
     }
 
     private static final class TestableChatRoomServiceImpl extends ChatRoomServiceImpl {
