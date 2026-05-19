@@ -110,7 +110,9 @@ public class ChatMessageServiceImpl extends ServiceImpl<ChatMessageMapper, ChatM
         List<ChatMessageVO> voList = ChatMessageConvert.getChatMessageVO(chatMessageList);
 
         Map<Long, ChatMessage> replyMsgMap = loadReplyMessageMap(chatMessageList);
-        Map<Long, UserVO> senderMap = loadSenderMap(chatMessageList);
+        List<ChatMessage> senderSourceMessages = new ArrayList<>(chatMessageList);
+        senderSourceMessages.addAll(replyMsgMap.values());
+        Map<Long, UserVO> senderMap = loadSenderMap(senderSourceMessages);
         Map<Long, ChatMessage> chatMessageMap = chatMessageList.stream()
                 .collect(Collectors.toMap(ChatMessage::getId, item -> item, (left, right) -> left, LinkedHashMap::new));
 
@@ -124,7 +126,7 @@ public class ChatMessageServiceImpl extends ServiceImpl<ChatMessageMapper, ChatM
                 vo.setContent("该消息已被撤回");
             }
             if (message.getReplyMsgId() != null) {
-                vo.setReplyMsg(buildReplyMsgVO(replyMsgMap.get(message.getReplyMsgId())));
+                vo.setReplyMsg(buildReplyMsgVO(replyMsgMap.get(message.getReplyMsgId()), message.getRoomId(), senderMap));
             }
 
             UserVO sender = senderMap.get(message.getFromUserId());
@@ -388,15 +390,17 @@ public class ChatMessageServiceImpl extends ServiceImpl<ChatMessageMapper, ChatM
         }
     }
 
-    private ReplyMsgVO buildReplyMsgVO(ChatMessage replyMsg) {
-        if (replyMsg == null) {
+    private ReplyMsgVO buildReplyMsgVO(ChatMessage replyMsg, Long roomId, Map<Long, UserVO> senderMap) {
+        if (replyMsg == null || !Objects.equals(replyMsg.getRoomId(), roomId)) {
             return null;
         }
         String content = Objects.equals(replyMsg.getStatus(), MessageStatusEnum.RECALL.getCode())
                 ? "该消息已被撤回"
                 : ChatMessageHelper.buildPreview(replyMsg.getType(), replyMsg.getContent());
+        UserVO sender = senderMap.get(replyMsg.getFromUserId());
         return ReplyMsgVO.builder()
                 .id(replyMsg.getId())
+                .userName(sender == null ? null : sender.getUserName())
                 .content(content)
                 .type(replyMsg.getType())
                 .build();
