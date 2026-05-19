@@ -13,6 +13,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -54,6 +55,81 @@ class ChatMessagePushHandlerTest {
         Assertions.assertEquals(ChatCacheConstant.getRoomMemberKey(roomId), cacheUtils.lastRequestedKey);
         Assertions.assertEquals(1, channelManager.writeCountByUser.get("1"));
         Assertions.assertEquals(1, channelManager.writeCountByUser.get("2"));
+    }
+
+    @Test
+    void shouldFallbackToMessageUserIdsWhenRoomMemberCacheIsMissing() throws Exception {
+        Long roomId = 100L;
+
+        WebSocketMessage wsMessage = WebSocketMessage.builder()
+                .roomId(roomId)
+                .userIds(List.of(1L, 2L))
+                .pushType(WebSocketPushTypeEnum.BROADCAST.getValue())
+                .data(ImWebSocketEvent.builder()
+                        .type("CHAT_MESSAGE")
+                        .bizId("chat_group_msg:1")
+                        .roomId(roomId)
+                        .data(Map.of("roomId", roomId))
+                        .build())
+                .build();
+
+        handler.onMessage(wsMessage, RabbitMessage.builder().msgId("msg-1").build());
+
+        Assertions.assertEquals(ChatCacheConstant.getRoomMemberKey(roomId), cacheUtils.lastRequestedKey);
+        Assertions.assertEquals(1, channelManager.writeCountByUser.get("1"));
+        Assertions.assertEquals(1, channelManager.writeCountByUser.get("2"));
+    }
+
+    @Test
+    void shouldFallbackToMessageUserIdsWhenRoomMemberCacheIsEmpty() throws Exception {
+        Long roomId = 100L;
+        cacheUtils.roomMembers.put(ChatCacheConstant.getRoomMemberKey(roomId), Set.of());
+
+        WebSocketMessage wsMessage = WebSocketMessage.builder()
+                .roomId(roomId)
+                .userIds(List.of(1L, 2L))
+                .pushType(WebSocketPushTypeEnum.BROADCAST.getValue())
+                .data(Map.of("roomId", roomId))
+                .build();
+
+        handler.onMessage(wsMessage, RabbitMessage.builder().msgId("msg-1").build());
+
+        Assertions.assertEquals(1, channelManager.writeCountByUser.get("1"));
+        Assertions.assertEquals(1, channelManager.writeCountByUser.get("2"));
+    }
+
+    @Test
+    void shouldPreferRoomMemberCacheWhenSnapshotAlsoExists() throws Exception {
+        Long roomId = 100L;
+        cacheUtils.roomMembers.put(ChatCacheConstant.getRoomMemberKey(roomId), Set.of("3"));
+
+        WebSocketMessage wsMessage = WebSocketMessage.builder()
+                .roomId(roomId)
+                .userIds(List.of(1L, 2L))
+                .pushType(WebSocketPushTypeEnum.BROADCAST.getValue())
+                .data(Map.of("roomId", roomId))
+                .build();
+
+        handler.onMessage(wsMessage, RabbitMessage.builder().msgId("msg-1").build());
+
+        Assertions.assertNull(channelManager.writeCountByUser.get("1"));
+        Assertions.assertNull(channelManager.writeCountByUser.get("2"));
+        Assertions.assertEquals(1, channelManager.writeCountByUser.get("3"));
+    }
+
+    @Test
+    void shouldSkipRoomBroadcastWhenCacheAndSnapshotAreBothEmpty() throws Exception {
+        Long roomId = 100L;
+
+        WebSocketMessage wsMessage = WebSocketMessage.builder()
+                .roomId(roomId)
+                .pushType(WebSocketPushTypeEnum.BROADCAST.getValue())
+                .data(Map.of("roomId", roomId))
+                .build();
+
+        handler.onMessage(wsMessage, RabbitMessage.builder().msgId("msg-1").build());
+
+        Assertions.assertTrue(channelManager.writeCountByUser.isEmpty());
     }
 
     private static class FakeChannelManager extends ChannelManager {

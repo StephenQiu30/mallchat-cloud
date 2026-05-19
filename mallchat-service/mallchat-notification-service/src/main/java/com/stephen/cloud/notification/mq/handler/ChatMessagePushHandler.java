@@ -14,7 +14,11 @@ import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Objects;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * 聊天消息推送处理器
@@ -111,11 +115,15 @@ public class ChatMessagePushHandler implements RabbitMqHandler<WebSocketMessage>
         String messageJson = JSONUtil.toJsonStr(wsMessage.getData() != null ? wsMessage.getData() : wsMessage);
 
         String key = ChatCacheConstant.getRoomMemberKey(roomId);
-        java.util.Set<String> memberIds = cacheUtils.sMembers(key);
+        Set<String> memberIds = cacheUtils.sMembers(key);
 
         if (memberIds == null || memberIds.isEmpty()) {
-            log.warn("[ChatMessagePushHandler] 房间 {} 缓存中没有成员，跳过推送", roomId);
-            return;
+            memberIds = resolveSnapshotMemberIds(wsMessage);
+            if (memberIds.isEmpty()) {
+                log.warn("[ChatMessagePushHandler] 房间 {} 缓存和消息成员快照均为空，跳过推送", roomId);
+                return;
+            }
+            log.warn("[ChatMessagePushHandler] 房间 {} 缓存中没有成员，使用消息成员快照兜底推送", roomId);
         }
 
         int successCount = 0;
@@ -126,6 +134,17 @@ public class ChatMessagePushHandler implements RabbitMqHandler<WebSocketMessage>
         if (successCount > 0) {
             log.info("[ChatMessagePushHandler] 房间 {} 推送成功, 本地在线接收者: {}/{}", roomId, successCount, memberIds.size());
         }
+    }
+
+    private Set<String> resolveSnapshotMemberIds(WebSocketMessage wsMessage) {
+        List<Long> userIds = wsMessage.getUserIds();
+        if (userIds == null || userIds.isEmpty()) {
+            return Set.of();
+        }
+        return userIds.stream()
+                .filter(Objects::nonNull)
+                .map(String::valueOf)
+                .collect(Collectors.toCollection(LinkedHashSet::new));
     }
 
     /**

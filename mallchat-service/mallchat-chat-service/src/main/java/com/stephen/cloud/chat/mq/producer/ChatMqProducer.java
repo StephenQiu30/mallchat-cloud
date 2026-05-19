@@ -14,6 +14,7 @@ import org.springframework.stereotype.Component;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 /**
  * 聊天系统消息队列生产者
@@ -36,22 +37,34 @@ public class ChatMqProducer {
     }
 
     public void sendChatMessageGroupPush(Long roomId, ChatMessageVO chatMessageVO) {
+        sendChatMessageGroupPush(roomId, chatMessageVO, null);
+    }
+
+    public void sendChatMessageGroupPush(Long roomId, ChatMessageVO chatMessageVO, List<Long> userIds) {
         if (chatMessageVO == null || chatMessageVO.getId() == null || roomId == null) {
             log.warn("[ChatMqProducer] 房间ID或消息对象为空，跳过广播发送");
             return;
         }
-        sendRoomEvent(roomId, ImWebSocketEventTypeEnum.CHAT_MESSAGE, chatMessageVO, "chat_group_msg:" + chatMessageVO.getId());
+        sendRoomEvent(roomId, ImWebSocketEventTypeEnum.CHAT_MESSAGE, chatMessageVO, "chat_group_msg:" + chatMessageVO.getId(), userIds);
     }
 
     public void sendMessageRecall(Long roomId, ChatMessageVO chatMessageVO) {
+        sendMessageRecall(roomId, chatMessageVO, null);
+    }
+
+    public void sendMessageRecall(Long roomId, ChatMessageVO chatMessageVO, List<Long> userIds) {
         if (chatMessageVO == null || chatMessageVO.getId() == null || roomId == null) {
             return;
         }
-        sendRoomEvent(roomId, ImWebSocketEventTypeEnum.MESSAGE_RECALL, chatMessageVO, "chat_recall:" + chatMessageVO.getId());
+        sendRoomEvent(roomId, ImWebSocketEventTypeEnum.MESSAGE_RECALL, chatMessageVO, "chat_recall:" + chatMessageVO.getId(), userIds);
     }
 
     public void sendMessageRead(Long roomId, Object data, String bizId) {
-        sendRoomEvent(roomId, ImWebSocketEventTypeEnum.MESSAGE_READ, data, bizId);
+        sendMessageRead(roomId, data, bizId, null);
+    }
+
+    public void sendMessageRead(Long roomId, Object data, String bizId, List<Long> userIds) {
+        sendRoomEvent(roomId, ImWebSocketEventTypeEnum.MESSAGE_READ, data, bizId, userIds);
     }
 
     public void sendSessionUpdate(Long userId, Long roomId, Object data, String bizId) {
@@ -120,6 +133,10 @@ public class ChatMqProducer {
     }
 
     private void sendRoomEvent(Long roomId, ImWebSocketEventTypeEnum eventType, Object data, String bizId) {
+        sendRoomEvent(roomId, eventType, data, bizId, null);
+    }
+
+    private void sendRoomEvent(Long roomId, ImWebSocketEventTypeEnum eventType, Object data, String bizId, List<Long> userIds) {
         if (roomId == null || eventType == null) {
             return;
         }
@@ -130,6 +147,7 @@ public class ChatMqProducer {
                     .pushType(WebSocketPushTypeEnum.BROADCAST.getValue())
                     .type(WebSocketMessageTypeEnum.MESSAGE.getCode())
                     .bizId(bizId)
+                    .userIds(normalizeUserIds(userIds))
                     .data(event)
                     .build();
             mqSender.send(MqBizTypeEnum.CHAT_MESSAGE_PUSH, bizId, wsMessage);
@@ -137,6 +155,17 @@ public class ChatMqProducer {
             log.error("[ChatMqProducer] 发送房间 WebSocket 事件失败, type={}, roomId={}, bizId={}",
                     eventType.getCode(), roomId, bizId, e);
         }
+    }
+
+    private List<Long> normalizeUserIds(List<Long> userIds) {
+        if (userIds == null || userIds.isEmpty()) {
+            return null;
+        }
+        List<Long> normalized = userIds.stream()
+                .filter(Objects::nonNull)
+                .distinct()
+                .toList();
+        return normalized.isEmpty() ? null : normalized;
     }
 
     private ImWebSocketEvent buildEvent(ImWebSocketEventTypeEnum eventType, Long roomId, Object data, String bizId) {

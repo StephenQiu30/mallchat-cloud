@@ -12,6 +12,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.test.util.ReflectionTestUtils;
 
+import java.util.List;
 import java.util.Map;
 
 class ChatMqProducerTest {
@@ -47,6 +48,55 @@ class ChatMqProducerTest {
         Assertions.assertEquals(ImWebSocketEventTypeEnum.CHAT_MESSAGE.getCode(), event.getType());
         Assertions.assertEquals("chat_group_msg:100", event.getBizId());
         Assertions.assertEquals(chatMessageVO, event.getData());
+    }
+
+    @Test
+    void shouldAttachRoomMemberSnapshotToRoomEvent() {
+        ChatMessageVO chatMessageVO = ChatMessageVO.builder()
+                .id(100L)
+                .roomId(200L)
+                .content("hello")
+                .build();
+
+        chatMqProducer.sendChatMessageGroupPush(200L, chatMessageVO, List.of(1L, 2L));
+
+        WebSocketMessage wsMessage = rabbitMqSender.webSocketMessage;
+        Assertions.assertEquals(MqBizTypeEnum.CHAT_MESSAGE_PUSH, rabbitMqSender.bizTypeEnum);
+        Assertions.assertEquals(WebSocketPushTypeEnum.BROADCAST.getValue(), wsMessage.getPushType());
+        Assertions.assertEquals(200L, wsMessage.getRoomId());
+        Assertions.assertEquals(List.of(1L, 2L), wsMessage.getUserIds());
+    }
+
+    @Test
+    void shouldAttachRoomMemberSnapshotToRecallEvent() {
+        ChatMessageVO chatMessageVO = ChatMessageVO.builder()
+                .id(100L)
+                .roomId(200L)
+                .content("hello")
+                .build();
+
+        chatMqProducer.sendMessageRecall(200L, chatMessageVO, List.of(1L, 2L));
+
+        WebSocketMessage wsMessage = rabbitMqSender.webSocketMessage;
+        Assertions.assertEquals(MqBizTypeEnum.CHAT_MESSAGE_PUSH, rabbitMqSender.bizTypeEnum);
+        Assertions.assertEquals(WebSocketPushTypeEnum.BROADCAST.getValue(), wsMessage.getPushType());
+        Assertions.assertEquals(List.of(1L, 2L), wsMessage.getUserIds());
+        ImWebSocketEvent event = (ImWebSocketEvent) wsMessage.getData();
+        Assertions.assertEquals(ImWebSocketEventTypeEnum.MESSAGE_RECALL.getCode(), event.getType());
+    }
+
+    @Test
+    void shouldAttachRoomMemberSnapshotToReadEvent() {
+        Map<String, Object> data = Map.of("roomId", 200L, "userId", 1L, "lastReadMessageId", 100L);
+
+        chatMqProducer.sendMessageRead(200L, data, "chat_read:200:1:100", List.of(1L, 2L));
+
+        WebSocketMessage wsMessage = rabbitMqSender.webSocketMessage;
+        Assertions.assertEquals(MqBizTypeEnum.CHAT_MESSAGE_PUSH, rabbitMqSender.bizTypeEnum);
+        Assertions.assertEquals(WebSocketPushTypeEnum.BROADCAST.getValue(), wsMessage.getPushType());
+        Assertions.assertEquals(List.of(1L, 2L), wsMessage.getUserIds());
+        ImWebSocketEvent event = (ImWebSocketEvent) wsMessage.getData();
+        Assertions.assertEquals(ImWebSocketEventTypeEnum.MESSAGE_READ.getCode(), event.getType());
     }
 
     @Test

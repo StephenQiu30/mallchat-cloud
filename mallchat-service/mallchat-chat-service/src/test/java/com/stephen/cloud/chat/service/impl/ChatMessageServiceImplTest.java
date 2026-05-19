@@ -39,6 +39,7 @@ class ChatMessageServiceImplTest {
     private boolean mutualFriend;
     private ChatPrivateRoom privateRoom;
     private ChatRoomMember roomMember;
+    private List<ChatRoomMember> roomMembers;
     private ChatSessionVO sessionVO;
     private long unreadCountAfterBoundary;
 
@@ -58,6 +59,7 @@ class ChatMessageServiceImplTest {
         roomMember = new ChatRoomMember();
         roomMember.setRoomId(1L);
         roomMember.setUserId(1L);
+        roomMembers = List.of(roomMember);
         sessionVO = new ChatSessionVO();
         sessionVO.setRoomId(1L);
         sessionVO.setUnreadCount(0);
@@ -69,6 +71,9 @@ class ChatMessageServiceImplTest {
         ReflectionTestUtils.setField(chatMessageService, "chatPrivateRoomService", createChatPrivateRoomService());
         ReflectionTestUtils.setField(chatMessageService, "chatSessionService", createChatSessionService());
         ReflectionTestUtils.setField(chatMessageService, "userFriendService", createUserFriendService());
+        ReflectionTestUtils.setField(chatMessageService, "eventPublisher",
+                (org.springframework.context.ApplicationEventPublisher) event -> {
+                });
     }
 
     @Test
@@ -119,6 +124,7 @@ class ChatMessageServiceImplTest {
         Assertions.assertEquals(2, chatMessageService.updatedUnreadCount);
         Assertions.assertEquals(8L, chatMessageService.updatedLastReadMessageId);
         Assertions.assertNotNull(chatMqProducer.lastReadPayload);
+        Assertions.assertEquals(List.of(1L), chatMqProducer.lastReadUserIds);
         Assertions.assertEquals(1L, chatMqProducer.lastSessionUpdateUserId);
     }
 
@@ -160,6 +166,51 @@ class ChatMessageServiceImplTest {
                 () -> chatMessageService.recallMessage(9L, 1L));
 
         Assertions.assertEquals(ErrorCode.NO_AUTH_ERROR.getCode(), exception.getCode());
+    }
+
+    @Test
+    void shouldSendRoomMemberSnapshotWhenGroupMessageIsCreated() {
+        room.setType(ChatRoomTypeEnum.GROUP.getCode());
+        ChatRoomMember peerMember = new ChatRoomMember();
+        peerMember.setRoomId(1L);
+        peerMember.setUserId(2L);
+        roomMembers = List.of(roomMember, peerMember);
+
+        ChatMessageVO result = chatMessageService.sendMessage(createTextMessage(1L, "c1", "hello"), 1L);
+
+        Assertions.assertEquals(100L, result.getId());
+        Assertions.assertEquals(1L, chatMqProducer.lastGroupPushRoomId);
+        Assertions.assertEquals(List.of(1L, 2L), chatMqProducer.lastGroupPushUserIds);
+    }
+
+    @Test
+    void shouldSendRoomMemberSnapshotWhenMessageReadIsCreated() {
+        ChatMessage stored = createStoredMessage(8L, 1L);
+        chatMessageService.messageById = stored;
+        ChatRoomMember peerMember = new ChatRoomMember();
+        peerMember.setRoomId(1L);
+        peerMember.setUserId(2L);
+        roomMembers = List.of(roomMember, peerMember);
+
+        boolean result = chatMessageService.markMessageRead(1L, 8L, 1L);
+
+        Assertions.assertTrue(result);
+        Assertions.assertEquals(List.of(1L, 2L), chatMqProducer.lastReadUserIds);
+    }
+
+    @Test
+    void shouldSendRoomMemberSnapshotWhenMessageIsRecalled() {
+        ChatMessage stored = createStoredMessage(9L, 1L);
+        chatMessageService.messageById = stored;
+        ChatRoomMember peerMember = new ChatRoomMember();
+        peerMember.setRoomId(1L);
+        peerMember.setUserId(2L);
+        roomMembers = List.of(roomMember, peerMember);
+
+        boolean result = chatMessageService.recallMessage(9L, 1L);
+
+        Assertions.assertTrue(result);
+        Assertions.assertEquals(List.of(1L, 2L), chatMqProducer.lastRecallUserIds);
     }
 
     private ChatMessage createTextMessage(Long roomId, String clientMsgId, String content) {
@@ -214,7 +265,7 @@ class ChatMessageServiceImplTest {
                     return switch (method.getName()) {
                         case "isMember" -> member;
                         case "getMember" -> roomMember;
-                        case "listByRoomId" -> List.of(roomMember);
+                        case "listByRoomId" -> roomMembers;
                         case "updateById" -> true;
                         default -> defaultValue(method.getReturnType());
                     };
@@ -340,10 +391,31 @@ class ChatMessageServiceImplTest {
     private static class FakeChatMqProducer extends ChatMqProducer {
         private Object lastReadPayload;
         private Long lastSessionUpdateUserId;
+        private Long lastGroupPushRoomId;
+        private List<Long> lastGroupPushUserIds;
+        private List<Long> lastReadUserIds;
+        private List<Long> lastRecallUserIds;
+
+        @Override
+        public void sendChatMessageGroupPush(Long roomId, ChatMessageVO chatMessageVO, List<Long> userIds) {
+            this.lastGroupPushRoomId = roomId;
+            this.lastGroupPushUserIds = userIds;
+        }
 
         @Override
         public void sendMessageRead(Long roomId, Object data, String bizId) {
             this.lastReadPayload = data;
+        }
+
+        @Override
+        public void sendMessageRead(Long roomId, Object data, String bizId, List<Long> userIds) {
+            this.lastReadPayload = data;
+            this.lastReadUserIds = userIds;
+        }
+
+        @Override
+        public void sendMessageRecall(Long roomId, ChatMessageVO chatMessageVO, List<Long> userIds) {
+            this.lastRecallUserIds = userIds;
         }
 
         @Override

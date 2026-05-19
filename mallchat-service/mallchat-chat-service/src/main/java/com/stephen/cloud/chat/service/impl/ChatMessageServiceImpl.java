@@ -177,7 +177,7 @@ public class ChatMessageServiceImpl extends ServiceImpl<ChatMessageMapper, ChatM
         ThrowUtils.throwIf(!result, ErrorCode.OPERATION_ERROR, "发送消息失败");
 
         ChatMessageVO messageVO = getChatMessageVO(chatMessage, null);
-        chatMqProducer.sendChatMessageGroupPush(roomId, messageVO);
+        chatMqProducer.sendChatMessageGroupPush(roomId, messageVO, listRoomMemberUserIds(roomId));
         eventPublisher.publishEvent(new ChatMessageSentEvent(this, chatMessage, userId));
         return messageVO;
     }
@@ -238,7 +238,8 @@ public class ChatMessageServiceImpl extends ServiceImpl<ChatMessageMapper, ChatM
                 "userId", userId,
                 "lastReadMessageId", lastReadMessageId
         );
-        chatMqProducer.sendMessageRead(roomId, readPayload, "chat_read:" + roomId + ":" + userId + ":" + lastReadMessageId);
+        chatMqProducer.sendMessageRead(roomId, readPayload, "chat_read:" + roomId + ":" + userId + ":" + lastReadMessageId,
+                listRoomMemberUserIds(roomId));
 
         ChatSessionVO sessionVO = chatSessionService.getSessionVO(roomId, userId);
         if (sessionVO != null) {
@@ -273,9 +274,13 @@ public class ChatMessageServiceImpl extends ServiceImpl<ChatMessageMapper, ChatM
         }
 
         ChatMessageVO messageVO = getChatMessageVO(msg, null);
-        chatMqProducer.sendMessageRecall(msg.getRoomId(), messageVO);
-
         List<ChatRoomMember> members = chatRoomMemberService.listByRoomId(msg.getRoomId());
+        List<Long> memberUserIds = extractRoomMemberUserIds(members);
+        chatMqProducer.sendMessageRecall(msg.getRoomId(), messageVO, memberUserIds);
+
+        if (CollUtil.isEmpty(members)) {
+            return true;
+        }
         for (ChatRoomMember member : members) {
             ChatSessionVO sessionVO = chatSessionService.getSessionVO(msg.getRoomId(), member.getUserId());
             if (sessionVO != null) {
@@ -284,6 +289,21 @@ public class ChatMessageServiceImpl extends ServiceImpl<ChatMessageMapper, ChatM
             }
         }
         return true;
+    }
+
+    private List<Long> listRoomMemberUserIds(Long roomId) {
+        return extractRoomMemberUserIds(chatRoomMemberService.listByRoomId(roomId));
+    }
+
+    private List<Long> extractRoomMemberUserIds(List<ChatRoomMember> members) {
+        if (CollUtil.isEmpty(members)) {
+            return Collections.emptyList();
+        }
+        return members.stream()
+                .map(ChatRoomMember::getUserId)
+                .filter(Objects::nonNull)
+                .distinct()
+                .toList();
     }
 
     private void validateSendPermission(ChatRoom chatRoom, Long roomId, Long userId) {
