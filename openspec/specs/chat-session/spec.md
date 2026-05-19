@@ -1,4 +1,10 @@
-## MODIFIED Requirements
+# chat-session
+
+## Purpose
+
+Define how MallChat session state follows message creation, unread count updates, and read-boundary changes.
+
+## Requirements
 
 ### Requirement: Session state updates follow message lifecycle
 The system SHALL update session last message, unread count, last read boundary, and activity time whenever room messages are produced or read.

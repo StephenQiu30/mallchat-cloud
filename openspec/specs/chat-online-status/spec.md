@@ -1,4 +1,10 @@
-## MODIFIED Requirements
+# chat-online-status
+
+## Purpose
+
+Define real-time friend online status tracking and notification behavior across distributed MallChat connections.
+
+## Requirements
 
 ### Requirement: Friend online status is visible in real time
 The system SHALL track distributed user connection state and SHALL push online status changes to the user and their friends when the first connection is established or the last connection is removed, including cases where friend cache is cold or missing.

@@ -1,4 +1,10 @@
-## ADDED Requirements
+# chat-room-access
+
+## Purpose
+
+Define controlled room membership entry paths for MallChat private rooms and group rooms.
+
+## Requirements
 
 ### Requirement: Room membership entry follows controlled MVP paths
 The system SHALL allow room membership to be created only through controlled MVP entry paths, including group creation, group invitation, and private room initialization between confirmed friends.

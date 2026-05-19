@@ -1,4 +1,10 @@
-## MODIFIED Requirements
+# chat-message
+
+## Purpose
+
+Define room message read progress, unread clearing, and read-boundary behavior for the MallChat chat domain.
+
+## Requirements
 
 ### Requirement: Room members can publish read progress
 The system SHALL allow a room member to mark messages as read, SHALL persist the submitted read boundary for that room member, and SHALL publish a message-read event that other clients can use to update read state.
