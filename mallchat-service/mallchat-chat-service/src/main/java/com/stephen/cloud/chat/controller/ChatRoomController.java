@@ -1,6 +1,7 @@
 package com.stephen.cloud.chat.controller;
 
 import com.stephen.cloud.api.chat.model.dto.ChatPrivateRoomRequest;
+import com.stephen.cloud.api.chat.model.dto.ChatRoomMemberRemoveRequest;
 import com.stephen.cloud.api.chat.model.dto.ChatRoomUpdateRequest;
 import com.stephen.cloud.api.chat.model.dto.ChatRoomAddRequest;
 import com.stephen.cloud.api.chat.model.dto.ChatRoomInviteRequest;
@@ -127,6 +128,20 @@ public class ChatRoomController {
                 request.getAvatar(),
                 request.getAnnouncement(),
                 userId);
+        return ResultUtils.success(true);
+    }
+
+    /**
+     * 移除群成员
+     */
+    @PostMapping("/member/remove")
+    @OperationLog(module = "聊天室管理", action = "移除群成员")
+    @Operation(summary = "移除群成员", description = "仅群主可移除普通群成员")
+    public BaseResponse<Boolean> removeMember(@Validated @RequestBody ChatRoomMemberRemoveRequest request) {
+        ThrowUtils.throwIf(request == null || request.getRoomId() == null || request.getMemberId() == null,
+                ErrorCode.PARAMS_ERROR);
+        Long userId = SecurityUtils.getLoginUserId();
+        chatRoomService.removeMember(request.getRoomId(), request.getMemberId(), userId);
         return ResultUtils.success(true);
     }
 

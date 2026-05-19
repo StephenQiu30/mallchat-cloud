@@ -130,6 +130,15 @@ public interface ChatRoomService extends IService<ChatRoom> {
     void updateGroupProfile(Long roomId, String name, String avatar, String announcement, Long userId);
 
     /**
+     * 移除普通群成员
+     *
+     * @param roomId 房间 ID
+     * @param memberId 待移除成员
+     * @param userId 当前用户
+     */
+    void removeMember(Long roomId, Long memberId, Long userId);
+
+    /**
      * 退出群聊
      *
      * @param roomId 房间 ID

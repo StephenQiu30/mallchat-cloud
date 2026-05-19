@@ -283,6 +283,36 @@ public class ChatRoomServiceImpl extends ServiceImpl<ChatRoomMapper, ChatRoom>
 
     @Override
     @Transactional(rollbackFor = Exception.class)
+    public void removeMember(Long roomId, Long memberId, Long userId) {
+        ThrowUtils.throwIf(roomId == null || memberId == null || userId == null, ErrorCode.PARAMS_ERROR);
+        ThrowUtils.throwIf(Objects.equals(memberId, userId), ErrorCode.PARAMS_ERROR, "群主不能通过移除成员接口移除自己");
+
+        ChatRoom room = this.getById(roomId);
+        ThrowUtils.throwIf(room == null, ErrorCode.NOT_FOUND_ERROR, "聊天室不存在");
+        ThrowUtils.throwIf(!ChatRoomTypeEnum.GROUP.getCode().equals(room.getType()), ErrorCode.PARAMS_ERROR, "仅群聊支持移除成员");
+        ThrowUtils.throwIf(!chatRoomMemberService.isOwner(roomId, userId), ErrorCode.NO_AUTH_ERROR, "仅群主可移除成员");
+
+        ChatRoomMember targetMember = chatRoomMemberService.getMember(roomId, memberId);
+        ThrowUtils.throwIf(targetMember == null, ErrorCode.NOT_FOUND_ERROR, "成员不在此群聊中");
+        ThrowUtils.throwIf(ChatRoomRoleEnum.OWNER.getCode().equals(targetMember.getRole()),
+                ErrorCode.OPERATION_ERROR, "不能移除群主");
+        ThrowUtils.throwIf(!ChatRoomRoleEnum.MEMBER.getCode().equals(targetMember.getRole()),
+                ErrorCode.NO_AUTH_ERROR, "当前版本仅支持移除普通成员");
+
+        chatSessionService.remove(new LambdaQueryWrapper<com.stephen.cloud.chat.model.entity.ChatSession>()
+                .eq(com.stephen.cloud.chat.model.entity.ChatSession::getUserId, memberId)
+                .eq(com.stephen.cloud.chat.model.entity.ChatSession::getRoomId, roomId));
+        chatRoomMemberService.leaveRoom(roomId, memberId);
+        try {
+            chatMqProducer.sendSessionDelete(memberId, roomId, "session_member_remove:" + roomId + ":" + memberId);
+        } catch (Exception e) {
+            log.warn("[ChatRoomServiceImpl] 推送成员移除会话删除失败, roomId={}, userId={}, reason={}",
+                    roomId, memberId, e.toString());
+        }
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
     public void quitRoom(Long roomId, Long userId) {
         ChatRoom room = getAccessibleRoom(roomId, userId);
         ThrowUtils.throwIf(!ChatRoomTypeEnum.GROUP.getCode().equals(room.getType()), ErrorCode.PARAMS_ERROR, "仅群聊支持退群");
