@@ -64,6 +64,26 @@ public interface UserFriendService extends IService<UserFriend> {
     Page<ChatFriendUserVO> getUserFriendVOPage(Page<UserFriend> userFriendPage, HttpServletRequest request);
 
     /**
+     * 获取用户间关系状态
+     *
+     * @param userId      当前用户 ID
+     * @param targetUserId 目标用户 ID
+     * @return 0-陌生人，1-本人，2-已是好友，3-我已发起待处理，4-对方已发起待处理
+     */
+    Integer getFriendshipStatus(Long userId, Long targetUserId);
+
+    /**
+     * 搜索候选用户并返回关系状态
+     *
+     * @param userId      当前用户 ID
+     * @param searchText  搜索文本
+     * @param current     页码
+     * @param pageSize    每页大小
+     * @return 包含关系状态的候选用户分页
+     */
+    Page<ChatFriendUserVO> searchFriends(Long userId, String searchText, int current, int pageSize);
+
+    /**
      * 添加好友（双向记录，已存在则幂等返回）
      *
      * @param userId       当前用户 ID

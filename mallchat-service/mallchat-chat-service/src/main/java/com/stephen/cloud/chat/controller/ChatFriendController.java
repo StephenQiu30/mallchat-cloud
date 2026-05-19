@@ -1,5 +1,6 @@
 package com.stephen.cloud.chat.controller;
 
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.stephen.cloud.api.chat.model.dto.ChatFriendAddRequest;
 import com.stephen.cloud.api.chat.model.vo.ChatFriendUserVO;
 import com.stephen.cloud.chat.service.UserFriendService;
@@ -60,5 +61,42 @@ public class ChatFriendController {
         Long userId = SecurityUtils.getLoginUserId();
         // 批量查询好友详细信息并封装为 VO
         return ResultUtils.success(userFriendService.listFriends(userId));
+    }
+
+    /**
+     * 搜索好友候选用户（带关系状态）
+     *
+     * @param searchText 搜索文本
+     * @param current    页码
+     * @param pageSize   页大小
+     * @param servletRequest 请求
+     * @return 好友候选列表
+     */
+    @GetMapping("/search")
+    @Operation(summary = "搜索候选用户", description = "按昵称/简介搜索用户并返回与当前用户关系状态")
+    public BaseResponse<Page<ChatFriendUserVO>> search(
+            @RequestParam(value = "searchText", required = false) String searchText,
+            @RequestParam(value = "current", defaultValue = "1") int current,
+            @RequestParam(value = "pageSize", defaultValue = "10") int pageSize,
+            HttpServletRequest servletRequest) {
+        Long userId = SecurityUtils.getLoginUserId();
+        return ResultUtils.success(userFriendService.searchFriends(userId, searchText, current, pageSize));
+    }
+
+    /**
+     * 删除好友
+     *
+     * @param friendUserId 好友用户 ID
+     * @param servletRequest 请求
+     * @return 是否成功
+     */
+    @DeleteMapping("/delete")
+    @OperationLog(module = "好友管理", action = "删除好友")
+    @Operation(summary = "删除好友", description = "移除好友关系（双向）")
+    public BaseResponse<Boolean> deleteFriend(@RequestParam Long friendUserId, HttpServletRequest servletRequest) {
+        ThrowUtils.throwIf(friendUserId == null, ErrorCode.PARAMS_ERROR);
+        Long userId = SecurityUtils.getLoginUserId();
+        userFriendService.removeFriend(userId, friendUserId);
+        return ResultUtils.success(true);
     }
 }

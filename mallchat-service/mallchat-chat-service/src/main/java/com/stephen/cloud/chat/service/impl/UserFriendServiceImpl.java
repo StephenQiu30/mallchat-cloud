@@ -6,12 +6,15 @@ import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.stephen.cloud.api.chat.model.dto.ChatFriendQueryRequest;
 import com.stephen.cloud.api.chat.model.vo.ChatFriendUserVO;
+import com.stephen.cloud.api.user.model.dto.UserQueryRequest;
 import com.stephen.cloud.api.user.client.UserFeignClient;
 import com.stephen.cloud.api.user.model.vo.UserVO;
 import com.stephen.cloud.chat.convert.ChatFriendConvert;
 import com.stephen.cloud.chat.mapper.UserFriendMapper;
+import com.stephen.cloud.chat.model.entity.UserFriendApply;
 import com.stephen.cloud.chat.model.entity.UserFriend;
 import com.stephen.cloud.chat.service.ChatOnlineStatusService;
+import com.stephen.cloud.chat.service.UserFriendApplyService;
 import com.stephen.cloud.chat.service.UserFriendService;
 import com.stephen.cloud.common.cache.constants.ChatCacheConstant;
 import com.stephen.cloud.common.cache.utils.CacheUtils;
@@ -47,6 +50,9 @@ public class UserFriendServiceImpl extends ServiceImpl<UserFriendMapper, UserFri
 
     @Resource
     private ChatOnlineStatusService chatOnlineStatusService;
+
+    @Resource
+    private UserFriendApplyService userFriendApplyService;
 
     /**
      * 校验好友数据
@@ -114,6 +120,7 @@ public class UserFriendServiceImpl extends ServiceImpl<UserFriendMapper, UserFri
                 chatFriendUserVO.setUserAvatar(userVO.getUserAvatar());
             }
             chatFriendUserVO.setOnlineStatus(chatOnlineStatusService.getOnlineStatus(friendUserId));
+            chatFriendUserVO.setFriendStatus(2);
         }
         return chatFriendUserVO;
     }
@@ -148,6 +155,7 @@ public class UserFriendServiceImpl extends ServiceImpl<UserFriendMapper, UserFri
                 chatFriendUserVO.setUserAvatar(userVO.getUserAvatar());
             }
             chatFriendUserVO.setOnlineStatus(onlineStatusMap.getOrDefault(friendUserId, 0));
+            chatFriendUserVO.setFriendStatus(2);
             return chatFriendUserVO;
         }).collect(Collectors.toList());
     }
@@ -210,6 +218,7 @@ public class UserFriendServiceImpl extends ServiceImpl<UserFriendMapper, UserFri
     public void removeFriend(Long userId, Long friendUserId) {
         log.info("[UserFriendServiceImpl] 移除好友: userId={}, friendUserId={}", userId, friendUserId);
         ThrowUtils.throwIf(userId == null || friendUserId == null, ErrorCode.PARAMS_ERROR);
+        ThrowUtils.throwIf(userId.equals(friendUserId), ErrorCode.PARAMS_ERROR, "不能移除自己");
 
         boolean ok = this.remove(new LambdaQueryWrapper<UserFriend>()
                 .and(wrapper -> wrapper.eq(UserFriend::getUserId, userId).eq(UserFriend::getFriendUserId, friendUserId)
@@ -268,6 +277,58 @@ public class UserFriendServiceImpl extends ServiceImpl<UserFriendMapper, UserFri
                 .collect(Collectors.toCollection(LinkedHashSet::new));
     }
 
+    @Override
+    public Integer getFriendshipStatus(Long userId, Long targetUserId) {
+        ThrowUtils.throwIf(userId == null || targetUserId == null, ErrorCode.PARAMS_ERROR);
+        if (userId.equals(targetUserId)) {
+            return 1;
+        }
+        if (isMutualFriend(userId, targetUserId)) {
+            return 2;
+        }
+        if (hasPendingFriendApply(userId, targetUserId)) {
+            return 3;
+        }
+        if (hasPendingFriendApply(targetUserId, userId)) {
+            return 4;
+        }
+        return 0;
+    }
+
+    @Override
+    public Page<ChatFriendUserVO> searchFriends(Long userId, String searchText, int current, int pageSize) {
+        ThrowUtils.throwIf(userId == null, ErrorCode.PARAMS_ERROR);
+        ThrowUtils.throwIf(pageSize < 1 || pageSize > 20, ErrorCode.PARAMS_ERROR, "分页参数不合法");
+
+        UserQueryRequest userQueryRequest = new UserQueryRequest();
+        userQueryRequest.setCurrent(current <= 0 ? 1 : current);
+        userQueryRequest.setPageSize(pageSize);
+        userQueryRequest.setSearchText(searchText);
+        userQueryRequest.setNotId(userId);
+
+        var userVOPage = userFeignClient.listUserByPage(userQueryRequest).getData();
+        Page<ChatFriendUserVO> voPage = new Page<>(userQueryRequest.getCurrent(),
+                userQueryRequest.getPageSize(),
+                userVOPage == null ? 0L : userVOPage.getTotal());
+        if (userVOPage == null || CollUtil.isEmpty(userVOPage.getRecords())) {
+            return voPage;
+        }
+
+        List<UserVO> users = userVOPage.getRecords();
+        Map<Long, Integer> onlineStatusMap = chatOnlineStatusService.getOnlineStatusMap(
+                users.stream().map(UserVO::getId).toList());
+        voPage.setRecords(users.stream().map(userVO -> {
+            ChatFriendUserVO chatFriendUserVO = new ChatFriendUserVO();
+            chatFriendUserVO.setId(userVO.getId());
+            chatFriendUserVO.setUserName(userVO.getUserName());
+            chatFriendUserVO.setUserAvatar(userVO.getUserAvatar());
+            chatFriendUserVO.setOnlineStatus(onlineStatusMap.getOrDefault(userVO.getId(), 0));
+            chatFriendUserVO.setFriendStatus(getFriendshipStatus(userId, userVO.getId()));
+            return chatFriendUserVO;
+        }).collect(Collectors.toList()));
+        return voPage;
+    }
+
     private void syncFriendToCache(Long userId, Long friendUserId) {
         String key = ChatCacheConstant.getUserFriendKey(userId);
         cacheUtils.sAdd(key, String.valueOf(friendUserId));
@@ -289,5 +350,12 @@ public class UserFriendServiceImpl extends ServiceImpl<UserFriendMapper, UserFri
             cacheUtils.expire(key, 60);
         }
         cacheUtils.expire(key, ChatCacheConstant.USER_FRIEND_CACHE_EXPIRE_SECONDS);
+    }
+
+    protected boolean hasPendingFriendApply(Long userId, Long targetUserId) {
+        return userFriendApplyService.count(new LambdaQueryWrapper<UserFriendApply>()
+                .eq(UserFriendApply::getStatus, 1)
+                .eq(UserFriendApply::getUserId, userId)
+                .eq(UserFriendApply::getTargetId, targetUserId)) > 0;
     }
 }

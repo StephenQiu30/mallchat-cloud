@@ -27,5 +27,8 @@ public class ChatFriendUserVO implements Serializable {
     @Schema(description = "在线状态：0-离线，1-在线")
     private Integer onlineStatus;
 
+    @Schema(description = "关系状态：0-陌生人，1-本人，2-已是好友，3-我已发起待处理，4-对方已发起待处理")
+    private Integer friendStatus;
+
     private static final long serialVersionUID = 1L;
 }
