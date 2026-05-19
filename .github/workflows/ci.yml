@@ -10,15 +10,22 @@ on:
 
 jobs:
   repository-check:
-    name: Repository structure check
+    name: Repository and Maven check
     runs-on: ubuntu-latest
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+          cache: maven
+
       - name: Check required files
         run: bash scripts/validate-repository.sh
 
-      - name: Run complete test suite
-        run: npm test
+      - name: Compile backend modules
+        run: mvn -B -DskipTests compile

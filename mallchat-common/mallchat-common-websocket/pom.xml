@@ -38,6 +38,12 @@
             <artifactId>mallchat-common-rabbitmq</artifactId>
         </dependency>
 
+        <!-- Lombok -->
+        <dependency>
+            <groupId>org.projectlombok</groupId>
+            <artifactId>lombok</artifactId>
+        </dependency>
+
         <!-- Netty -->
         <dependency>
             <groupId>io.netty</groupId>
