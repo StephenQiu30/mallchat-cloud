@@ -17,6 +17,7 @@ import io.netty.handler.logging.LoggingHandler;
 import io.netty.handler.stream.ChunkedWriteHandler;
 import io.netty.handler.timeout.IdleStateHandler;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
@@ -55,6 +56,7 @@ public class NettyWebSocketServer {
      * @param webSocketProperties 配置WebSocket的相关属性（如端口、线程数等）
      */
     @Bean(destroyMethod = "destroy")
+    @ConditionalOnProperty(prefix = "websocket", name = "enabled", havingValue = "true")
     public NettyWebSocketServer startServer(WebSocketProperties webSocketProperties) {
         // 校验端口号是否合法
         if (webSocketProperties.getPort() > 65535 || webSocketProperties.getPort() < 0) {

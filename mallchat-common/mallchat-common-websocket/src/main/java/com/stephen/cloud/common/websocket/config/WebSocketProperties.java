@@ -15,6 +15,11 @@ import org.springframework.stereotype.Component;
 public class WebSocketProperties {
 
     /**
+     * 是否启动 WebSocket 服务器
+     */
+    private Boolean enabled = false;
+
+    /**
      * WebSocket 端口
      */
     private Integer port = 9090;
