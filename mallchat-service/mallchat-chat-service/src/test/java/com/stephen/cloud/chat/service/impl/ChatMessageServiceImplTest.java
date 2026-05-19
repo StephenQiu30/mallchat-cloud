@@ -6,6 +6,7 @@ import com.stephen.cloud.api.chat.model.enums.ChatMessageTypeEnum;
 import com.stephen.cloud.api.chat.model.enums.ChatRoomTypeEnum;
 import com.stephen.cloud.api.chat.model.enums.MessageStatusEnum;
 import com.stephen.cloud.api.chat.model.vo.ChatMessageVO;
+import com.stephen.cloud.api.chat.model.vo.ChatMessageReadStatusVO;
 import com.stephen.cloud.api.chat.model.vo.ChatSessionVO;
 import com.stephen.cloud.api.user.client.UserFeignClient;
 import com.stephen.cloud.api.user.model.vo.UserVO;
@@ -209,6 +210,95 @@ class ChatMessageServiceImplTest {
     }
 
     @Test
+    void shouldReturnMessageReadStatusSummaryForMessageSender() {
+        ChatRoomMember senderMember = buildRoomMember(1L, 1L, null);
+        ChatRoomMember readMember = buildRoomMember(1L, 2L, 10L);
+        ChatRoomMember laterReadMember = buildRoomMember(1L, 4L, 12L);
+        ChatRoomMember unreadMember = buildRoomMember(1L, 3L, 7L);
+        roomMembers = List.of(senderMember, readMember, laterReadMember, unreadMember);
+        ChatMessage stored = createStoredMessage(10L, 1L);
+        stored.setFromUserId(1L);
+        chatMessageService.messageByRoomQuery = stored;
+
+        ChatMessageReadStatusVO result = chatMessageService.getMessageReadStatus(1L, 10L, 1L);
+
+        Assertions.assertEquals(1L, result.getRoomId());
+        Assertions.assertEquals(10L, result.getMessageId());
+        Assertions.assertEquals(4, result.getTotalCount());
+        Assertions.assertEquals(3, result.getReadCount());
+        Assertions.assertEquals(1, result.getUnreadCount());
+    }
+
+    @Test
+    void shouldNotExposeMemberListsInMessageReadStatusSummary() {
+        List<String> fieldNames = java.util.Arrays.stream(ChatMessageReadStatusVO.class.getDeclaredFields())
+                .map(java.lang.reflect.Field::getName)
+                .toList();
+
+        Assertions.assertFalse(fieldNames.contains("readUserIds"));
+        Assertions.assertFalse(fieldNames.contains("unreadUserIds"));
+        Assertions.assertFalse(fieldNames.contains("readMembers"));
+        Assertions.assertFalse(fieldNames.contains("unreadMembers"));
+    }
+
+    @Test
+    void shouldRejectMessageReadStatusQueryByNonSender() {
+        ChatMessage stored = createStoredMessage(10L, 1L);
+        stored.setFromUserId(2L);
+        chatMessageService.messageByRoomQuery = stored;
+
+        BusinessException exception = Assertions.assertThrows(BusinessException.class,
+                () -> chatMessageService.getMessageReadStatus(1L, 10L, 1L));
+
+        Assertions.assertEquals(ErrorCode.NO_AUTH_ERROR.getCode(), exception.getCode());
+    }
+
+    @Test
+    void shouldRejectMessageReadStatusQueryByNonMember() {
+        member = false;
+        ChatMessage stored = createStoredMessage(10L, 1L);
+        stored.setFromUserId(1L);
+        chatMessageService.messageByRoomQuery = stored;
+
+        BusinessException exception = Assertions.assertThrows(BusinessException.class,
+                () -> chatMessageService.getMessageReadStatus(1L, 10L, 1L));
+
+        Assertions.assertEquals(ErrorCode.NO_AUTH_ERROR.getCode(), exception.getCode());
+    }
+
+    @Test
+    void shouldRejectMessageReadStatusWhenMessageDoesNotExist() {
+        BusinessException exception = Assertions.assertThrows(BusinessException.class,
+                () -> chatMessageService.getMessageReadStatus(1L, 404L, 1L));
+
+        Assertions.assertEquals(ErrorCode.NOT_FOUND_ERROR.getCode(), exception.getCode());
+    }
+
+    @Test
+    void shouldRejectMessageReadStatusWhenMessageBelongsToAnotherRoom() {
+        ChatMessage stored = createStoredMessage(10L, 2L);
+        stored.setFromUserId(1L);
+        chatMessageService.messageById = stored;
+
+        BusinessException exception = Assertions.assertThrows(BusinessException.class,
+                () -> chatMessageService.getMessageReadStatus(1L, 10L, 1L));
+
+        Assertions.assertEquals(ErrorCode.NOT_FOUND_ERROR.getCode(), exception.getCode());
+    }
+
+    @Test
+    void shouldNotExposeCrossRoomMessageExistenceForNonSender() {
+        ChatMessage stored = createStoredMessage(10L, 2L);
+        stored.setFromUserId(2L);
+        chatMessageService.messageById = stored;
+
+        BusinessException exception = Assertions.assertThrows(BusinessException.class,
+                () -> chatMessageService.getMessageReadStatus(1L, 10L, 1L));
+
+        Assertions.assertEquals(ErrorCode.NOT_FOUND_ERROR.getCode(), exception.getCode());
+    }
+
+    @Test
     void shouldRejectRecallByDifferentSender() {
         ChatMessage stored = createStoredMessage(9L, 1L);
         stored.setFromUserId(2L);
@@ -377,6 +467,14 @@ class ChatMessageServiceImplTest {
         return user;
     }
 
+    private ChatRoomMember buildRoomMember(Long roomId, Long userId, Long lastReadMessageId) {
+        ChatRoomMember member = new ChatRoomMember();
+        member.setRoomId(roomId);
+        member.setUserId(userId);
+        member.setLastReadMessageId(lastReadMessageId);
+        return member;
+    }
+
     private ChatRoomService createChatRoomService() {
         return (ChatRoomService) Proxy.newProxyInstance(
                 ChatRoomService.class.getClassLoader(),
@@ -479,6 +577,7 @@ class ChatMessageServiceImplTest {
     private class TestableChatMessageServiceImpl extends ChatMessageServiceImpl {
         private ChatMessage existingByClient;
         private ChatMessage messageById;
+        private ChatMessage messageByRoomQuery;
         private List<ChatMessage> listResult = new ArrayList<>();
         private boolean saveResult = true;
         private boolean updateResult = true;
@@ -488,7 +587,10 @@ class ChatMessageServiceImplTest {
 
         @Override
         public ChatMessage getOne(Wrapper<ChatMessage> queryWrapper) {
-            return existingByClient;
+            if (existingByClient != null) {
+                return existingByClient;
+            }
+            return messageByRoomQuery;
         }
 
         @Override
