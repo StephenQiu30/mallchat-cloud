@@ -1,10 +1,16 @@
 package com.stephen.cloud.chat.service.impl;
 
+import com.stephen.cloud.api.chat.model.enums.ChatRoomTypeEnum;
+import com.stephen.cloud.api.chat.model.vo.ChatSessionVO;
+import com.stephen.cloud.chat.model.entity.ChatGroupInfo;
 import com.stephen.cloud.chat.model.entity.ChatRoom;
 import com.stephen.cloud.chat.model.entity.ChatPrivateRoom;
+import com.stephen.cloud.chat.model.entity.ChatRoomMember;
+import com.stephen.cloud.chat.mq.producer.ChatMqProducer;
 import com.stephen.cloud.chat.service.ChatRoomMemberService;
 import com.stephen.cloud.chat.service.ChatSessionService;
 import com.stephen.cloud.chat.service.ChatPrivateRoomService;
+import com.stephen.cloud.chat.service.ChatGroupInfoService;
 import com.stephen.cloud.chat.service.UserFriendService;
 import com.stephen.cloud.common.common.ErrorCode;
 import com.stephen.cloud.common.exception.BusinessException;
@@ -14,6 +20,8 @@ import org.junit.jupiter.api.Test;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.lang.reflect.Proxy;
+import java.util.ArrayList;
+import java.util.List;
 
 class ChatRoomServiceImplTest {
 
@@ -24,6 +32,16 @@ class ChatRoomServiceImplTest {
     private Long addedMemberOne;
     private Long addedMemberTwo;
     private boolean currentUserIsMember;
+    private boolean currentUserIsOwner;
+    private ChatGroupInfo stubGroupInfo;
+    private ChatGroupInfo savedGroupInfo;
+    private ChatGroupInfo updatedGroupInfo;
+    private boolean groupInfoValidated;
+    private List<ChatRoomMember> roomMembers;
+    private List<Long> sessionUpdateUsers;
+    private List<Object> sessionUpdatePayloads;
+    private List<String> sessionUpdateBizIds;
+    private boolean sessionPushThrows;
 
     @BeforeEach
     void setUp() {
@@ -31,7 +49,13 @@ class ChatRoomServiceImplTest {
         ReflectionTestUtils.setField(chatRoomService, "userFriendService", createUserFriendService());
         ReflectionTestUtils.setField(chatRoomService, "chatPrivateRoomService", createChatPrivateRoomService());
         ReflectionTestUtils.setField(chatRoomService, "chatRoomMemberService", createChatRoomMemberService());
+        ReflectionTestUtils.setField(chatRoomService, "chatGroupInfoService", createChatGroupInfoService());
         ReflectionTestUtils.setField(chatRoomService, "chatSessionService", createChatSessionService());
+        ReflectionTestUtils.setField(chatRoomService, "chatMqProducer", createChatMqProducer());
+        roomMembers = new ArrayList<>();
+        sessionUpdateUsers = new ArrayList<>();
+        sessionUpdatePayloads = new ArrayList<>();
+        sessionUpdateBizIds = new ArrayList<>();
     }
 
     @Test
@@ -91,6 +115,131 @@ class ChatRoomServiceImplTest {
         Assertions.assertEquals(ErrorCode.NO_AUTH_ERROR.getCode(), exception.getCode());
     }
 
+    @Test
+    void shouldRejectGroupProfileUpdateForPrivateRoom() {
+        chatRoomService.stubRoom = new ChatRoom();
+        chatRoomService.stubRoom.setId(90L);
+        chatRoomService.stubRoom.setType(ChatRoomTypeEnum.PRIVATE.getCode());
+
+        BusinessException exception = Assertions.assertThrows(BusinessException.class,
+                () -> chatRoomService.updateGroupProfile(90L, "new-name", null, null, 1L));
+
+        Assertions.assertEquals(ErrorCode.PARAMS_ERROR.getCode(), exception.getCode());
+    }
+
+    @Test
+    void shouldRejectGroupProfileUpdateForNonOwner() {
+        chatRoomService.stubRoom = buildGroupRoom();
+        currentUserIsOwner = false;
+
+        BusinessException exception = Assertions.assertThrows(BusinessException.class,
+                () -> chatRoomService.updateGroupProfile(90L, "new-name", null, null, 2L));
+
+        Assertions.assertEquals(ErrorCode.NO_AUTH_ERROR.getCode(), exception.getCode());
+    }
+
+    @Test
+    void shouldRejectGroupProfileUpdateWithoutPayload() {
+        chatRoomService.stubRoom = buildGroupRoom();
+        currentUserIsOwner = true;
+
+        BusinessException exception = Assertions.assertThrows(BusinessException.class,
+                () -> chatRoomService.updateGroupProfile(90L, null, null, null, 1L));
+
+        Assertions.assertEquals(ErrorCode.PARAMS_ERROR.getCode(), exception.getCode());
+    }
+
+    @Test
+    void shouldUpdateGroupProfileForOwnerAndPushSessionRefresh() {
+        chatRoomService.stubRoom = buildGroupRoom();
+        currentUserIsOwner = true;
+        stubGroupInfo = new ChatGroupInfo();
+        stubGroupInfo.setId(30L);
+        stubGroupInfo.setRoomId(90L);
+        stubGroupInfo.setGroupName("old-name");
+        stubGroupInfo.setGroupAvatar("old-avatar");
+        roomMembers.add(buildMember(90L, 1L));
+        roomMembers.add(buildMember(90L, 2L));
+
+        chatRoomService.updateGroupProfile(90L, "new-name", "new-avatar", "new-announcement", 1L);
+
+        Assertions.assertEquals("new-name", chatRoomService.stubRoom.getName());
+        Assertions.assertEquals("new-avatar", chatRoomService.stubRoom.getAvatar());
+        Assertions.assertSame(stubGroupInfo, updatedGroupInfo);
+        Assertions.assertEquals("new-name", updatedGroupInfo.getGroupName());
+        Assertions.assertEquals("new-avatar", updatedGroupInfo.getGroupAvatar());
+        Assertions.assertEquals("new-announcement", updatedGroupInfo.getAnnouncement());
+        Assertions.assertTrue(groupInfoValidated);
+        Assertions.assertEquals(List.of(1L, 2L), sessionUpdateUsers);
+        ChatSessionVO sessionVO = (ChatSessionVO) sessionUpdatePayloads.get(0);
+        Assertions.assertEquals("new-name", sessionVO.getName());
+        Assertions.assertEquals("new-avatar", sessionVO.getAvatar());
+        Assertions.assertEquals("session_room_profile_update:90:1", sessionUpdateBizIds.get(0));
+    }
+
+    @Test
+    void shouldCreateGroupInfoWithRoomDefaultsWhenAnnouncementUpdatedWithoutExistingInfo() {
+        chatRoomService.stubRoom = buildGroupRoom();
+        currentUserIsOwner = true;
+        stubGroupInfo = null;
+
+        chatRoomService.updateGroupProfile(90L, null, null, "announcement-only", 1L);
+
+        Assertions.assertNotNull(savedGroupInfo);
+        Assertions.assertEquals(90L, savedGroupInfo.getRoomId());
+        Assertions.assertEquals("old-name", savedGroupInfo.getGroupName());
+        Assertions.assertEquals("old-avatar", savedGroupInfo.getGroupAvatar());
+        Assertions.assertEquals("announcement-only", savedGroupInfo.getAnnouncement());
+        Assertions.assertEquals(1L, savedGroupInfo.getCreateUser());
+        Assertions.assertTrue(groupInfoValidated);
+    }
+
+    @Test
+    void shouldRepairBlankExistingGroupInfoWhenAnnouncementUpdated() {
+        chatRoomService.stubRoom = buildGroupRoom();
+        currentUserIsOwner = true;
+        stubGroupInfo = new ChatGroupInfo();
+        stubGroupInfo.setId(31L);
+        stubGroupInfo.setRoomId(90L);
+        stubGroupInfo.setGroupName("");
+        stubGroupInfo.setGroupAvatar(null);
+
+        chatRoomService.updateGroupProfile(90L, null, null, "new-announcement", 1L);
+
+        Assertions.assertSame(stubGroupInfo, updatedGroupInfo);
+        Assertions.assertEquals("old-name", updatedGroupInfo.getGroupName());
+        Assertions.assertEquals("old-avatar", updatedGroupInfo.getGroupAvatar());
+        Assertions.assertEquals("new-announcement", updatedGroupInfo.getAnnouncement());
+    }
+
+    @Test
+    void shouldRejectBlankGroupAvatar() {
+        chatRoomService.stubRoom = buildGroupRoom();
+        currentUserIsOwner = true;
+
+        BusinessException exception = Assertions.assertThrows(BusinessException.class,
+                () -> chatRoomService.updateGroupProfile(90L, null, " ", null, 1L));
+
+        Assertions.assertEquals(ErrorCode.PARAMS_ERROR.getCode(), exception.getCode());
+    }
+
+    @Test
+    void shouldNotFailGroupProfileUpdateWhenSessionPushThrows() {
+        chatRoomService.stubRoom = buildGroupRoom();
+        currentUserIsOwner = true;
+        stubGroupInfo = new ChatGroupInfo();
+        stubGroupInfo.setId(32L);
+        stubGroupInfo.setRoomId(90L);
+        roomMembers.add(buildMember(90L, 1L));
+        sessionPushThrows = true;
+
+        Assertions.assertDoesNotThrow(() -> chatRoomService.updateGroupProfile(90L, "new-name", null, null, 1L));
+
+        Assertions.assertEquals("new-name", chatRoomService.stubRoom.getName());
+        Assertions.assertEquals("new-name", updatedGroupInfo.getGroupName());
+        Assertions.assertTrue(groupInfoValidated);
+    }
+
     private UserFriendService createUserFriendService() {
         return (UserFriendService) Proxy.newProxyInstance(
                 UserFriendService.class.getClassLoader(),
@@ -137,6 +286,37 @@ class ChatRoomServiceImplTest {
                     if ("isMember".equals(method.getName())) {
                         return currentUserIsMember;
                     }
+                    if ("isOwner".equals(method.getName())) {
+                        return currentUserIsOwner;
+                    }
+                    if ("listByRoomId".equals(method.getName())) {
+                        return roomMembers;
+                    }
+                    return defaultValue(method.getReturnType());
+                }
+        );
+    }
+
+    private ChatGroupInfoService createChatGroupInfoService() {
+        return (ChatGroupInfoService) Proxy.newProxyInstance(
+                ChatGroupInfoService.class.getClassLoader(),
+                new Class[]{ChatGroupInfoService.class},
+                (proxy, method, args) -> {
+                    if ("getOne".equals(method.getName())) {
+                        return stubGroupInfo;
+                    }
+                    if ("validChatGroupInfo".equals(method.getName())) {
+                        groupInfoValidated = true;
+                        return null;
+                    }
+                    if ("save".equals(method.getName())) {
+                        savedGroupInfo = (ChatGroupInfo) args[0];
+                        return true;
+                    }
+                    if ("updateById".equals(method.getName())) {
+                        updatedGroupInfo = (ChatGroupInfo) args[0];
+                        return true;
+                    }
                     return defaultValue(method.getReturnType());
                 }
         );
@@ -146,8 +326,51 @@ class ChatRoomServiceImplTest {
         return (ChatSessionService) Proxy.newProxyInstance(
                 ChatSessionService.class.getClassLoader(),
                 new Class[]{ChatSessionService.class},
-                (proxy, method, args) -> defaultValue(method.getReturnType())
+                (proxy, method, args) -> {
+                    if ("getSessionVO".equals(method.getName())) {
+                        ChatSessionVO sessionVO = new ChatSessionVO();
+                        sessionVO.setRoomId((Long) args[0]);
+                        ChatGroupInfo currentGroupInfo = updatedGroupInfo != null ? updatedGroupInfo : savedGroupInfo;
+                        if (currentGroupInfo != null) {
+                            sessionVO.setName(currentGroupInfo.getGroupName());
+                            sessionVO.setAvatar(currentGroupInfo.getGroupAvatar());
+                        }
+                        return sessionVO;
+                    }
+                    return defaultValue(method.getReturnType());
+                }
         );
+    }
+
+    private ChatMqProducer createChatMqProducer() {
+        return new ChatMqProducer() {
+            @Override
+            public void sendSessionUpdate(Long userId, Long roomId, Object data, String bizId) {
+                if (sessionPushThrows) {
+                    throw new RuntimeException("session push failed");
+                }
+                sessionUpdateUsers.add(userId);
+                sessionUpdatePayloads.add(data);
+                sessionUpdateBizIds.add(bizId);
+            }
+        };
+    }
+
+    private ChatRoom buildGroupRoom() {
+        ChatRoom room = new ChatRoom();
+        room.setId(90L);
+        room.setName("old-name");
+        room.setAvatar("old-avatar");
+        room.setType(ChatRoomTypeEnum.GROUP.getCode());
+        room.setCreateUser(1L);
+        return room;
+    }
+
+    private ChatRoomMember buildMember(Long roomId, Long userId) {
+        ChatRoomMember member = new ChatRoomMember();
+        member.setRoomId(roomId);
+        member.setUserId(userId);
+        return member;
     }
 
     private static final class TestableChatRoomServiceImpl extends ChatRoomServiceImpl {
@@ -156,6 +379,12 @@ class ChatRoomServiceImplTest {
         @Override
         public ChatRoom getById(java.io.Serializable id) {
             return stubRoom;
+        }
+
+        @Override
+        public boolean updateById(ChatRoom entity) {
+            this.stubRoom = entity;
+            return true;
         }
 
         @Override
