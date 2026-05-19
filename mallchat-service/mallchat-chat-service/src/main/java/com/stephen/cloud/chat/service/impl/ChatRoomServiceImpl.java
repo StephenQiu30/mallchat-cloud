@@ -215,6 +215,74 @@ public class ChatRoomServiceImpl extends ServiceImpl<ChatRoomMapper, ChatRoom>
 
     @Override
     @Transactional(rollbackFor = Exception.class)
+    public void updateGroupProfile(Long roomId, String name, String avatar, String announcement, Long userId) {
+        ThrowUtils.throwIf(roomId == null || userId == null, ErrorCode.PARAMS_ERROR);
+
+        ChatRoom room = this.getById(roomId);
+        ThrowUtils.throwIf(room == null, ErrorCode.NOT_FOUND_ERROR, "聊天室不存在");
+        ThrowUtils.throwIf(!ChatRoomTypeEnum.GROUP.getCode().equals(room.getType()), ErrorCode.PARAMS_ERROR, "仅群聊支持群资料更新");
+        ThrowUtils.throwIf(!chatRoomMemberService.isOwner(roomId, userId), ErrorCode.NO_AUTH_ERROR, "仅群主可编辑群聊资料");
+
+        boolean hasName = name != null;
+        boolean hasAvatar = avatar != null;
+        boolean hasAnnouncement = announcement != null;
+        ThrowUtils.throwIf(!hasName && !hasAvatar && !hasAnnouncement, ErrorCode.PARAMS_ERROR, "至少更新一项群资料");
+
+        if (hasName) {
+            ThrowUtils.throwIf(StringUtils.isBlank(name), ErrorCode.PARAMS_ERROR, "群聊名称不能为空");
+            room.setName(name);
+        }
+        if (hasAvatar) {
+            ThrowUtils.throwIf(StringUtils.isBlank(avatar), ErrorCode.PARAMS_ERROR, "群聊头像不能为空");
+            room.setAvatar(avatar);
+        }
+
+        boolean result = this.updateById(room);
+        ThrowUtils.throwIf(!result, ErrorCode.OPERATION_ERROR, "更新群聊资料失败");
+
+        ChatGroupInfo groupInfo = chatGroupInfoService.getOne(new LambdaQueryWrapper<ChatGroupInfo>()
+                .eq(ChatGroupInfo::getRoomId, roomId)
+                .last("LIMIT 1"));
+        if (groupInfo == null) {
+            groupInfo = new ChatGroupInfo();
+            groupInfo.setRoomId(roomId);
+            groupInfo.setGroupName(room.getName());
+            groupInfo.setGroupAvatar(room.getAvatar());
+            groupInfo.setCreateUser(room.getCreateUser());
+        }
+        if (hasName) {
+            groupInfo.setGroupName(name);
+        }
+        if (hasAvatar) {
+            groupInfo.setGroupAvatar(avatar);
+        }
+        if (hasAnnouncement) {
+            groupInfo.setAnnouncement(announcement);
+        }
+        if (StringUtils.isBlank(groupInfo.getGroupName())) {
+            groupInfo.setGroupName(room.getName());
+        }
+        if (StringUtils.isBlank(groupInfo.getGroupAvatar())) {
+            groupInfo.setGroupAvatar(room.getAvatar());
+        }
+
+        groupInfo.setCreateUser(room.getCreateUser());
+        chatGroupInfoService.validChatGroupInfo(groupInfo);
+
+        boolean groupInfoUpdated;
+        if (groupInfo.getId() == null) {
+            groupInfoUpdated = chatGroupInfoService.save(groupInfo);
+            ThrowUtils.throwIf(!groupInfoUpdated, ErrorCode.OPERATION_ERROR, "更新群聊资料失败");
+        } else {
+            groupInfoUpdated = chatGroupInfoService.updateById(groupInfo);
+            ThrowUtils.throwIf(!groupInfoUpdated, ErrorCode.OPERATION_ERROR, "更新群聊资料失败");
+        }
+
+        pushSessionUpdateByMember(roomId);
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
     public void quitRoom(Long roomId, Long userId) {
         ChatRoom room = getAccessibleRoom(roomId, userId);
         ThrowUtils.throwIf(!ChatRoomTypeEnum.GROUP.getCode().equals(room.getType()), ErrorCode.PARAMS_ERROR, "仅群聊支持退群");
@@ -343,6 +411,26 @@ public class ChatRoomServiceImpl extends ServiceImpl<ChatRoomMapper, ChatRoom>
         ChatSessionVO sessionVO = chatSessionService.getSessionVO(roomId, userId);
         if (sessionVO != null) {
             chatMqProducer.sendSessionUpdate(userId, roomId, sessionVO, bizId);
+        }
+    }
+
+    private void pushSessionUpdateByMember(Long roomId) {
+        List<ChatRoomMember> members = chatRoomMemberService.listByRoomId(roomId);
+        if (CollUtil.isEmpty(members)) {
+            return;
+        }
+
+        for (ChatRoomMember member : members) {
+            if (member == null || member.getUserId() == null) {
+                continue;
+            }
+            try {
+                pushSessionUpdate(member.getUserId(), roomId,
+                        "session_room_profile_update:" + roomId + ":" + member.getUserId());
+            } catch (Exception e) {
+                log.warn("[ChatRoomServiceImpl] 推送群资料会话刷新失败, roomId={}, userId={}, reason={}",
+                        roomId, member.getUserId(), e.toString());
+            }
         }
     }
 }

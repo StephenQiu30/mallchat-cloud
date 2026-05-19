@@ -1,6 +1,7 @@
 package com.stephen.cloud.chat.controller;
 
 import com.stephen.cloud.api.chat.model.dto.ChatPrivateRoomRequest;
+import com.stephen.cloud.api.chat.model.dto.ChatRoomUpdateRequest;
 import com.stephen.cloud.api.chat.model.dto.ChatRoomAddRequest;
 import com.stephen.cloud.api.chat.model.dto.ChatRoomInviteRequest;
 import com.stephen.cloud.api.chat.model.vo.ChatRoomMemberVO;
@@ -108,6 +109,24 @@ public class ChatRoomController {
         ThrowUtils.throwIf(request == null || request.getRoomId() == null, ErrorCode.PARAMS_ERROR);
         Long userId = SecurityUtils.getLoginUserId();
         chatRoomService.inviteMembers(request.getRoomId(), request.getMemberIds(), userId);
+        return ResultUtils.success(true);
+    }
+
+    /**
+     * 更新群聊资料
+     */
+    @PostMapping("/update")
+    @OperationLog(module = "聊天室管理", action = "更新群聊资料")
+    @Operation(summary = "更新群聊资料", description = "仅群主可更新群名称、头像和群公告")
+    public BaseResponse<Boolean> updateGroupProfile(@Validated @RequestBody ChatRoomUpdateRequest request) {
+        ThrowUtils.throwIf(request == null || request.getRoomId() == null, ErrorCode.PARAMS_ERROR);
+        Long userId = SecurityUtils.getLoginUserId();
+        chatRoomService.updateGroupProfile(
+                request.getRoomId(),
+                request.getName(),
+                request.getAvatar(),
+                request.getAnnouncement(),
+                userId);
         return ResultUtils.success(true);
     }
 

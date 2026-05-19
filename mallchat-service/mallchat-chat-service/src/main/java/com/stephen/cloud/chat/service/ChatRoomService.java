@@ -119,6 +119,17 @@ public interface ChatRoomService extends IService<ChatRoom> {
     void inviteMembers(Long roomId, List<Long> memberIds, Long userId);
 
     /**
+     * 更新群聊资料
+     *
+     * @param roomId 房间 ID
+     * @param name 群聊名称
+     * @param avatar 群聊头像
+     * @param announcement 群公告
+     * @param userId 当前用户
+     */
+    void updateGroupProfile(Long roomId, String name, String avatar, String announcement, Long userId);
+
+    /**
      * 退出群聊
      *
      * @param roomId 房间 ID
