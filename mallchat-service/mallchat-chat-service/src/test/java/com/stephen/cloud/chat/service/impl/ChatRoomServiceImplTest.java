@@ -3,6 +3,9 @@ package com.stephen.cloud.chat.service.impl;
 import com.stephen.cloud.api.chat.model.enums.ChatRoomTypeEnum;
 import com.stephen.cloud.api.chat.model.enums.ChatRoomRoleEnum;
 import com.stephen.cloud.api.chat.model.vo.ChatSessionVO;
+import com.stephen.cloud.api.notification.client.NotificationFeignClient;
+import com.stephen.cloud.api.notification.model.dto.NotificationCreateRequest;
+import com.stephen.cloud.api.notification.model.enums.NotificationTypeEnum;
 import com.stephen.cloud.chat.model.entity.ChatGroupInfo;
 import com.stephen.cloud.chat.model.entity.ChatRoom;
 import com.stephen.cloud.chat.model.entity.ChatPrivateRoom;
@@ -13,6 +16,7 @@ import com.stephen.cloud.chat.service.ChatSessionService;
 import com.stephen.cloud.chat.service.ChatPrivateRoomService;
 import com.stephen.cloud.chat.service.ChatGroupInfoService;
 import com.stephen.cloud.chat.service.UserFriendService;
+import com.stephen.cloud.common.common.BaseResponse;
 import com.stephen.cloud.common.common.ErrorCode;
 import com.stephen.cloud.common.exception.BusinessException;
 import org.junit.jupiter.api.Assertions;
@@ -32,6 +36,7 @@ class ChatRoomServiceImplTest {
     private boolean privateRoomMappingSaved;
     private Long addedMemberOne;
     private Long addedMemberTwo;
+    private List<Long> addedMembers;
     private boolean currentUserIsMember;
     private boolean currentUserIsOwner;
     private ChatGroupInfo stubGroupInfo;
@@ -51,6 +56,9 @@ class ChatRoomServiceImplTest {
     private List<Long> sessionDeleteUsers;
     private boolean sessionDeleteThrows;
     private boolean sessionRemoveThrows;
+    private List<NotificationCreateRequest> notifications;
+    private boolean notificationFails;
+    private int notificationAttempts;
 
     @BeforeEach
     void setUp() {
@@ -61,11 +69,14 @@ class ChatRoomServiceImplTest {
         ReflectionTestUtils.setField(chatRoomService, "chatGroupInfoService", createChatGroupInfoService());
         ReflectionTestUtils.setField(chatRoomService, "chatSessionService", createChatSessionService());
         ReflectionTestUtils.setField(chatRoomService, "chatMqProducer", createChatMqProducer());
+        injectNotificationFeignClientIfPresent();
+        addedMembers = new ArrayList<>();
         roomMembers = new ArrayList<>();
         sessionUpdateUsers = new ArrayList<>();
         sessionUpdatePayloads = new ArrayList<>();
         sessionUpdateBizIds = new ArrayList<>();
         sessionDeleteUsers = new ArrayList<>();
+        notifications = new ArrayList<>();
     }
 
     @Test
@@ -251,6 +262,53 @@ class ChatRoomServiceImplTest {
     }
 
     @Test
+    void shouldCreateNotificationsForInitialMembersWhenCreatingGroupRoom() {
+        mutualFriend = true;
+
+        ChatRoom room = new ChatRoom();
+        room.setName("group");
+        room.setAvatar("avatar");
+
+        Long roomId = chatRoomService.addChatRoom(room, List.of(2L, 3L), "hello", 1L);
+
+        Assertions.assertEquals(100L, roomId);
+        Assertions.assertEquals(List.of(1L, 2L, 3L), addedMembers);
+        Assertions.assertEquals(List.of(2L, 3L, 1L), sessionUpdateUsers);
+        Assertions.assertEquals(2, notifications.size());
+        assertGroupInvitationNotification(notifications.get(0), 2L, 100L);
+        assertGroupInvitationNotification(notifications.get(1), 3L, 100L);
+    }
+
+    @Test
+    void shouldCreateNotificationWhenInvitingFriendIntoGroupRoom() {
+        chatRoomService.stubRoom = buildGroupRoom();
+        currentUserIsMember = true;
+        mutualFriend = true;
+
+        chatRoomService.inviteMembers(90L, List.of(2L), 1L);
+
+        Assertions.assertEquals(List.of(2L), addedMembers);
+        Assertions.assertEquals(List.of(2L), sessionUpdateUsers);
+        Assertions.assertEquals(1, notifications.size());
+        assertGroupInvitationNotification(notifications.get(0), 2L, 90L);
+    }
+
+    @Test
+    void shouldKeepGroupInvitationWhenNotificationFails() {
+        chatRoomService.stubRoom = buildGroupRoom();
+        currentUserIsMember = true;
+        mutualFriend = true;
+        notificationFails = true;
+
+        Assertions.assertDoesNotThrow(() -> chatRoomService.inviteMembers(90L, List.of(2L), 1L));
+
+        Assertions.assertEquals(List.of(2L), addedMembers);
+        Assertions.assertEquals(List.of(2L), sessionUpdateUsers);
+        Assertions.assertEquals(1, notificationAttempts);
+        Assertions.assertTrue(notifications.isEmpty());
+    }
+
+    @Test
     void shouldRejectMemberRemovalForPrivateRoom() {
         chatRoomService.stubRoom = new ChatRoom();
         chatRoomService.stubRoom.setId(90L);
@@ -411,6 +469,7 @@ class ChatRoomServiceImplTest {
                 new Class[]{ChatRoomMemberService.class},
                 (proxy, method, args) -> {
                     if ("addMember".equals(method.getName()) && args.length >= 2) {
+                        addedMembers.add((Long) args[1]);
                         if (addedMemberOne == null) {
                             addedMemberOne = (Long) args[1];
                         } else {
@@ -513,6 +572,40 @@ class ChatRoomServiceImplTest {
                 sessionDeleteUsers.add(userId);
             }
         };
+    }
+
+    private void injectNotificationFeignClientIfPresent() {
+        try {
+            ReflectionTestUtils.setField(chatRoomService, "notificationFeignClient", createNotificationFeignClient());
+        } catch (IllegalArgumentException ignored) {
+            // Red phase before production service has notification dependency.
+        }
+    }
+
+    private NotificationFeignClient createNotificationFeignClient() {
+        return (NotificationFeignClient) Proxy.newProxyInstance(
+                NotificationFeignClient.class.getClassLoader(),
+                new Class[]{NotificationFeignClient.class},
+                (proxy, method, args) -> {
+                    if ("addBusinessNotification".equals(method.getName())) {
+                        notificationAttempts++;
+                        if (notificationFails) {
+                            throw new RuntimeException("notification unavailable");
+                        }
+                        notifications.add((NotificationCreateRequest) args[0]);
+                        return new BaseResponse<>(0, 1000L + notifications.size(), "ok");
+                    }
+                    throw new UnsupportedOperationException(method.getName());
+                }
+        );
+    }
+
+    private void assertGroupInvitationNotification(NotificationCreateRequest notification, Long userId, Long roomId) {
+        Assertions.assertEquals(userId, notification.getUserId());
+        Assertions.assertEquals(NotificationTypeEnum.USER.getCode(), notification.getType());
+        Assertions.assertEquals("group_invite:" + roomId + ":" + userId, notification.getBizId());
+        Assertions.assertEquals("chat_room", notification.getRelatedType());
+        Assertions.assertEquals(roomId, notification.getRelatedId());
     }
 
     private ChatRoom buildGroupRoom() {
