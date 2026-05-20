@@ -116,6 +116,7 @@ downstream:
 | PR 编号 | 分支 | 关联 Issue | 预期标题 | 状态 |
 | --- | --- | --- | --- | --- |
 | `m1` | `m1-websocket-handshake-security` | [#6](https://github.com/StephenQiu30/mallchat-cloud/issues/6) | [[m1] 加固 WebSocket 握手鉴权与 Origin 校验](https://github.com/StephenQiu30/mallchat-cloud/pull/20) | PR 已创建 |
+| `m2` | `m2-backend-security-epic` | [#7](https://github.com/StephenQiu30/mallchat-cloud/issues/7), [#8](https://github.com/StephenQiu30/mallchat-cloud/issues/8), [#9](https://github.com/StephenQiu30/mallchat-cloud/issues/9) | [[m2][epic-security] 生产安全与访问控制加固](https://github.com/StephenQiu30/mallchat-cloud/pull/21) | PR 已创建，base 为 `m1-websocket-handshake-security` |
 
 ## 7. 编排阶段验证命令
 
