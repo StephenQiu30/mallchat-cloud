@@ -172,6 +172,38 @@ class ChannelManagerTest {
         Assertions.assertEquals(1L, channelManager.getAbnormalDisconnectCount());
     }
 
+    @Test
+    void shouldRebuildRedisConnectionStateWhenHeartbeatFindsCacheMissing() {
+        EmbeddedChannel channel = newChannel();
+        channelManager.addChannel("1", channel);
+        rabbitMqSender.clear();
+        cacheUtils.clear();
+
+        channelManager.refreshUserConnection("1");
+
+        Set<String> connectionIds = cacheUtils.sMembers(WebSocketConstant.WS_USER_CONNECTIONS_KEY + 1L);
+        Assertions.assertEquals(1, connectionIds.size());
+        String connectionId = connectionIds.iterator().next();
+        Assertions.assertEquals("1", cacheUtils.getHashField(WebSocketConstant.WS_CONNECTION_META_KEY + connectionId, "userId"));
+        Assertions.assertEquals("server-a", cacheUtils.getHashField(WebSocketConstant.WS_CONNECTION_META_KEY + connectionId, "serverId"));
+        channel.close();
+    }
+
+    @Test
+    void shouldRebuildRedisConnectionMetaWhenHeartbeatFindsMetaMissing() {
+        EmbeddedChannel channel = newChannel();
+        channelManager.addChannel("1", channel);
+        Set<String> connectionIds = cacheUtils.sMembers(WebSocketConstant.WS_USER_CONNECTIONS_KEY + 1L);
+        String connectionId = connectionIds.iterator().next();
+        cacheUtils.clearHash(WebSocketConstant.WS_CONNECTION_META_KEY + connectionId);
+
+        channelManager.refreshUserConnection("1");
+
+        Assertions.assertEquals("1", cacheUtils.getHashField(WebSocketConstant.WS_CONNECTION_META_KEY + connectionId, "userId"));
+        Assertions.assertEquals("server-a", cacheUtils.getHashField(WebSocketConstant.WS_CONNECTION_META_KEY + connectionId, "serverId"));
+        channel.close();
+    }
+
     private static class RecordingRabbitMqSender extends RabbitMqSender {
         private MqBizTypeEnum lastBizType;
         private Object lastPayload;
@@ -202,6 +234,15 @@ class ChannelManagerTest {
 
         void setMembers(String key, Set<String> values) {
             setMap.put(key, new HashSet<>(values));
+        }
+
+        void clear() {
+            setMap.clear();
+            hashMap.clear();
+        }
+
+        void clearHash(String key) {
+            hashMap.remove(key);
         }
 
         @Override
