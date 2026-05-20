@@ -43,6 +43,8 @@ downstream:
 3. P1/P2 未进入 GitHub 首批队列，仍保留在候选池。
 4. `AGENTS.md` 已写入 IM 生产化 Issue 消费、TDD、OpenSpec 和多子智能体协作规范。
 5. 后续每个功能 Issue 必须按 RED -> GREEN -> REFACTOR 消费，并同步 OpenSpec tasks 与 GitHub Issue 状态。
+6. Issue 正文已修正为 GitHub Markdown 标题和列表格式，不再使用字面量 `\n`。
+7. 生产化 Issue 通过 m 系列 PR 消费，编号从 `m1` 开始；`m1` 对应 Issue #6。
 
 ## 3. GitHub Issue 创建结果
 
@@ -107,8 +109,20 @@ downstream:
 5. GREEN 实现只覆盖测试要求的最小行为。
 6. 回归命令包含相关 Maven 测试、`openspec validate --all --strict` 和 `git diff --check`。
 7. 完成后更新 GitHub Issue、OpenSpec tasks、验收文档和中文提交。
+8. 完成后创建或更新对应 m 系列 PR，不直接推送实现到 `main`。
+9. m 系列 PR 默认按子 Issue 提交；用户明确授权时可以按同一 Parent Epic 聚合，但 PR 正文必须遵循项目 PR 模板并逐项列出 Issue、OpenSpec、RED/GREEN 证据和残余风险。
 
-## 6. 编排阶段验证命令
+## 6. PR 编号验收
+
+| PR 编号 | 分支 | 关联 Issue | 预期标题 | 状态 |
+| --- | --- | --- | --- | --- |
+| `m1` | `m1-websocket-handshake-security` | [#6](https://github.com/StephenQiu30/mallchat-cloud/issues/6) | [[m1] 加固 WebSocket 握手鉴权与 Origin 校验](https://github.com/StephenQiu30/mallchat-cloud/pull/20) | PR 已创建 |
+| `m2` | `m2-backend-security-epic` | [#7](https://github.com/StephenQiu30/mallchat-cloud/issues/7), [#8](https://github.com/StephenQiu30/mallchat-cloud/issues/8), [#9](https://github.com/StephenQiu30/mallchat-cloud/issues/9) | [[m2][epic-security] 生产安全与访问控制加固](https://github.com/StephenQiu30/mallchat-cloud/pull/21) | PR 已创建，base 为 `m1-websocket-handshake-security`；按用户要求聚合 #2 Epic 下安全子 Issue，需使用项目 PR 模板补齐证据 |
+| `m3` | `m3-backend-message-reliability-epic` | [#10](https://github.com/StephenQiu30/mallchat-cloud/issues/10), [#11](https://github.com/StephenQiu30/mallchat-cloud/issues/11), [#12](https://github.com/StephenQiu30/mallchat-cloud/issues/12), [#13](https://github.com/StephenQiu30/mallchat-cloud/issues/13) | [[m3][epic-message] 消息可靠性与可恢复加固](https://github.com/StephenQiu30/mallchat-cloud/pull/22) | PR 已创建，base 为 `m2-backend-security-epic`；按用户要求聚合 #3 Epic 下消息可靠性子 Issue |
+| `m4` | `m4-backend-ops-observability-epic` | [#14](https://github.com/StephenQiu30/mallchat-cloud/issues/14), [#15](https://github.com/StephenQiu30/mallchat-cloud/issues/15), [#16](https://github.com/StephenQiu30/mallchat-cloud/issues/16) | [[m4][epic-ops] 可观测性与运维门禁加固](https://github.com/StephenQiu30/mallchat-cloud/pull/23) | PR 已创建，base 为 `m3-backend-message-reliability-epic`；按用户要求聚合 #4 Epic 下运维与可观测性子 Issue |
+| `m5` | `m5-backend-data-recovery-epic` | [#17](https://github.com/StephenQiu30/mallchat-cloud/issues/17), [#18](https://github.com/StephenQiu30/mallchat-cloud/issues/18), [#19](https://github.com/StephenQiu30/mallchat-cloud/issues/19) | [[m5][epic-data] 数据安全与备份恢复加固](https://github.com/StephenQiu30/mallchat-cloud/pull/24) | PR 已创建，base 为 `m4-backend-ops-observability-epic`；按用户要求聚合 #5 Epic 下数据、缓存和文件边界子 Issue |
+
+## 7. 编排阶段验证命令
 
 编排阶段需要验证以下命令：
 
@@ -119,14 +133,14 @@ git diff --check
 openspec validate --all --strict
 ```
 
-## 7. 残余风险
+## 8. 残余风险
 
 1. 本文档只验收 P0 队列创建，不代表 P0 功能已经实现。
 2. GitHub Issue 已创建，后续如调整标题或范围，必须同步更新本文档。
 3. P1/P2 暂不创建，防止干扰 P0 生产化主线。
 4. 多子智能体消费时仍需主智能体把关文件所有权和 OpenSpec 串行写入。
 
-## 8. 变更记录
+## 9. 变更记录
 
 | 日期 | 作者 | 版本 | 变更说明 |
 | --- | --- | --- | --- |

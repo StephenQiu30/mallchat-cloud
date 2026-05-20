@@ -4,6 +4,8 @@ import lombok.Data;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.stereotype.Component;
 
+import java.util.List;
+
 /**
  * WebSocket 配置属性
  *
@@ -38,5 +40,20 @@ public class WebSocketProperties {
      * WebSocket 路径
      */
     private String path = "/websocket";
+
+    /**
+     * 允许握手的 Origin 列表，为空时不限制
+     */
+    private List<String> allowedOrigins = List.of();
+
+    /**
+     * 单用户本地最大连接数
+     */
+    private Integer maxConnectionsPerUser = 5;
+
+    /**
+     * 同用户最小连接间隔，0 表示不限制
+     */
+    private Long minConnectIntervalMillis = 0L;
 
 }

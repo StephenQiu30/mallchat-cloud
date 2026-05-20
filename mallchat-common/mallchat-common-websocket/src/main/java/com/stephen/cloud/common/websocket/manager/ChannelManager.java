@@ -27,6 +27,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;
 
 /**
@@ -48,6 +49,18 @@ public class ChannelManager {
 
     private String serverId;
 
+    private int maxConnectionsPerUser = 5;
+
+    private long minConnectIntervalMillis = 0L;
+
+    private final Map<String, Long> userLastConnectTimeMap = new ConcurrentHashMap<>();
+
+    private final Set<String> rejectedChannelIds = ConcurrentHashMap.newKeySet();
+
+    private final AtomicLong rejectedConnectionCount = new AtomicLong();
+
+    private final AtomicLong abnormalDisconnectCount = new AtomicLong();
+
     /**
      * 本地连接映射：userId -> (channelId -> Channel)
      */
@@ -68,9 +81,18 @@ public class ChannelManager {
      */
     private final ChannelGroup channels = new DefaultChannelGroup(GlobalEventExecutor.INSTANCE);
 
-    public void addChannel(String userId, Channel channel) {
+    public synchronized boolean addChannel(String userId, Channel channel) {
         if (serverId == null) {
             log.warn("[ChannelManager] serverId 未设置，分布式推送可能受限");
+        }
+
+        if (shouldRejectByConnectionLimit(userId)) {
+            rejectChannel(userId, channel, "超过单用户本地连接上限");
+            return false;
+        }
+        if (shouldRejectByConnectInterval(userId)) {
+            rejectChannel(userId, channel, "短时间重复连接");
+            return false;
         }
 
         boolean wasOnline = isUserOnlineDistributed(userId);
@@ -89,14 +111,23 @@ public class ChannelManager {
         if (!wasOnline && isUserOnlineDistributed(userId)) {
             notifyOnlineStatusChanged(userId, true);
         }
+        userLastConnectTimeMap.put(userId, System.currentTimeMillis());
+        return true;
     }
 
-    public void removeChannel(Channel channel) {
+    public synchronized void removeChannel(Channel channel) {
         String channelId = channel.id().asLongText();
         String userId = channelUserMap.remove(channelId);
         String connectionId = channelConnectionMap.remove(channelId);
 
         if (userId == null) {
+            if (rejectedChannelIds.remove(channelId)) {
+                log.info("[ChannelManager] 已拒绝连接断开, channelId: {}", channel.id().asShortText());
+                return;
+            }
+            abnormalDisconnectCount.incrementAndGet();
+            channels.remove(channel);
+            log.warn("[ChannelManager] 未登记连接断开, channelId: {}", channel.id().asShortText());
             return;
         }
 
@@ -151,16 +182,53 @@ public class ChannelManager {
         String userConnectionsKey = WebSocketConstant.WS_USER_CONNECTIONS_KEY + userId;
         Set<String> connectionIds = cacheUtils.sMembers(userConnectionsKey);
         if (connectionIds == null || connectionIds.isEmpty()) {
+            rebuildPersistedConnections(userId);
+            connectionIds = cacheUtils.sMembers(userConnectionsKey);
+            if (connectionIds == null || connectionIds.isEmpty()) {
+                return;
+            }
+        }
+        boolean missingMeta = false;
+        for (String connectionId : connectionIds) {
+            if (!refreshConnectionMeta(connectionId)) {
+                missingMeta = true;
+            }
+        }
+        if (missingMeta) {
+            rebuildPersistedConnections(userId);
+            connectionIds = cacheUtils.sMembers(userConnectionsKey);
+            if (connectionIds != null) {
+                connectionIds.forEach(this::refreshConnectionMeta);
+            }
+        }
+        cacheUtils.expire(userConnectionsKey, WebSocketConstant.WS_CONNECTION_EXPIRE_SECONDS);
+    }
+
+    private boolean refreshConnectionMeta(String connectionId) {
+        String metaKey = WebSocketConstant.WS_CONNECTION_META_KEY + connectionId;
+        Map<String, String> connectionInfo = cacheUtils.getHash(metaKey);
+        if (connectionInfo == null || connectionInfo.isEmpty()) {
+            return false;
+        }
+        cacheUtils.setHash(metaKey, connectionInfo, WebSocketConstant.WS_CONNECTION_EXPIRE_SECONDS);
+        return true;
+    }
+
+    private void rebuildPersistedConnections(String userId) {
+        Map<String, Channel> channelMap = userChannelMap.get(userId);
+        if (channelMap == null || channelMap.isEmpty()) {
             return;
         }
-        connectionIds.forEach(connectionId -> {
-            String metaKey = WebSocketConstant.WS_CONNECTION_META_KEY + connectionId;
-            Map<String, String> connectionInfo = cacheUtils.getHash(metaKey);
-            if (connectionInfo != null && !connectionInfo.isEmpty()) {
-                cacheUtils.setHash(metaKey, connectionInfo, WebSocketConstant.WS_CONNECTION_EXPIRE_SECONDS);
+        channelMap.forEach((channelId, channel) -> {
+            if (channel == null || !channel.isActive()) {
+                return;
             }
+            String connectionId = channelConnectionMap.get(channelId);
+            if (connectionId == null) {
+                return;
+            }
+            persistConnection(userId, connectionId, channelId);
         });
-        cacheUtils.expire(userConnectionsKey, WebSocketConstant.WS_CONNECTION_EXPIRE_SECONDS);
     }
 
     public void setServerId(String serverId) {
@@ -169,6 +237,19 @@ public class ChannelManager {
 
     public void setFriendIdsResolver(Function<Long, Set<Long>> friendIdsResolver) {
         this.friendIdsResolver = friendIdsResolver == null ? userId -> Collections.emptySet() : friendIdsResolver;
+    }
+
+    public void setRuntimeGuard(Integer maxConnectionsPerUser, Long minConnectIntervalMillis) {
+        this.maxConnectionsPerUser = maxConnectionsPerUser == null ? 5 : Math.max(maxConnectionsPerUser, 0);
+        this.minConnectIntervalMillis = minConnectIntervalMillis == null ? 0L : Math.max(minConnectIntervalMillis, 0L);
+    }
+
+    public long getRejectedConnectionCount() {
+        return rejectedConnectionCount.get();
+    }
+
+    public long getAbnormalDisconnectCount() {
+        return abnormalDisconnectCount.get();
     }
 
     public String getUserServerId(String userId) {
@@ -220,6 +301,26 @@ public class ChannelManager {
     private String buildConnectionId(Channel channel) {
         String channelId = channel.id().asLongText();
         return (serverId == null ? "unknown" : serverId) + ":" + channelId;
+    }
+
+    private boolean shouldRejectByConnectionLimit(String userId) {
+        return maxConnectionsPerUser > 0 && getChannels(userId).size() >= maxConnectionsPerUser;
+    }
+
+    private boolean shouldRejectByConnectInterval(String userId) {
+        if (minConnectIntervalMillis <= 0) {
+            return false;
+        }
+        Long lastConnectTime = userLastConnectTimeMap.get(userId);
+        return lastConnectTime != null && System.currentTimeMillis() - lastConnectTime < minConnectIntervalMillis;
+    }
+
+    private void rejectChannel(String userId, Channel channel, String reason) {
+        rejectedConnectionCount.incrementAndGet();
+        rejectedChannelIds.add(channel.id().asLongText());
+        log.warn("[ChannelManager] 拒绝 WebSocket 连接, userId: {}, channelId: {}, reason: {}",
+                userId, channel.id().asShortText(), reason);
+        channel.close();
     }
 
     private boolean isUserOnlineDistributed(String userId) {

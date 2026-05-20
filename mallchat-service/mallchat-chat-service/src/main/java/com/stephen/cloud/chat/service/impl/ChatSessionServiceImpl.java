@@ -266,6 +266,9 @@ public class ChatSessionServiceImpl extends ServiceImpl<ChatSessionMapper, ChatS
             session.setUnreadCount(0);
             session.setTopStatus(0);
         }
+        if (isDuplicateOrStaleMessage(session, lastMessageId)) {
+            return;
+        }
         session.setLastMessageId(lastMessageId);
         session.setActiveTime(new Date());
         if (incrementUnread) {
@@ -302,17 +305,25 @@ public class ChatSessionServiceImpl extends ServiceImpl<ChatSessionMapper, ChatS
                 session.setUnreadCount(0);
                 session.setTopStatus(0);
             }
-            session.setLastMessageId(lastMessageId);
-            session.setActiveTime(now);
-            // 发送者不增加未读数
-            if (!userId.equals(senderId)) {
-                Integer currentUnread = session.getUnreadCount();
-                session.setUnreadCount((currentUnread == null ? 0 : currentUnread) + 1);
+            if (!isDuplicateOrStaleMessage(session, lastMessageId)) {
+                session.setLastMessageId(lastMessageId);
+                session.setActiveTime(now);
+                // 发送者不增加未读数
+                if (!userId.equals(senderId)) {
+                    Integer currentUnread = session.getUnreadCount();
+                    session.setUnreadCount((currentUnread == null ? 0 : currentUnread) + 1);
+                }
             }
             toUpdate.add(session);
         }
 
         // 3. 批量保存或更新
         this.saveOrUpdateBatch(toUpdate);
+    }
+
+    private boolean isDuplicateOrStaleMessage(ChatSession session, Long lastMessageId) {
+        return session.getLastMessageId() != null
+                && lastMessageId != null
+                && session.getLastMessageId() >= lastMessageId;
     }
 }

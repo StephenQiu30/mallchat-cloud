@@ -8,6 +8,8 @@
 
 **Tech Stack:** Java 21, Spring Cloud, Sa-Token, Netty WebSocket, RabbitMQ, Redis, MyBatis-Plus, JUnit 5, Mockito, OpenSpec, GitHub CLI.
 
+**PR Rule:** 生产化子 Issue 必须通过 m 系列 PR 消费，编号从 `m1` 开始；`m1` 对应 Issue #6，分支为 `m1-websocket-handshake-security`。
+
 ---
 
 ## File Structure
@@ -211,6 +213,10 @@ Expected: `main` pushes successfully.
 
 **Issue:** `[P0][backend][security] WebSocket 握手鉴权与 Origin 校验`
 
+**PR:** `[m1] 加固 WebSocket 握手鉴权与 Origin 校验`
+
+**Branch:** `m1-websocket-handshake-security`
+
 **Files:**
 - Create: `mallchat-common/mallchat-common-websocket/src/test/java/com/stephen/cloud/common/websocket/handler/HttpHeadersHandlerTest.java`
 - Modify: `mallchat-common/mallchat-common-websocket/src/main/java/com/stephen/cloud/common/websocket/handler/HttpHeadersHandler.java`
@@ -314,4 +320,4 @@ Each batch must repeat the same gate:
 - Module tests.
 - `openspec validate --all --strict`.
 - Update GitHub issue.
-- Commit and push.
+- Create or update the matching m-series PR.

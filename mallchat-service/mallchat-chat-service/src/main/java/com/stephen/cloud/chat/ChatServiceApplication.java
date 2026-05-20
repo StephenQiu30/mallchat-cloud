@@ -6,6 +6,7 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.cloud.client.discovery.EnableDiscoveryClient;
 import org.springframework.cloud.openfeign.EnableFeignClients;
 import org.springframework.context.annotation.EnableAspectJAutoProxy;
+import org.springframework.scheduling.annotation.EnableAsync;
 
 /**
  * 聊天服务启动类
@@ -16,6 +17,7 @@ import org.springframework.context.annotation.EnableAspectJAutoProxy;
 @EnableDiscoveryClient
 @EnableFeignClients(basePackages = "com.stephen.cloud.api.*.client")
 @EnableAspectJAutoProxy(proxyTargetClass = true, exposeProxy = true)
+@EnableAsync
 @MapperScan("com.stephen.cloud.chat.mapper")
 public class ChatServiceApplication {
 

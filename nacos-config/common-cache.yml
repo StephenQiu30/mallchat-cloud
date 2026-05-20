@@ -25,3 +25,10 @@ caffeine:
   expired: 300
   initCapacity: 100
   maxCapacity: 10000
+
+management:
+  endpoint:
+    health:
+      group:
+        readiness:
+          include: ping,redis

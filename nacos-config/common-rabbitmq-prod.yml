@@ -34,3 +34,9 @@ mq:
     # 单条消息消费耗时告警阈值（毫秒），生产环境设置更严格的阈值
     slow-consume-threshold-ms: 3000
 
+management:
+  endpoint:
+    health:
+      group:
+        readiness:
+          include: ping,db,redis,rabbit

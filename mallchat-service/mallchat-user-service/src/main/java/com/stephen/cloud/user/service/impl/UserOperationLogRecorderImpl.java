@@ -43,6 +43,7 @@ public class UserOperationLogRecorderImpl implements OperationLogRecorder {
             OperationLogAddRequest request = new OperationLogAddRequest();
             request.setModule(context.getModule());
             request.setAction(context.getAction());
+            request.setBizId(context.getBizId());
             request.setMethod(context.getMethod());
             request.setPath(context.getPath());
             request.setRequestParams(context.getRequestParams());

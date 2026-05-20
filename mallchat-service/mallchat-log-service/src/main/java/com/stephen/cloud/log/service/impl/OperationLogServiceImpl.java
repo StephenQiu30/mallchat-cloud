@@ -49,6 +49,7 @@ public class OperationLogServiceImpl extends ServiceImpl<OperationLogMapper, Ope
         Long operatorId = queryRequest.getOperatorId();
         String module = queryRequest.getModule();
         String action = queryRequest.getAction();
+        String bizId = queryRequest.getBizId();
         Integer success = queryRequest.getSuccess();
         String clientIp = queryRequest.getClientIp();
         String sortField = queryRequest.getSortField();
@@ -58,6 +59,7 @@ public class OperationLogServiceImpl extends ServiceImpl<OperationLogMapper, Ope
         queryWrapper.eq(ObjectUtil.isNotNull(operatorId), OperationLog::getOperatorId, operatorId);
         queryWrapper.eq(StringUtils.isNotBlank(module), OperationLog::getModule, module);
         queryWrapper.like(StringUtils.isNotBlank(action), OperationLog::getAction, action);
+        queryWrapper.eq(StringUtils.isNotBlank(bizId), OperationLog::getBizId, bizId);
         queryWrapper.eq(ObjectUtil.isNotNull(success), OperationLog::getSuccess, success);
         queryWrapper.eq(StringUtils.isNotBlank(clientIp), OperationLog::getClientIp, clientIp);
 

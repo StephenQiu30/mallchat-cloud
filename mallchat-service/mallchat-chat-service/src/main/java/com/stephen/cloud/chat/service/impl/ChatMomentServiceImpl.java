@@ -26,6 +26,7 @@ import com.stephen.cloud.chat.model.entity.ChatMomentLike;
 import com.stephen.cloud.chat.model.entity.ChatMomentMedia;
 import com.stephen.cloud.chat.service.ChatMomentService;
 import com.stephen.cloud.chat.service.UserFriendService;
+import com.stephen.cloud.chat.support.ChatBusinessMetricsRecorder;
 import com.stephen.cloud.common.common.ErrorCode;
 import com.stephen.cloud.common.common.ThrowUtils;
 import jakarta.annotation.Resource;
@@ -77,6 +78,9 @@ public class ChatMomentServiceImpl extends ServiceImpl<ChatMomentMapper, ChatMom
 
     @Resource
     private NotificationFeignClient notificationFeignClient;
+
+    @Resource
+    private ChatBusinessMetricsRecorder businessMetricsRecorder;
 
     @Override
     @Transactional(rollbackFor = Exception.class)
@@ -167,6 +171,7 @@ public class ChatMomentServiceImpl extends ServiceImpl<ChatMomentMapper, ChatMom
         }
         boolean increased = increaseMomentLikeCount(momentId);
         ThrowUtils.throwIf(!increased, ErrorCode.OPERATION_ERROR, "更新点赞数失败");
+        businessMetricsRecorder.record("moment_like", "success");
         trySendMomentInteractionNotification(moment, userId, NotificationTypeEnum.LIKE.getCode(), null);
     }
 
@@ -203,6 +208,7 @@ public class ChatMomentServiceImpl extends ServiceImpl<ChatMomentMapper, ChatMom
         ThrowUtils.throwIf(!saved || comment.getId() == null, ErrorCode.OPERATION_ERROR, "评论动态失败");
         boolean increased = increaseMomentCommentCount(request.getMomentId());
         ThrowUtils.throwIf(!increased, ErrorCode.OPERATION_ERROR, "更新评论数失败");
+        businessMetricsRecorder.record("moment_comment", "success");
         trySendMomentInteractionNotification(moment, userId, NotificationTypeEnum.COMMENT.getCode(), comment.getId());
         return comment.getId();
     }

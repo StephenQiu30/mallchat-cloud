@@ -45,6 +45,7 @@ downstream:
 3. 每轮消费 2-3 个子 Issue，避免并行冲突和不可验收的大改动。
 4. 每个功能实现都遵循测试先行：RED 失败测试、GREEN 最小实现、REFACTOR 小范围清理。
 5. 每批完成后同步 GitHub Issue、OpenSpec tasks、验收文档、测试命令和中文提交。
+6. 每个子 Issue 通过独立 PR 消费，PR 编号从 `m1` 开始递增；首个消费 PR 为 `m1`，对应 Issue #6。
 
 ## 3. 非目标
 
@@ -87,7 +88,8 @@ downstream:
 
 1. `P0-01` 先执行，原因是 WebSocket 是实时 IM 的入口。
 2. 文件所有权限定为 `mallchat-common-websocket` 和对应 OpenSpec change。
-3. TDD 顺序为：
+3. PR 编号为 `m1`，建议分支为 `m1-websocket-handshake-security`，PR 标题为 `[m1] 加固 WebSocket 握手鉴权与 Origin 校验`。
+4. TDD 顺序为：
    - RED：未登录、非法 token、非法 Origin、合法 token 四类测试先失败。
    - GREEN：最小实现 401/403 拒绝和合法 userId 绑定。
    - REFACTOR：只清理重复提取逻辑，不改变协议。
@@ -132,7 +134,15 @@ downstream:
 
 同一轮最多派发 2-3 个子 Issue。涉及同一 OpenSpec spec 或同一核心文件时，必须串行。
 
-## 8. 通用验收命令
+## 8. PR 编号与消费规则
+
+1. m 系列 PR 从 `m1` 开始，每个 PR 只消费一个明确的 P0 子 Issue。
+2. 分支命名格式为 `m<序号>-<issue-slug>`，例如 `m1-websocket-handshake-security`。
+3. PR 标题格式为 `[m<序号>] <中文动作 + 功能名>`，例如 `[m1] 加固 WebSocket 握手鉴权与 Origin 校验`。
+4. PR 描述必须包含关联 Issue、OpenSpec change id、RED 测试命令与失败摘要、GREEN 验证命令与通过摘要、影响范围和残余风险。
+5. `main` 只接收已 review、已验证、已归档或明确保留未归档状态的 PR，不直接承载生产化子 Issue 的开发提交。
+
+## 9. 通用验收命令
 
 每个后端 Issue 至少运行以下命令中的相关子集：
 
@@ -148,7 +158,7 @@ git diff --check
 
 如果命令因环境缺失无法运行，交付说明必须写清楚缺失条件、影响范围和补验计划。
 
-## 9. P1/P2 候选池
+## 10. P1/P2 候选池
 
 P1 候选池在 P0 完成 70%-80% 后评审，暂不创建 GitHub Issue：
 
@@ -162,7 +172,7 @@ P1 候选池在 P0 完成 70%-80% 后评审，暂不创建 GitHub Issue：
 
 P2 候选池只保留方向：语音消息、视频消息、表情和贴纸、消息转发、动态公开广场、动态推荐流、内容审核 AI、复杂管理后台审计检索、多端完整 E2E 自动化矩阵。
 
-## 10. 风险与边界
+## 11. 风险与边界
 
 1. 如果 GitHub Issue 创建失败，先保留 docs 编排，不进入代码消费。
 2. 如果 RED 测试无法真实失败，必须修正测试，不能直接写实现。
@@ -170,7 +180,7 @@ P2 候选池只保留方向：语音消息、视频消息、表情和贴纸、�
 4. 如果多个子智能体产生冲突，主智能体只合并已验证且范围正确的结果。
 5. 如果 OpenSpec change 不能归档，不关闭对应 GitHub Issue。
 
-## 11. 变更记录
+## 12. 变更记录
 
 | 日期 | 作者 | 版本 | 变更说明 |
 | --- | --- | --- | --- |

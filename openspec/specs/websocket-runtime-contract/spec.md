@@ -1,7 +1,7 @@
 # websocket-runtime-contract Specification
 
 ## Purpose
-TBD - created by archiving change align-websocket-runtime-contract. Update Purpose after archive.
+定义 MallChat 默认 IM 实时链路的 WebSocket 运行承载、启动开关、连接入口、握手鉴权、心跳和网关边界。
 ## Requirements
 ### Requirement: WebSocket runtime host is explicit
 The system SHALL define which Spring service is allowed to host the Netty WebSocket listener for the default IM runtime.
@@ -31,4 +31,3 @@ The system SHALL document the supported WebSocket connection address, token plac
 - **WHEN** a client needs real-time IM events
 - **THEN** the documented default endpoint SHALL identify the notification-service WebSocket host, the configured path, and the supported token delivery methods
 - **AND** the documentation SHALL state whether `/api/websocket/**` through gateway is an accepted runtime entry
-

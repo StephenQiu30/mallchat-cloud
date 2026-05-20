@@ -11,9 +11,11 @@ import com.stephen.cloud.chat.model.entity.UserFriendApply;
 import com.stephen.cloud.chat.mq.producer.ChatMqProducer;
 import com.stephen.cloud.chat.service.ChatRoomService;
 import com.stephen.cloud.chat.service.UserFriendService;
+import com.stephen.cloud.chat.support.ChatBusinessMetricsRecorder;
 import com.stephen.cloud.common.common.BaseResponse;
 import com.stephen.cloud.common.common.ErrorCode;
 import com.stephen.cloud.common.exception.BusinessException;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -37,6 +39,7 @@ class UserFriendApplyServiceImplTest {
     private List<NotificationCreateRequest> notifications;
     private boolean notificationFails;
     private int notificationAttempts;
+    private SimpleMeterRegistry meterRegistry;
 
     @BeforeEach
     void setUp() {
@@ -46,12 +49,15 @@ class UserFriendApplyServiceImplTest {
         chatMqProducer = new FakeChatMqProducer();
         users = new HashMap<>();
         notifications = new ArrayList<>();
+        meterRegistry = new SimpleMeterRegistry();
 
         ReflectionTestUtils.setField(userFriendApplyService, "userFriendService", userFriendService.createProxy());
         ReflectionTestUtils.setField(userFriendApplyService, "chatRoomService", chatRoomService.createProxy());
         ReflectionTestUtils.setField(userFriendApplyService, "userFeignClient", createUserFeignClient());
         ReflectionTestUtils.setField(userFriendApplyService, "chatMqProducer", chatMqProducer);
         ReflectionTestUtils.setField(userFriendApplyService, "notificationFeignClient", createNotificationFeignClient());
+        ReflectionTestUtils.setField(userFriendApplyService, "businessMetricsRecorder",
+                new ChatBusinessMetricsRecorder(meterRegistry));
     }
 
     @Test
@@ -115,6 +121,7 @@ class UserFriendApplyServiceImplTest {
         Assertions.assertEquals(99L, result);
         Assertions.assertNull(chatMqProducer.lastApplyUserId);
         Assertions.assertTrue(notifications.isEmpty());
+        Assertions.assertEquals(1.0, businessCounter("friend_apply", "duplicate"));
     }
 
     @Test
@@ -147,6 +154,7 @@ class UserFriendApplyServiceImplTest {
         Assertions.assertEquals("friend_apply:10", notification.getBizId());
         Assertions.assertEquals("user_friend_apply", notification.getRelatedType());
         Assertions.assertEquals(10L, notification.getRelatedId());
+        Assertions.assertEquals(1.0, businessCounter("friend_apply", "success"));
     }
 
     @Test
@@ -411,6 +419,14 @@ class UserFriendApplyServiceImplTest {
                     throw new UnsupportedOperationException(method.getName());
                 }
         );
+    }
+
+    private double businessCounter(String action, String result) {
+        return meterRegistry.get("mallchat.im.business.total")
+                .tag("action", action)
+                .tag("result", result)
+                .counter()
+                .count();
     }
 
     private static class TestableUserFriendApplyServiceImpl extends UserFriendApplyServiceImpl {
