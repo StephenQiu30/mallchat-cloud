@@ -117,6 +117,14 @@ public interface UserFriendService extends IService<UserFriend> {
     Set<Long> listFriendIdsForNotification(Long userId);
 
     /**
+     * 获取互为好友的用户 ID 集合。
+     *
+     * @param userId 当前用户 ID
+     * @return 好友用户 ID 集合
+     */
+    Set<Long> listMutualFriendIds(Long userId);
+
+    /**
      * 移除好友（双向记录，并同步清除缓存）
      *
      * @param userId       当前用户 ID

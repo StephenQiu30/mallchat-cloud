@@ -230,6 +230,8 @@ CREATE TABLE `ai_chat_record`
 -- ============================================
 
 DROP TABLE IF EXISTS `chat_message`;
+DROP TABLE IF EXISTS `chat_moment_media`;
+DROP TABLE IF EXISTS `chat_moment`;
 DROP TABLE IF EXISTS `chat_room_member`;
 DROP TABLE IF EXISTS `chat_private_room`;
 DROP TABLE IF EXISTS `chat_room`;
@@ -308,6 +310,43 @@ CREATE TABLE `chat_message`
 ) ENGINE = InnoDB
   DEFAULT CHARSET = utf8mb4
   COLLATE = utf8mb4_unicode_ci COMMENT = '聊天消息表';
+
+CREATE TABLE `chat_moment`
+(
+    `id`            bigint        NOT NULL AUTO_INCREMENT COMMENT '动态ID',
+    `user_id`       bigint        NOT NULL COMMENT '发布用户ID',
+    `content`       varchar(1000)          DEFAULT NULL COMMENT '动态正文',
+    `media_count`   int           NOT NULL DEFAULT 0 COMMENT '媒体数量',
+    `like_count`    int           NOT NULL DEFAULT 0 COMMENT '点赞数',
+    `comment_count` int           NOT NULL DEFAULT 0 COMMENT '评论数',
+    `status`        tinyint       NOT NULL DEFAULT 0 COMMENT '状态：0-正常，1-已删除',
+    `create_time`   datetime      NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    `update_time`   datetime      NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+    `is_delete`     tinyint       NOT NULL DEFAULT 0 COMMENT '是否删除',
+    PRIMARY KEY (`id`),
+    KEY `idx_user_time` (`user_id`, `create_time` DESC),
+    KEY `idx_status_time` (`status`, `create_time` DESC)
+) ENGINE = InnoDB
+  DEFAULT CHARSET = utf8mb4
+  COLLATE = utf8mb4_unicode_ci COMMENT = '动态主体表';
+
+CREATE TABLE `chat_moment_media`
+(
+    `id`          bigint        NOT NULL AUTO_INCREMENT COMMENT '动态媒体ID',
+    `moment_id`   bigint        NOT NULL COMMENT '动态ID',
+    `url`         varchar(1024) NOT NULL COMMENT '媒体URL',
+    `width`       int                    DEFAULT NULL COMMENT '图片宽度',
+    `height`      int                    DEFAULT NULL COMMENT '图片高度',
+    `size`        bigint                 DEFAULT NULL COMMENT '文件大小',
+    `sort_order`  int           NOT NULL DEFAULT 0 COMMENT '排序',
+    `create_time` datetime      NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    `update_time` datetime      NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+    `is_delete`   tinyint       NOT NULL DEFAULT 0 COMMENT '是否删除',
+    PRIMARY KEY (`id`),
+    KEY `idx_moment_sort` (`moment_id`, `sort_order`)
+) ENGINE = InnoDB
+  DEFAULT CHARSET = utf8mb4
+  COLLATE = utf8mb4_unicode_ci COMMENT = '动态媒体表';
 
 -- 私聊房间映射表
 DROP TABLE IF EXISTS `chat_private_room`;

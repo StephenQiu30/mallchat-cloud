@@ -259,6 +259,11 @@ public class UserFriendServiceImpl extends ServiceImpl<UserFriendMapper, UserFri
 
     @Override
     public Set<Long> listFriendIdsForNotification(Long userId) {
+        return listMutualFriendIds(userId);
+    }
+
+    @Override
+    public Set<Long> listMutualFriendIds(Long userId) {
         if (userId == null) {
             return Collections.emptySet();
         }
