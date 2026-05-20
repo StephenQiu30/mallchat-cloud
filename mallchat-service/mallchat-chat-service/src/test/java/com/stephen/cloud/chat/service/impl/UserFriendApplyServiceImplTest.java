@@ -175,6 +175,35 @@ class UserFriendApplyServiceImplTest {
     }
 
     @Test
+    void shouldKeepFriendApplicationWhenPushFails() {
+        UserVO applyUser = new UserVO();
+        applyUser.setId(1L);
+        applyUser.setUserName("u1");
+        users.put(1L, applyUser);
+        UserVO targetUser = new UserVO();
+        targetUser.setId(2L);
+        users.put(2L, targetUser);
+        userFriendService.mutualFriend = false;
+        chatMqProducer.applyPushThrows = true;
+
+        UserFriendApply apply = new UserFriendApply();
+        apply.setTargetId(2L);
+        apply.setMsg("hello");
+        userFriendApplyService.nextSaveId = 10L;
+        userFriendApplyService.saveResult = true;
+
+        Long result = Assertions.assertDoesNotThrow(() -> userFriendApplyService.applyFriend(apply, 1L));
+
+        Assertions.assertEquals(10L, result);
+        Assertions.assertSame(apply, userFriendApplyService.savedApply);
+        Assertions.assertEquals(1, apply.getStatus());
+        Assertions.assertEquals(List.of("friend_apply:10"), chatMqProducer.applyAttemptBizIds);
+        Assertions.assertEquals(1, notificationAttempts);
+        Assertions.assertEquals(1, notifications.size());
+        Assertions.assertEquals("friend_apply:10", notifications.get(0).getBizId());
+    }
+
+    @Test
     void shouldApproveFriendByCreatingFriendshipAndPrivateRoom() {
         UserVO applyUser = new UserVO();
         applyUser.setId(1L);
@@ -242,6 +271,40 @@ class UserFriendApplyServiceImplTest {
         Assertions.assertEquals(1L, chatMqProducer.lastApproveUserId);
         Assertions.assertEquals(1, notificationAttempts);
         Assertions.assertTrue(notifications.isEmpty());
+    }
+
+    @Test
+    void shouldKeepFriendApprovalWhenPushFails() {
+        UserVO applyUser = new UserVO();
+        applyUser.setId(1L);
+        applyUser.setUserName("u1");
+        users.put(1L, applyUser);
+        chatMqProducer.approvePushThrows = true;
+
+        ChatFriendApproveRequest request = new ChatFriendApproveRequest();
+        request.setApplyId(10L);
+        request.setStatus(2);
+
+        UserFriendApply apply = new UserFriendApply();
+        apply.setId(10L);
+        apply.setUserId(1L);
+        apply.setTargetId(2L);
+        apply.setStatus(1);
+        userFriendApplyService.applyById = apply;
+        userFriendApplyService.updateResult = true;
+
+        boolean result = Assertions.assertDoesNotThrow(() -> userFriendApplyService.approveFriend(request, 2L));
+
+        Assertions.assertTrue(result);
+        Assertions.assertEquals(2, apply.getStatus());
+        Assertions.assertEquals(1L, userFriendService.lastAddUserId);
+        Assertions.assertEquals(2L, userFriendService.lastAddFriendUserId);
+        Assertions.assertEquals(1L, chatRoomService.lastPeerUserId);
+        Assertions.assertEquals(2L, chatRoomService.lastUserId);
+        Assertions.assertEquals(List.of("friend_approve:10"), chatMqProducer.approveAttemptBizIds);
+        Assertions.assertEquals(1, notificationAttempts);
+        Assertions.assertEquals(1, notifications.size());
+        Assertions.assertEquals("friend_approve:10", notifications.get(0).getBizId());
     }
 
     private UserFeignClient createUserFeignClient() {
@@ -362,9 +425,17 @@ class UserFriendApplyServiceImplTest {
         private Long lastApproveUserId;
         private Object lastApprovePayload;
         private String lastApproveBizId;
+        private boolean applyPushThrows;
+        private boolean approvePushThrows;
+        private final List<String> applyAttemptBizIds = new ArrayList<>();
+        private final List<String> approveAttemptBizIds = new ArrayList<>();
 
         @Override
         public void sendFriendApply(Long userId, Object data, String bizId) {
+            applyAttemptBizIds.add(bizId);
+            if (applyPushThrows) {
+                throw new RuntimeException("friend apply push failed");
+            }
             this.lastApplyUserId = userId;
             this.lastApplyPayload = data;
             this.lastApplyBizId = bizId;
@@ -372,6 +443,10 @@ class UserFriendApplyServiceImplTest {
 
         @Override
         public void sendFriendApprove(Long userId, Object data, String bizId) {
+            approveAttemptBizIds.add(bizId);
+            if (approvePushThrows) {
+                throw new RuntimeException("friend approve push failed");
+            }
             this.lastApproveUserId = userId;
             this.lastApprovePayload = data;
             this.lastApproveBizId = bizId;

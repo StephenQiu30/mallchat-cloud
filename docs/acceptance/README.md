@@ -16,6 +16,7 @@
 | [A-001-agents-ci-report.md](./A-001-agents-ci-report.md) | AGENTS 迁移与后端 CI 验收结论 |
 | [A-011-session-operation-push-degradation-acceptance.md](./A-011-session-operation-push-degradation-acceptance.md) | 退群、会话置顶、会话删除推送失败降级验收结论 |
 | [A-012-message-flow-push-degradation-acceptance.md](./A-012-message-flow-push-degradation-acceptance.md) | 消息发送、已读上报、消息撤回推送失败降级验收结论 |
+| [A-013-friend-apply-push-degradation-acceptance.md](./A-013-friend-apply-push-degradation-acceptance.md) | 好友申请、好友通过推送失败降级验收结论 |
 
 ## 不适合放入
 

@@ -188,7 +188,12 @@ public class UserFriendApplyServiceImpl extends ServiceImpl<UserFriendApplyMappe
         apply.setStatus(1); // 1-待处理
         this.save(apply);
         String bizId = "friend_apply:" + apply.getId();
-        chatMqProducer.sendFriendApply(targetId, getUserFriendApplyVO(apply, null), bizId);
+        try {
+            chatMqProducer.sendFriendApply(targetId, getUserFriendApplyVO(apply, null), bizId);
+        } catch (Exception e) {
+            log.warn("[UserFriendApplyServiceImpl] 推送好友申请事件失败, userId: {}, applyId: {}, bizId: {}, reason: {}",
+                    targetId, apply.getId(), bizId, e.getMessage());
+        }
         trySendFriendNotification(targetId, "好友申请", "你收到一条新的好友申请", bizId, apply.getId());
         return apply.getId();
     }
@@ -222,7 +227,12 @@ public class UserFriendApplyServiceImpl extends ServiceImpl<UserFriendApplyMappe
 
         // 发送 WebSocket 通知
         String bizId = "friend_approve:" + apply.getId();
-        chatMqProducer.sendFriendApprove(apply.getUserId(), getUserFriendApplyVO(apply, null), bizId);
+        try {
+            chatMqProducer.sendFriendApprove(apply.getUserId(), getUserFriendApplyVO(apply, null), bizId);
+        } catch (Exception e) {
+            log.warn("[UserFriendApplyServiceImpl] 推送好友通过事件失败, userId: {}, applyId: {}, bizId: {}, reason: {}",
+                    apply.getUserId(), apply.getId(), bizId, e.getMessage());
+        }
         trySendFriendNotification(apply.getUserId(), "好友申请已通过", "你的好友申请已通过", bizId, apply.getId());
 
         return this.updateById(apply);
