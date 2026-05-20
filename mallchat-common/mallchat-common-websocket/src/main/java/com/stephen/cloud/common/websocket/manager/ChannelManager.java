@@ -182,16 +182,53 @@ public class ChannelManager {
         String userConnectionsKey = WebSocketConstant.WS_USER_CONNECTIONS_KEY + userId;
         Set<String> connectionIds = cacheUtils.sMembers(userConnectionsKey);
         if (connectionIds == null || connectionIds.isEmpty()) {
+            rebuildPersistedConnections(userId);
+            connectionIds = cacheUtils.sMembers(userConnectionsKey);
+            if (connectionIds == null || connectionIds.isEmpty()) {
+                return;
+            }
+        }
+        boolean missingMeta = false;
+        for (String connectionId : connectionIds) {
+            if (!refreshConnectionMeta(connectionId)) {
+                missingMeta = true;
+            }
+        }
+        if (missingMeta) {
+            rebuildPersistedConnections(userId);
+            connectionIds = cacheUtils.sMembers(userConnectionsKey);
+            if (connectionIds != null) {
+                connectionIds.forEach(this::refreshConnectionMeta);
+            }
+        }
+        cacheUtils.expire(userConnectionsKey, WebSocketConstant.WS_CONNECTION_EXPIRE_SECONDS);
+    }
+
+    private boolean refreshConnectionMeta(String connectionId) {
+        String metaKey = WebSocketConstant.WS_CONNECTION_META_KEY + connectionId;
+        Map<String, String> connectionInfo = cacheUtils.getHash(metaKey);
+        if (connectionInfo == null || connectionInfo.isEmpty()) {
+            return false;
+        }
+        cacheUtils.setHash(metaKey, connectionInfo, WebSocketConstant.WS_CONNECTION_EXPIRE_SECONDS);
+        return true;
+    }
+
+    private void rebuildPersistedConnections(String userId) {
+        Map<String, Channel> channelMap = userChannelMap.get(userId);
+        if (channelMap == null || channelMap.isEmpty()) {
             return;
         }
-        connectionIds.forEach(connectionId -> {
-            String metaKey = WebSocketConstant.WS_CONNECTION_META_KEY + connectionId;
-            Map<String, String> connectionInfo = cacheUtils.getHash(metaKey);
-            if (connectionInfo != null && !connectionInfo.isEmpty()) {
-                cacheUtils.setHash(metaKey, connectionInfo, WebSocketConstant.WS_CONNECTION_EXPIRE_SECONDS);
+        channelMap.forEach((channelId, channel) -> {
+            if (channel == null || !channel.isActive()) {
+                return;
             }
+            String connectionId = channelConnectionMap.get(channelId);
+            if (connectionId == null) {
+                return;
+            }
+            persistConnection(userId, connectionId, channelId);
         });
-        cacheUtils.expire(userConnectionsKey, WebSocketConstant.WS_CONNECTION_EXPIRE_SECONDS);
     }
 
     public void setServerId(String serverId) {

@@ -67,6 +67,18 @@ class UserFriendServiceImplTest {
     }
 
     @Test
+    void shouldCheckMutualFriendFromDatabaseWhenCacheIsCold() {
+        ActualCacheRecoveryUserFriendServiceImpl service = new ActualCacheRecoveryUserFriendServiceImpl();
+        FakeCacheUtils localCacheUtils = new FakeCacheUtils();
+        ReflectionTestUtils.setField(service, "cacheUtils", localCacheUtils);
+        service.listResult = List.of(createFriend(1L, 2L));
+
+        Assertions.assertTrue(service.isMutualFriend(1L, 2L));
+        Assertions.assertTrue(localCacheUtils.exists(ChatCacheConstant.getUserFriendKey(1L)));
+        Assertions.assertTrue(localCacheUtils.sIsMember(ChatCacheConstant.getUserFriendKey(1L), "2"));
+    }
+
+    @Test
     void shouldReturnEmptySetForUserWithoutFriends() {
         userFriendService.listResult = List.of();
 
@@ -331,6 +343,15 @@ class UserFriendServiceImplTest {
 
         private static String key(Long userId, Long targetId) {
             return userId + ":" + targetId;
+        }
+    }
+
+    private static class ActualCacheRecoveryUserFriendServiceImpl extends UserFriendServiceImpl {
+        private List<UserFriend> listResult = new ArrayList<>();
+
+        @Override
+        public List<UserFriend> list(Wrapper<UserFriend> queryWrapper) {
+            return new ArrayList<>(listResult);
         }
     }
 

@@ -1,6 +1,5 @@
 package com.stephen.cloud.file.service.impl;
 
-import cn.hutool.core.io.FileUtil;
 import com.qcloud.cos.COSClient;
 import com.qcloud.cos.model.ObjectMetadata;
 import com.qcloud.cos.model.PutObjectRequest;
@@ -31,16 +30,20 @@ public class CosFileServiceImpl implements FileService {
     @Resource
     private COSClient cosClient;
 
+    @Resource
+    private FileUploadValidator fileUploadValidator;
+
     @Override
     public FileVO uploadFile(MultipartFile multipartFile, FileUploadBizEnum bizTypeEnum) {
-        String fileName = multipartFile.getOriginalFilename();
-        String suffix = FileUtil.getSuffix(fileName);
+        FileUploadValidator.ValidatedFile validatedFile = fileUploadValidator.validate(multipartFile, bizTypeEnum);
+        String fileName = validatedFile.fileName();
+        String suffix = validatedFile.suffix();
         String key = String.format("%s/%s_%s.%s", bizTypeEnum.getCode(), UUID.randomUUID(), System.currentTimeMillis(), suffix);
 
         try (InputStream inputStream = multipartFile.getInputStream()) {
             ObjectMetadata objectMetadata = new ObjectMetadata();
-            objectMetadata.setContentLength(multipartFile.getSize());
-            objectMetadata.setContentType(multipartFile.getContentType());
+            objectMetadata.setContentLength(validatedFile.size());
+            objectMetadata.setContentType(validatedFile.contentType());
 
             PutObjectRequest putObjectRequest = new PutObjectRequest(fileStorageConfiguration.getBucket(), key, inputStream, objectMetadata);
             cosClient.putObject(putObjectRequest);
@@ -52,7 +55,7 @@ public class CosFileServiceImpl implements FileService {
                     .key(key)
                     .url(url)
                     .fileName(fileName)
-                    .size(multipartFile.getSize())
+                    .size(validatedFile.size())
                     .build();
         } catch (Exception e) {
             log.error("COS 文件上传失败, key: {}", key, e);

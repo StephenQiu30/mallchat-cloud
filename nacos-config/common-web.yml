@@ -105,10 +105,17 @@ management:
   endpoints:
     web:
       exposure:
-        include: 'health,info'
+        include: 'health,info,metrics'
   endpoint:
     health:
       show-details: always
+      probes:
+        enabled: true
+      group:
+        liveness:
+          include: ping
+        readiness:
+          include: ping
   health:
     redis:
       enabled: true

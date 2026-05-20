@@ -18,6 +18,7 @@ import com.stephen.cloud.chat.mq.producer.ChatMqProducer;
 import com.stephen.cloud.chat.service.ChatRoomService;
 import com.stephen.cloud.chat.service.UserFriendApplyService;
 import com.stephen.cloud.chat.service.UserFriendService;
+import com.stephen.cloud.chat.support.ChatBusinessMetricsRecorder;
 import com.stephen.cloud.common.common.BaseResponse;
 import com.stephen.cloud.common.common.ErrorCode;
 import com.stephen.cloud.common.common.ThrowUtils;
@@ -62,6 +63,9 @@ public class UserFriendApplyServiceImpl extends ServiceImpl<UserFriendApplyMappe
 
     @Resource
     private NotificationFeignClient notificationFeignClient;
+
+    @Resource
+    private ChatBusinessMetricsRecorder businessMetricsRecorder;
 
     /**
      * 校验好友申请数据
@@ -181,6 +185,7 @@ public class UserFriendApplyServiceImpl extends ServiceImpl<UserFriendApplyMappe
                 .last("LIMIT 1"));
         if (existing != null) {
             if (existing.getUserId().equals(userId) && existing.getTargetId().equals(targetId)) {
+                businessMetricsRecorder.record("friend_apply", "duplicate");
                 return existing.getId();
             }
             throw new BusinessException(ErrorCode.OPERATION_ERROR, "对方已向你发起好友申请，请前往申请列表处理");
@@ -189,6 +194,7 @@ public class UserFriendApplyServiceImpl extends ServiceImpl<UserFriendApplyMappe
         apply.setUserId(userId);
         apply.setStatus(1); // 1-待处理
         this.save(apply);
+        businessMetricsRecorder.record("friend_apply", "success");
         String bizId = "friend_apply:" + apply.getId();
         try {
             chatMqProducer.sendFriendApply(targetId, getUserFriendApplyVO(apply, null), bizId);
