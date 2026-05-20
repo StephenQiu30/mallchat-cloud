@@ -2,6 +2,9 @@ package com.stephen.cloud.chat.service.impl;
 
 import com.stephen.cloud.api.chat.model.dto.ChatFriendApproveRequest;
 import com.stephen.cloud.api.chat.model.vo.ChatFriendApplyVO;
+import com.stephen.cloud.api.notification.client.NotificationFeignClient;
+import com.stephen.cloud.api.notification.model.dto.NotificationCreateRequest;
+import com.stephen.cloud.api.notification.model.enums.NotificationTypeEnum;
 import com.stephen.cloud.api.user.client.UserFeignClient;
 import com.stephen.cloud.api.user.model.vo.UserVO;
 import com.stephen.cloud.chat.model.entity.UserFriendApply;
@@ -17,7 +20,9 @@ import org.junit.jupiter.api.Test;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.lang.reflect.Proxy;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 class UserFriendApplyServiceImplTest {
@@ -27,6 +32,9 @@ class UserFriendApplyServiceImplTest {
     private FakeChatRoomService chatRoomService;
     private FakeChatMqProducer chatMqProducer;
     private Map<Long, UserVO> users;
+    private List<NotificationCreateRequest> notifications;
+    private boolean notificationFails;
+    private int notificationAttempts;
 
     @BeforeEach
     void setUp() {
@@ -35,11 +43,13 @@ class UserFriendApplyServiceImplTest {
         chatRoomService = new FakeChatRoomService();
         chatMqProducer = new FakeChatMqProducer();
         users = new HashMap<>();
+        notifications = new ArrayList<>();
 
         ReflectionTestUtils.setField(userFriendApplyService, "userFriendService", userFriendService.createProxy());
         ReflectionTestUtils.setField(userFriendApplyService, "chatRoomService", chatRoomService.createProxy());
         ReflectionTestUtils.setField(userFriendApplyService, "userFeignClient", createUserFeignClient());
         ReflectionTestUtils.setField(userFriendApplyService, "chatMqProducer", chatMqProducer);
+        ReflectionTestUtils.setField(userFriendApplyService, "notificationFeignClient", createNotificationFeignClient());
     }
 
     @Test
@@ -102,6 +112,66 @@ class UserFriendApplyServiceImplTest {
 
         Assertions.assertEquals(99L, result);
         Assertions.assertNull(chatMqProducer.lastApplyUserId);
+        Assertions.assertTrue(notifications.isEmpty());
+    }
+
+    @Test
+    void shouldCreateNotificationWhenApplyingFriend() {
+        UserVO applyUser = new UserVO();
+        applyUser.setId(1L);
+        applyUser.setUserName("u1");
+        users.put(1L, applyUser);
+        UserVO targetUser = new UserVO();
+        targetUser.setId(2L);
+        users.put(2L, targetUser);
+        userFriendService.mutualFriend = false;
+
+        UserFriendApply apply = new UserFriendApply();
+        apply.setTargetId(2L);
+        apply.setMsg("hello");
+        userFriendApplyService.nextSaveId = 10L;
+        userFriendApplyService.saveResult = true;
+
+        Long result = userFriendApplyService.applyFriend(apply, 1L);
+
+        Assertions.assertEquals(10L, result);
+        Assertions.assertSame(apply, userFriendApplyService.savedApply);
+        Assertions.assertEquals(2L, chatMqProducer.lastApplyUserId);
+        Assertions.assertEquals("friend_apply:10", chatMqProducer.lastApplyBizId);
+        Assertions.assertEquals(1, notifications.size());
+        NotificationCreateRequest notification = notifications.get(0);
+        Assertions.assertEquals(2L, notification.getUserId());
+        Assertions.assertEquals(NotificationTypeEnum.USER.getCode(), notification.getType());
+        Assertions.assertEquals("friend_apply:10", notification.getBizId());
+        Assertions.assertEquals("user_friend_apply", notification.getRelatedType());
+        Assertions.assertEquals(10L, notification.getRelatedId());
+    }
+
+    @Test
+    void shouldKeepFriendApplicationWhenNotificationFails() {
+        UserVO applyUser = new UserVO();
+        applyUser.setId(1L);
+        applyUser.setUserName("u1");
+        users.put(1L, applyUser);
+        UserVO targetUser = new UserVO();
+        targetUser.setId(2L);
+        users.put(2L, targetUser);
+        userFriendService.mutualFriend = false;
+        notificationFails = true;
+
+        UserFriendApply apply = new UserFriendApply();
+        apply.setTargetId(2L);
+        apply.setMsg("hello");
+        userFriendApplyService.nextSaveId = 10L;
+        userFriendApplyService.saveResult = true;
+
+        Long result = userFriendApplyService.applyFriend(apply, 1L);
+
+        Assertions.assertEquals(10L, result);
+        Assertions.assertSame(apply, userFriendApplyService.savedApply);
+        Assertions.assertEquals(2L, chatMqProducer.lastApplyUserId);
+        Assertions.assertEquals(1, notificationAttempts);
+        Assertions.assertTrue(notifications.isEmpty());
     }
 
     @Test
@@ -131,7 +201,47 @@ class UserFriendApplyServiceImplTest {
         Assertions.assertEquals(1L, chatRoomService.lastPeerUserId);
         Assertions.assertEquals(2L, chatRoomService.lastUserId);
         Assertions.assertEquals(1L, chatMqProducer.lastApproveUserId);
+        Assertions.assertEquals("friend_approve:10", chatMqProducer.lastApproveBizId);
         Assertions.assertInstanceOf(ChatFriendApplyVO.class, chatMqProducer.lastApprovePayload);
+        Assertions.assertEquals(1, notifications.size());
+        NotificationCreateRequest notification = notifications.get(0);
+        Assertions.assertEquals(1L, notification.getUserId());
+        Assertions.assertEquals(NotificationTypeEnum.USER.getCode(), notification.getType());
+        Assertions.assertEquals("friend_approve:10", notification.getBizId());
+        Assertions.assertEquals("user_friend_apply", notification.getRelatedType());
+        Assertions.assertEquals(10L, notification.getRelatedId());
+    }
+
+    @Test
+    void shouldKeepFriendApprovalWhenNotificationFails() {
+        UserVO applyUser = new UserVO();
+        applyUser.setId(1L);
+        applyUser.setUserName("u1");
+        users.put(1L, applyUser);
+        notificationFails = true;
+
+        ChatFriendApproveRequest request = new ChatFriendApproveRequest();
+        request.setApplyId(10L);
+        request.setStatus(2);
+
+        UserFriendApply apply = new UserFriendApply();
+        apply.setId(10L);
+        apply.setUserId(1L);
+        apply.setTargetId(2L);
+        apply.setStatus(1);
+        userFriendApplyService.applyById = apply;
+        userFriendApplyService.updateResult = true;
+
+        boolean result = userFriendApplyService.approveFriend(request, 2L);
+
+        Assertions.assertTrue(result);
+        Assertions.assertEquals(1L, userFriendService.lastAddUserId);
+        Assertions.assertEquals(2L, userFriendService.lastAddFriendUserId);
+        Assertions.assertEquals(1L, chatRoomService.lastPeerUserId);
+        Assertions.assertEquals(2L, chatRoomService.lastUserId);
+        Assertions.assertEquals(1L, chatMqProducer.lastApproveUserId);
+        Assertions.assertEquals(1, notificationAttempts);
+        Assertions.assertTrue(notifications.isEmpty());
     }
 
     private UserFeignClient createUserFeignClient() {
@@ -148,9 +258,30 @@ class UserFriendApplyServiceImplTest {
         );
     }
 
+    private NotificationFeignClient createNotificationFeignClient() {
+        return (NotificationFeignClient) Proxy.newProxyInstance(
+                NotificationFeignClient.class.getClassLoader(),
+                new Class[]{NotificationFeignClient.class},
+                (proxy, method, args) -> {
+                    if ("addBusinessNotification".equals(method.getName())) {
+                        notificationAttempts++;
+                        if (notificationFails) {
+                            throw new RuntimeException("notification unavailable");
+                        }
+                        notifications.add((NotificationCreateRequest) args[0]);
+                        return new BaseResponse<>(0, 1000L + notifications.size(), "ok");
+                    }
+                    throw new UnsupportedOperationException(method.getName());
+                }
+        );
+    }
+
     private static class TestableUserFriendApplyServiceImpl extends UserFriendApplyServiceImpl {
         private UserFriendApply existingPending;
         private UserFriendApply applyById;
+        private UserFriendApply savedApply;
+        private Long nextSaveId;
+        private boolean saveResult;
         private boolean updateResult;
 
         @Override
@@ -161,6 +292,15 @@ class UserFriendApplyServiceImplTest {
         @Override
         public UserFriendApply getById(java.io.Serializable id) {
             return applyById;
+        }
+
+        @Override
+        public boolean save(UserFriendApply entity) {
+            this.savedApply = entity;
+            if (nextSaveId != null) {
+                entity.setId(nextSaveId);
+            }
+            return saveResult;
         }
 
         @Override
@@ -218,19 +358,23 @@ class UserFriendApplyServiceImplTest {
     private static class FakeChatMqProducer extends ChatMqProducer {
         private Long lastApplyUserId;
         private Object lastApplyPayload;
+        private String lastApplyBizId;
         private Long lastApproveUserId;
         private Object lastApprovePayload;
+        private String lastApproveBizId;
 
         @Override
         public void sendFriendApply(Long userId, Object data, String bizId) {
             this.lastApplyUserId = userId;
             this.lastApplyPayload = data;
+            this.lastApplyBizId = bizId;
         }
 
         @Override
         public void sendFriendApprove(Long userId, Object data, String bizId) {
             this.lastApproveUserId = userId;
             this.lastApprovePayload = data;
+            this.lastApproveBizId = bizId;
         }
     }
 
