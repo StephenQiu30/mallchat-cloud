@@ -19,4 +19,4 @@
 
 - [x] 4.1 运行 common-web 目标测试。
 - [x] 4.2 运行 OpenSpec strict 校验。
-- [ ] 4.3 同步 GitHub Issue #14。
+- [x] 4.3 同步 GitHub Issue #14。

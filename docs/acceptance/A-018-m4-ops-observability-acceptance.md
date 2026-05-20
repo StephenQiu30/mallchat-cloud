@@ -20,6 +20,7 @@ inputs:
   - "openspec/changes/document-im-production-runbook"
 outputs:
   - "m4-backend-ops-observability-epic"
+  - "PR #23"
   - "后端健康检查门禁"
   - "IM 关键业务指标"
   - "生产上线 Runbook"
@@ -28,6 +29,7 @@ triggers:
   - "回归可观测性与运维门禁 Epic #4"
 downstream:
   - "GitHub Epic #4"
+  - "PR #23"
 ---
 
 # m4 可观测性与运维门禁验收
