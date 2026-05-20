@@ -47,22 +47,26 @@ CI 配置位于 `.github/workflows/ci.yml`。
 
 ### 触发条件
 
-1. push 到 `main` 分支。
-2. 面向当前默认分支的 pull request。
+1. push 到 `main` 或 `m*` 分支。
+2. 面向 `main` 或 `m*` 分支的 pull request。
+3. 手动触发 `workflow_dispatch`。
 
 ### 检查内容
 
-1. 根目录基础文件存在：`README.md`、`AGENTS.md`、`AGENTS.local.md`、`package.json`。
+1. 根目录基础文件存在：`README.md`、`AGENTS.md`、`AGENTS.local.md`。
 2. `docs/`、`docs/prd/`、`docs/plans/`、`docs/design/`、`docs/acceptance/`、`docs/operations/` 目录存在并有 README。
 3. `docs/TEMPLATE.md` 存在。
 4. `openspec/config.yaml` 存在。
-5. Markdown 文件没有尾随空格等基础格式问题。
-6. 仓库对应的类型检查、编译、构建或分析命令通过。
+5. `openspec validate --all --strict` 通过。
+6. 核心恢复脚本语法、dry-run 和恢复库名白名单检查通过。
+7. WebSocket、好友/房间冷缓存、文件上传边界相关后端目标测试通过。
+8. Maven 后端编译通过。
+9. Docker Compose 配置可解析。
 
 ## 验收或验证
 
 1. GitHub Actions 中 `Check required files` 应通过。
-2. 仓库对应的类型检查、编译、构建或分析步骤应通过。
+2. OpenSpec、脚本 dry-run、目标测试、Maven 编译和 Compose 配置步骤应通过。
 3. GitHub PR 中 CI 应显示通过。
 4. 删除任一必需文件后，CI 应能失败并提示对应步骤。
 
@@ -78,3 +82,4 @@ CI 配置位于 `.github/workflows/ci.yml`。
 | --- | --- | --- |
 | 2026-05-08 | Stephen Qiu | 初始化 GitHub CI 运维说明 |
 | 2026-05-19 | Stephen Qiu | 将 CI 调整为仓库真实可执行的基础门禁 |
+| 2026-05-20 | Stephen Qiu | 为 m 系列 PR 增加 OpenSpec、目标测试、恢复脚本和 Compose 门禁 |
