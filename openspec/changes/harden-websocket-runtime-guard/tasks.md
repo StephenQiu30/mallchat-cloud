@@ -30,4 +30,4 @@
 - [x] 4.2 运行 common WebSocket 模块回归。
 - [x] 4.3 运行 `openspec validate harden-websocket-runtime-guard --strict`。
 - [x] 4.4 运行 `openspec validate --all --strict`。
-- [ ] 4.5 更新 GitHub Issue #7 和验收记录。
+- [x] 4.5 更新 GitHub Issue #7 和验收记录。

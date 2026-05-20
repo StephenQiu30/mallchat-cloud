@@ -21,4 +21,4 @@
 - [x] 4.1 运行 Gateway 目标测试。
 - [x] 4.2 运行 Gateway 模块测试。
 - [x] 4.3 运行 OpenSpec strict 校验。
-- [ ] 4.4 更新 GitHub Issue #8 和 Epic 验收记录。
+- [x] 4.4 更新 GitHub Issue #8 和 Epic 验收记录。
