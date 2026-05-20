@@ -127,7 +127,7 @@ The system SHALL create notification records for moment authors when other users
 - **THEN** 系统保留互动事实和计数变化
 - **AND** 本次接口仍按互动成功返回
 
-#### Scenario: 通知在互动事务提交后触发
-- **WHEN** 点赞或评论事实与计数更新在本地事务中成功提交
-- **THEN** 系统再尝试创建互动通知
-- **AND** 如果本地事务回滚，系统不应创建互动通知
+#### Scenario: 通知调用保持轻量降级
+- **WHEN** 点赞或评论事实与计数更新成功
+- **THEN** 系统尝试创建互动通知
+- **AND** 通知创建失败不应回滚点赞或评论事实

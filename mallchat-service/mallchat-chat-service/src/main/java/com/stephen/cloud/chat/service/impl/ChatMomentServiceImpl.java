@@ -33,8 +33,6 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.transaction.support.TransactionSynchronization;
-import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -169,7 +167,7 @@ public class ChatMomentServiceImpl extends ServiceImpl<ChatMomentMapper, ChatMom
         }
         boolean increased = increaseMomentLikeCount(momentId);
         ThrowUtils.throwIf(!increased, ErrorCode.OPERATION_ERROR, "更新点赞数失败");
-        scheduleMomentInteractionNotification(moment, userId, NotificationTypeEnum.LIKE.getCode(), null);
+        trySendMomentInteractionNotification(moment, userId, NotificationTypeEnum.LIKE.getCode(), null);
     }
 
     @Override
@@ -205,7 +203,7 @@ public class ChatMomentServiceImpl extends ServiceImpl<ChatMomentMapper, ChatMom
         ThrowUtils.throwIf(!saved || comment.getId() == null, ErrorCode.OPERATION_ERROR, "评论动态失败");
         boolean increased = increaseMomentCommentCount(request.getMomentId());
         ThrowUtils.throwIf(!increased, ErrorCode.OPERATION_ERROR, "更新评论数失败");
-        scheduleMomentInteractionNotification(moment, userId, NotificationTypeEnum.COMMENT.getCode(), comment.getId());
+        trySendMomentInteractionNotification(moment, userId, NotificationTypeEnum.COMMENT.getCode(), comment.getId());
         return comment.getId();
     }
 
@@ -318,7 +316,10 @@ public class ChatMomentServiceImpl extends ServiceImpl<ChatMomentMapper, ChatMom
         request.setRelatedId(moment.getId());
         request.setRelatedType(RELATED_TYPE_CHAT_MOMENT);
         request.setContentUrl("/chat/moment/detail?id=" + moment.getId());
-        request.setBizId(buildInteractionNotificationBizId(type, moment.getId(), actorUserId, commentId));
+        String bizId = NotificationTypeEnum.COMMENT.getCode().equals(type)
+                ? "moment_comment_" + commentId
+                : "moment_like_" + moment.getId() + "_" + actorUserId;
+        request.setBizId(bizId);
         BaseResponse<Long> response = notificationFeignClient.addBusinessNotification(request);
         ThrowUtils.throwIf(response == null || response.getData() == null, ErrorCode.OPERATION_ERROR, "创建互动通知失败");
     }
@@ -408,36 +409,16 @@ public class ChatMomentServiceImpl extends ServiceImpl<ChatMomentMapper, ChatMom
         return moment;
     }
 
-    private void scheduleMomentInteractionNotification(ChatMoment moment, Long actorUserId, String type, Long commentId) {
+    private void trySendMomentInteractionNotification(ChatMoment moment, Long actorUserId, String type, Long commentId) {
         if (Objects.equals(moment.getUserId(), actorUserId)) {
             return;
         }
-        if (TransactionSynchronizationManager.isActualTransactionActive()) {
-            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
-                @Override
-                public void afterCommit() {
-                    trySendMomentInteractionNotification(moment, actorUserId, type, commentId);
-                }
-            });
-            return;
-        }
-        trySendMomentInteractionNotification(moment, actorUserId, type, commentId);
-    }
-
-    private void trySendMomentInteractionNotification(ChatMoment moment, Long actorUserId, String type, Long commentId) {
         try {
             sendMomentInteractionNotification(moment, actorUserId, type, commentId);
         } catch (Exception e) {
             log.warn("[ChatMomentServiceImpl] 发送动态互动通知失败, momentId: {}, actorUserId: {}, type: {}, reason: {}",
                     moment.getId(), actorUserId, type, e.getMessage());
         }
-    }
-
-    private String buildInteractionNotificationBizId(String type, Long momentId, Long actorUserId, Long commentId) {
-        if (NotificationTypeEnum.COMMENT.getCode().equals(type)) {
-            return "moment_comment_" + commentId;
-        }
-        return "moment_like_" + momentId + "_" + actorUserId;
     }
 
     private ChatMomentVO toVO(ChatMoment moment, List<ChatMomentMediaVO> mediaList) {
