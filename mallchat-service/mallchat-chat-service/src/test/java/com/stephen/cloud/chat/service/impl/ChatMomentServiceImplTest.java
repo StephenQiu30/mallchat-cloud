@@ -10,10 +10,13 @@ import com.stephen.cloud.chat.model.entity.ChatMoment;
 import com.stephen.cloud.chat.model.entity.ChatMomentComment;
 import com.stephen.cloud.chat.model.entity.ChatMomentLike;
 import com.stephen.cloud.chat.model.entity.ChatMomentMedia;
+import com.stephen.cloud.chat.support.ChatBusinessMetricsRecorder;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.dao.DuplicateKeyException;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import java.util.ArrayList;
 import java.util.Date;
@@ -25,10 +28,14 @@ import java.util.Set;
 class ChatMomentServiceImplTest {
 
     private TestableChatMomentServiceImpl chatMomentService;
+    private SimpleMeterRegistry meterRegistry;
 
     @BeforeEach
     void setUp() {
         chatMomentService = new TestableChatMomentServiceImpl();
+        meterRegistry = new SimpleMeterRegistry();
+        ReflectionTestUtils.setField(chatMomentService, "businessMetricsRecorder",
+                new ChatBusinessMetricsRecorder(meterRegistry));
     }
 
     @Test
@@ -175,6 +182,7 @@ class ChatMomentServiceImplTest {
         Assertions.assertEquals(1L, chatMomentService.savedLikes.get(0).getUserId());
         Assertions.assertEquals(List.of(10L), chatMomentService.likeIncrementMomentIds);
         Assertions.assertEquals(List.of("like:10:2:1"), chatMomentService.sentNotifications);
+        Assertions.assertEquals(1.0, businessCounter("moment_like", "success"));
     }
 
     @Test
@@ -276,6 +284,7 @@ class ChatMomentServiceImplTest {
         Assertions.assertEquals("hello", chatMomentService.savedComments.get(0).getContent());
         Assertions.assertEquals(List.of(10L), chatMomentService.commentIncrementMomentIds);
         Assertions.assertEquals(List.of("comment:10:2:1"), chatMomentService.sentNotifications);
+        Assertions.assertEquals(1.0, businessCounter("moment_comment", "success"));
     }
 
     @Test
@@ -327,6 +336,8 @@ class ChatMomentServiceImplTest {
         Assertions.assertEquals(1, chatMomentService.savedComments.size());
         Assertions.assertEquals(List.of(10L), chatMomentService.likeIncrementMomentIds);
         Assertions.assertEquals(List.of(10L), chatMomentService.commentIncrementMomentIds);
+        Assertions.assertEquals(1.0, businessCounter("moment_like", "success"));
+        Assertions.assertEquals(1.0, businessCounter("moment_comment", "success"));
     }
 
     @Test
@@ -390,6 +401,14 @@ class ChatMomentServiceImplTest {
         request.setMomentId(momentId);
         request.setContent(content);
         return request;
+    }
+
+    private double businessCounter(String action, String result) {
+        return meterRegistry.get("mallchat.im.business.total")
+                .tag("action", action)
+                .tag("result", result)
+                .counter()
+                .count();
     }
 
     private static class TestableChatMomentServiceImpl extends ChatMomentServiceImpl {

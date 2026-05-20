@@ -19,3 +19,11 @@
 ## 命名建议
 
 使用 `{layer}-{doc_no}-{主题}.md` 格式，例如 `O-001-github-ci.md`。
+
+## 文档清单
+
+| 文档 | 说明 |
+| --- | --- |
+| [O-001-github-ci.md](./O-001-github-ci.md) | GitHub CI 与仓库验证流程 |
+| [O-002-websocket-runtime-contract.md](./O-002-websocket-runtime-contract.md) | WebSocket 运行契约与联调说明 |
+| [O-003-im-production-runbook.md](./O-003-im-production-runbook.md) | MallChat 后端生产上线、健康检查、故障定位、回滚和恢复 Runbook |

@@ -28,6 +28,7 @@ import com.stephen.cloud.chat.service.ChatRoomMemberService;
 import com.stephen.cloud.chat.service.ChatRoomService;
 import com.stephen.cloud.chat.service.ChatSessionService;
 import com.stephen.cloud.chat.service.UserFriendService;
+import com.stephen.cloud.chat.support.ChatBusinessMetricsRecorder;
 import com.stephen.cloud.chat.support.ChatMessageHelper;
 import com.stephen.cloud.common.common.ErrorCode;
 import com.stephen.cloud.common.common.ThrowUtils;
@@ -37,6 +38,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.context.annotation.Lazy;
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -85,6 +87,9 @@ public class ChatMessageServiceImpl extends ServiceImpl<ChatMessageMapper, ChatM
 
     @Resource
     private UserFeignClient userFeignClient;
+
+    @Resource
+    private ChatBusinessMetricsRecorder businessMetricsRecorder;
 
     @Override
     public void validChatMessage(ChatMessage chatMessage) {
@@ -163,6 +168,7 @@ public class ChatMessageServiceImpl extends ServiceImpl<ChatMessageMapper, ChatM
                 .eq(ChatMessage::getClientMsgId, chatMessage.getClientMsgId())
                 .last("LIMIT 1"));
         if (existing != null) {
+            businessMetricsRecorder.record("message_send", "duplicate");
             return getChatMessageVO(existing, null);
         }
 
@@ -179,10 +185,19 @@ public class ChatMessageServiceImpl extends ServiceImpl<ChatMessageMapper, ChatM
         chatMessage.setFromUserId(userId);
         chatMessage.setContent(ChatMessageHelper.normalizeStoredContent(chatMessage.getType(), chatMessage.getContent()));
         chatMessage.setStatus(MessageStatusEnum.NORMAL.getCode());
-        boolean result = this.save(chatMessage);
+        boolean result;
+        try {
+            result = this.save(chatMessage);
+        } catch (DuplicateKeyException e) {
+            ChatMessage duplicate = getExistingMessageByClientMsgId(userId, chatMessage.getClientMsgId());
+            ThrowUtils.throwIf(duplicate == null, ErrorCode.OPERATION_ERROR, "发送消息失败");
+            businessMetricsRecorder.record("message_send", "duplicate");
+            return getChatMessageVO(duplicate, null);
+        }
         ThrowUtils.throwIf(!result, ErrorCode.OPERATION_ERROR, "发送消息失败");
 
         ChatMessageVO messageVO = getChatMessageVO(chatMessage, null);
+        businessMetricsRecorder.record("message_send", "success");
         try {
             chatMqProducer.sendChatMessageGroupPush(roomId, messageVO, listRoomMemberUserIds(roomId));
         } catch (Exception e) {
@@ -377,6 +392,13 @@ public class ChatMessageServiceImpl extends ServiceImpl<ChatMessageMapper, ChatM
             }
         }
         return true;
+    }
+
+    private ChatMessage getExistingMessageByClientMsgId(Long userId, String clientMsgId) {
+        return this.getOne(new LambdaQueryWrapper<ChatMessage>()
+                .eq(ChatMessage::getFromUserId, userId)
+                .eq(ChatMessage::getClientMsgId, clientMsgId)
+                .last("LIMIT 1"));
     }
 
     private List<Long> listRoomMemberUserIds(Long roomId) {

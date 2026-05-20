@@ -9,6 +9,7 @@ import com.stephen.cloud.common.rabbitmq.model.NotificationMessage;
 import com.stephen.cloud.common.rabbitmq.model.RabbitMessage;
 import com.stephen.cloud.common.rabbitmq.model.WebSocketMessage;
 import com.stephen.cloud.common.websocket.manager.ChannelManager;
+import com.stephen.cloud.notification.mq.support.ImPushMetricsRecorder;
 import io.netty.handler.codec.http.websocketx.TextWebSocketFrame;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
@@ -29,6 +30,9 @@ public class NotificationPushHandler implements RabbitMqHandler<NotificationMess
 
     @Resource
     private ChannelManager channelManager;
+
+    @Resource
+    private ImPushMetricsRecorder metricsRecorder;
 
     @Override
     public String getBizType() {
@@ -61,7 +65,13 @@ public class NotificationPushHandler implements RabbitMqHandler<NotificationMess
 
         if (userId == 0L) {
             // 广播推送
-            channelManager.getAllChannels().writeAndFlush(new TextWebSocketFrame(messageJson));
+            try {
+                channelManager.getAllChannels().writeAndFlush(new TextWebSocketFrame(messageJson));
+                metricsRecorder.record(getBizType(), WebSocketMessageTypeEnum.SYSTEM_NOTICE.name(), "success");
+            } catch (Exception e) {
+                metricsRecorder.record(getBizType(), WebSocketMessageTypeEnum.SYSTEM_NOTICE.name(), "failure");
+                throw e;
+            }
             log.info("[NotificationPushHandler] 成功广播通知消息给所有在线用户, msgId: {}", msgId);
         } else {
             // 单播推送
@@ -76,9 +86,18 @@ public class NotificationPushHandler implements RabbitMqHandler<NotificationMess
 
     private void pushToSingleUser(Long userId, WebSocketMessage wsMessage) {
         String userIdStr = String.valueOf(userId);
-        int successCount = channelManager.writeToUser(userIdStr, JSONUtil.toJsonStr(wsMessage));
+        int successCount;
+        try {
+            successCount = channelManager.writeToUser(userIdStr, JSONUtil.toJsonStr(wsMessage));
+        } catch (Exception e) {
+            metricsRecorder.record(getBizType(), WebSocketMessageTypeEnum.SYSTEM_NOTICE.name(), "failure");
+            throw e;
+        }
         if (successCount > 0) {
+            metricsRecorder.record(getBizType(), WebSocketMessageTypeEnum.SYSTEM_NOTICE.name(), "success", successCount);
             log.info("[NotificationPushHandler] 成功向用户 {} 的 {} 个本地连接推送实时通知消息", userId, successCount);
+        } else {
+            metricsRecorder.record(getBizType(), WebSocketMessageTypeEnum.SYSTEM_NOTICE.name(), "offline");
         }
     }
 }

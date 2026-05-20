@@ -182,6 +182,43 @@ class ChatSessionServiceImplTest {
         Assertions.assertEquals(11L, savedReceiver.getLastMessageId());
     }
 
+    @Test
+    void shouldNotIncrementUnreadWhenSameMessageBatchIsAppliedTwice() {
+        ChatSession senderSession = createSession(1L, 11L, 3, 0);
+        senderSession.setUserId(1L);
+        ChatSession receiverSession = createSession(1L, 11L, 2, 0);
+        receiverSession.setUserId(2L);
+        chatSessionService.listResult = List.of(senderSession, receiverSession);
+
+        chatSessionService.updateSessionBatch(List.of(1L, 2L), 1L, 11L, 1L);
+
+        ChatSession savedSender = chatSessionService.lastBatchSaved.stream()
+                .filter(item -> item.getUserId().equals(1L))
+                .findFirst()
+                .orElseThrow();
+        ChatSession savedReceiver = chatSessionService.lastBatchSaved.stream()
+                .filter(item -> item.getUserId().equals(2L))
+                .findFirst()
+                .orElseThrow();
+        Assertions.assertEquals(3, savedSender.getUnreadCount());
+        Assertions.assertEquals(2, savedReceiver.getUnreadCount());
+        Assertions.assertEquals(11L, savedSender.getLastMessageId());
+        Assertions.assertEquals(11L, savedReceiver.getLastMessageId());
+    }
+
+    @Test
+    void shouldNotSaveSingleSessionWhenSameMessageIsAppliedTwice() {
+        ChatSession receiverSession = createSession(1L, 11L, 2, 0);
+        receiverSession.setUserId(2L);
+        chatSessionService.getOneResult = receiverSession;
+
+        chatSessionService.updateSession(2L, 1L, 11L, true);
+
+        Assertions.assertEquals(0, chatSessionService.saveOrUpdateCount);
+        Assertions.assertEquals(2, receiverSession.getUnreadCount());
+        Assertions.assertEquals(11L, receiverSession.getLastMessageId());
+    }
+
     private ChatSession createSession(Long roomId, Long lastMessageId, Integer unreadCount, Integer topStatus) {
         ChatSession session = new ChatSession();
         session.setRoomId(roomId);
@@ -329,6 +366,7 @@ class ChatSessionServiceImplTest {
         private ChatSession getOneResult;
         private List<ChatSession> lastBatchSaved = new ArrayList<>();
         private boolean removeResult;
+        private int saveOrUpdateCount;
 
         @Override
         public List<ChatSession> list(Wrapper<ChatSession> queryWrapper) {
@@ -354,6 +392,13 @@ class ChatSessionServiceImplTest {
         @Override
         public boolean saveOrUpdateBatch(java.util.Collection<ChatSession> entityList) {
             this.lastBatchSaved = new ArrayList<>(entityList);
+            return true;
+        }
+
+        @Override
+        public boolean saveOrUpdate(ChatSession entity) {
+            this.getOneResult = entity;
+            this.saveOrUpdateCount++;
             return true;
         }
     }

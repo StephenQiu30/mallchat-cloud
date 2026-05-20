@@ -5,10 +5,13 @@ import com.stephen.cloud.common.cache.constants.ChatCacheConstant;
 import com.stephen.cloud.common.cache.utils.CacheUtils;
 import com.stephen.cloud.common.rabbitmq.consumer.RabbitMqHandler;
 import com.stephen.cloud.common.rabbitmq.enums.MqBizTypeEnum;
+import com.stephen.cloud.common.rabbitmq.enums.WebSocketMessageTypeEnum;
 import com.stephen.cloud.common.rabbitmq.enums.WebSocketPushTypeEnum;
 import com.stephen.cloud.common.rabbitmq.model.RabbitMessage;
 import com.stephen.cloud.common.rabbitmq.model.WebSocketMessage;
 import com.stephen.cloud.common.websocket.manager.ChannelManager;
+import com.stephen.cloud.common.rabbitmq.model.ImWebSocketEvent;
+import com.stephen.cloud.notification.mq.support.ImPushMetricsRecorder;
 import io.netty.handler.codec.http.websocketx.TextWebSocketFrame;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
@@ -38,6 +41,9 @@ public class ChatMessagePushHandler implements RabbitMqHandler<WebSocketMessage>
 
     @Resource
     private CacheUtils cacheUtils;
+
+    @Resource
+    private ImPushMetricsRecorder metricsRecorder;
 
     @Override
     public String getBizType() {
@@ -74,6 +80,7 @@ public class ChatMessagePushHandler implements RabbitMqHandler<WebSocketMessage>
         List<Long> userIds = wsMessage.getUserIds();
         if (userIds == null || userIds.isEmpty()) {
             log.warn("[ChatMessagePushHandler] 消息中没有指定用户ID且非广播，忽略推送, msgId: {}", msgId);
+            metricsRecorder.record(getBizType(), resolveEventType(wsMessage), "skipped");
             return;
         }
 
@@ -94,13 +101,28 @@ public class ChatMessagePushHandler implements RabbitMqHandler<WebSocketMessage>
         List<Long> userIds = wsMessage.getUserIds();
         String messageJson = JSONUtil.toJsonStr(wsMessage.getData() != null ? wsMessage.getData() : wsMessage);
         int successCount = 0;
+        int offlineCount = 0;
 
         for (Long userId : userIds) {
-            successCount += channelManager.writeToUser(String.valueOf(userId), messageJson);
+            try {
+                int writeCount = channelManager.writeToUser(String.valueOf(userId), messageJson);
+                if (writeCount > 0) {
+                    successCount += writeCount;
+                } else {
+                    offlineCount++;
+                }
+            } catch (Exception e) {
+                metricsRecorder.record(getBizType(), resolveEventType(wsMessage), "failure");
+                throw e;
+            }
         }
 
         if (successCount > 0) {
+            metricsRecorder.record(getBizType(), resolveEventType(wsMessage), "success", successCount);
             log.debug("[ChatMessagePushHandler] 向 {} 个本地用户推送成功", successCount);
+        }
+        if (offlineCount > 0) {
+            metricsRecorder.record(getBizType(), resolveEventType(wsMessage), "offline", offlineCount);
         }
     }
 
@@ -121,18 +143,34 @@ public class ChatMessagePushHandler implements RabbitMqHandler<WebSocketMessage>
             memberIds = resolveSnapshotMemberIds(wsMessage);
             if (memberIds.isEmpty()) {
                 log.warn("[ChatMessagePushHandler] 房间 {} 缓存和消息成员快照均为空，跳过推送", roomId);
+                metricsRecorder.record(getBizType(), resolveEventType(wsMessage), "skipped");
                 return;
             }
             log.warn("[ChatMessagePushHandler] 房间 {} 缓存中没有成员，使用消息成员快照兜底推送", roomId);
         }
 
         int successCount = 0;
+        int offlineCount = 0;
         for (String userIdStr : memberIds) {
-            successCount += channelManager.writeToUser(userIdStr, messageJson);
+            try {
+                int writeCount = channelManager.writeToUser(userIdStr, messageJson);
+                if (writeCount > 0) {
+                    successCount += writeCount;
+                } else {
+                    offlineCount++;
+                }
+            } catch (Exception e) {
+                metricsRecorder.record(getBizType(), resolveEventType(wsMessage), "failure");
+                throw e;
+            }
         }
 
         if (successCount > 0) {
+            metricsRecorder.record(getBizType(), resolveEventType(wsMessage), "success", successCount);
             log.info("[ChatMessagePushHandler] 房间 {} 推送成功, 本地在线接收者: {}/{}", roomId, successCount, memberIds.size());
+        }
+        if (offlineCount > 0) {
+            metricsRecorder.record(getBizType(), resolveEventType(wsMessage), "offline", offlineCount);
         }
     }
 
@@ -145,6 +183,15 @@ public class ChatMessagePushHandler implements RabbitMqHandler<WebSocketMessage>
                 .filter(Objects::nonNull)
                 .map(String::valueOf)
                 .collect(Collectors.toCollection(LinkedHashSet::new));
+    }
+
+    private String resolveEventType(WebSocketMessage wsMessage) {
+        Object data = wsMessage.getData();
+        if (data instanceof ImWebSocketEvent event) {
+            return event.getType();
+        }
+        WebSocketMessageTypeEnum typeEnum = WebSocketMessageTypeEnum.getEnumByCode(wsMessage.getType());
+        return typeEnum == null ? String.valueOf(wsMessage.getType()) : typeEnum.name();
     }
 
     /**

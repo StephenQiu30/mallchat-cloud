@@ -20,9 +20,11 @@ import com.stephen.cloud.chat.service.ChatRoomMemberService;
 import com.stephen.cloud.chat.service.ChatRoomService;
 import com.stephen.cloud.chat.service.ChatSessionService;
 import com.stephen.cloud.chat.service.UserFriendService;
+import com.stephen.cloud.chat.support.ChatBusinessMetricsRecorder;
 import com.stephen.cloud.common.common.ErrorCode;
 import com.stephen.cloud.common.common.ResultUtils;
 import com.stephen.cloud.common.exception.BusinessException;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -51,6 +53,7 @@ class ChatMessageServiceImplTest {
     private long unreadCountAfterBoundary;
     private Map<Long, ChatMessage> replyMessagesById;
     private Map<Long, UserVO> usersById;
+    private SimpleMeterRegistry meterRegistry;
 
     @BeforeEach
     void setUp() {
@@ -75,6 +78,7 @@ class ChatMessageServiceImplTest {
         unreadCountAfterBoundary = 0L;
         replyMessagesById = new HashMap<>();
         usersById = new HashMap<>();
+        meterRegistry = new SimpleMeterRegistry();
         usersById.put(1L, buildUser(1L, "Alice"));
         usersById.put(2L, buildUser(2L, "Bob"));
 
@@ -88,6 +92,8 @@ class ChatMessageServiceImplTest {
         ReflectionTestUtils.setField(chatMessageService, "eventPublisher",
                 (org.springframework.context.ApplicationEventPublisher) event -> {
                 });
+        ReflectionTestUtils.setField(chatMessageService, "businessMetricsRecorder",
+                new ChatBusinessMetricsRecorder(meterRegistry));
     }
 
     @Test
@@ -357,6 +363,34 @@ class ChatMessageServiceImplTest {
         Assertions.assertEquals(100L, result.getId());
         Assertions.assertEquals(1L, chatMqProducer.lastGroupPushRoomId);
         Assertions.assertEquals(List.of(1L, 2L), chatMqProducer.lastGroupPushUserIds);
+        Assertions.assertEquals(1.0, businessCounter("message_send", "success"));
+    }
+
+    @Test
+    void shouldRecordDuplicateMetricWhenReturningExistingClientMessage() {
+        ChatMessage existing = createStoredMessage(88L, 1L);
+        existing.setClientMsgId("dup-1");
+        chatMessageService.existingByClient = existing;
+
+        ChatMessageVO result = chatMessageService.sendMessage(createTextMessage(1L, "dup-1", "hello"), 1L);
+
+        Assertions.assertEquals(88L, result.getId());
+        Assertions.assertEquals(1.0, businessCounter("message_send", "duplicate"));
+    }
+
+    @Test
+    void shouldReturnExistingMessageWhenDuplicateClientMsgIdWinsDatabaseRace() {
+        room.setType(ChatRoomTypeEnum.GROUP.getCode());
+        chatMessageService.saveDuplicateKey = true;
+        ChatMessage existing = createStoredMessage(88L, 1L);
+        existing.setClientMsgId("dup-1");
+        chatMessageService.duplicateExistingMessage = existing;
+
+        ChatMessageVO result = chatMessageService.sendMessage(createTextMessage(1L, "dup-1", "hello"), 1L);
+
+        Assertions.assertEquals(88L, result.getId());
+        Assertions.assertNull(chatMqProducer.lastGroupPushRoomId);
+        Assertions.assertEquals(1.0, businessCounter("message_send", "duplicate"));
     }
 
     @Test
@@ -580,6 +614,14 @@ class ChatMessageServiceImplTest {
         return user;
     }
 
+    private double businessCounter(String action, String result) {
+        return meterRegistry.get("mallchat.im.business.total")
+                .tag("action", action)
+                .tag("result", result)
+                .counter()
+                .count();
+    }
+
     private ChatRoomMember buildRoomMember(Long roomId, Long userId, Long lastReadMessageId) {
         ChatRoomMember member = new ChatRoomMember();
         member.setRoomId(roomId);
@@ -693,6 +735,8 @@ class ChatMessageServiceImplTest {
         private ChatMessage messageByRoomQuery;
         private List<ChatMessage> listResult = new ArrayList<>();
         private boolean saveResult = true;
+        private boolean saveDuplicateKey;
+        private ChatMessage duplicateExistingMessage;
         private boolean updateResult = true;
         private boolean sessionUpdateInvoked;
         private int updatedUnreadCount = -1;
@@ -713,6 +757,10 @@ class ChatMessageServiceImplTest {
 
         @Override
         public boolean save(ChatMessage entity) {
+            if (saveDuplicateKey) {
+                existingByClient = duplicateExistingMessage;
+                throw new org.springframework.dao.DuplicateKeyException("duplicate client msg id");
+            }
             if (saveResult && entity.getId() == null) {
                 entity.setId(100L);
                 entity.setCreateTime(new Date());
