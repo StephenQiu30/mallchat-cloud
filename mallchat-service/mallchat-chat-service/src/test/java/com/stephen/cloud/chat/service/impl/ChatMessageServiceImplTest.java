@@ -46,6 +46,7 @@ class ChatMessageServiceImplTest {
     private ChatRoom room;
     private boolean member;
     private boolean mutualFriend;
+    private boolean blockedBetween;
     private ChatPrivateRoom privateRoom;
     private ChatRoomMember roomMember;
     private List<ChatRoomMember> roomMembers;
@@ -105,6 +106,20 @@ class ChatMessageServiceImplTest {
                 () -> chatMessageService.sendMessage(message, 1L));
 
         Assertions.assertEquals(ErrorCode.NO_AUTH_ERROR.getCode(), exception.getCode());
+    }
+
+    @Test
+    void shouldRejectPrivateMessageWhenEitherUserBlocked() {
+        blockedBetween = true;
+        ChatMessage message = createTextMessage(1L, "block-1", "hello");
+
+        BusinessException exception = Assertions.assertThrows(BusinessException.class,
+                () -> chatMessageService.sendMessage(message, 1L));
+
+        Assertions.assertEquals(ErrorCode.NO_AUTH_ERROR.getCode(), exception.getCode());
+        Assertions.assertEquals("双方存在拉黑关系", exception.getMessage());
+        Assertions.assertNull(chatMessageService.messageById);
+        Assertions.assertNull(chatMqProducer.lastGroupPushRoomId);
     }
 
     @Test
@@ -705,6 +720,9 @@ class ChatMessageServiceImplTest {
                 (proxy, method, args) -> {
                     if ("isMutualFriend".equals(method.getName())) {
                         return mutualFriend;
+                    }
+                    if ("isBlockedBetween".equals(method.getName())) {
+                        return blockedBetween;
                     }
                     return defaultValue(method.getReturnType());
                 }

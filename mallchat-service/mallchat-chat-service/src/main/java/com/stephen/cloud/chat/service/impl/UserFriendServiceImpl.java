@@ -4,14 +4,17 @@ import cn.hutool.core.collection.CollUtil;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
+import com.stephen.cloud.api.chat.model.dto.ChatFriendProfileUpdateRequest;
 import com.stephen.cloud.api.chat.model.dto.ChatFriendQueryRequest;
 import com.stephen.cloud.api.chat.model.vo.ChatFriendUserVO;
 import com.stephen.cloud.api.user.model.dto.UserQueryRequest;
 import com.stephen.cloud.api.user.client.UserFeignClient;
 import com.stephen.cloud.api.user.model.vo.UserVO;
 import com.stephen.cloud.chat.convert.ChatFriendConvert;
+import com.stephen.cloud.chat.mapper.UserFriendBlockMapper;
 import com.stephen.cloud.chat.mapper.UserFriendMapper;
 import com.stephen.cloud.chat.model.entity.UserFriendApply;
+import com.stephen.cloud.chat.model.entity.UserFriendBlock;
 import com.stephen.cloud.chat.model.entity.UserFriend;
 import com.stephen.cloud.chat.service.ChatOnlineStatusService;
 import com.stephen.cloud.chat.service.UserFriendApplyService;
@@ -26,6 +29,7 @@ import com.stephen.cloud.common.mysql.utils.SqlUtils;
 import jakarta.annotation.Resource;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.lang3.StringUtils;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -42,8 +46,15 @@ import java.util.stream.Collectors;
 public class UserFriendServiceImpl extends ServiceImpl<UserFriendMapper, UserFriend>
         implements UserFriendService {
 
+    private static final String DEFAULT_FRIEND_GROUP_NAME = "默认分组";
+    private static final int MAX_REMARK_NAME_LENGTH = 64;
+    private static final int MAX_FRIEND_GROUP_NAME_LENGTH = 32;
+
     @Resource
     private UserFeignClient userFeignClient;
+
+    @Resource
+    private UserFriendBlockMapper userFriendBlockMapper;
 
     @Resource
     private CacheUtils cacheUtils;
@@ -119,6 +130,7 @@ public class UserFriendServiceImpl extends ServiceImpl<UserFriendMapper, UserFri
                 chatFriendUserVO.setUserName(userVO.getUserName());
                 chatFriendUserVO.setUserAvatar(userVO.getUserAvatar());
             }
+            fillFriendProfile(chatFriendUserVO);
             chatFriendUserVO.setOnlineStatus(chatOnlineStatusService.getOnlineStatus(friendUserId));
             chatFriendUserVO.setFriendStatus(2);
         }
@@ -154,6 +166,7 @@ public class UserFriendServiceImpl extends ServiceImpl<UserFriendMapper, UserFri
                 chatFriendUserVO.setUserName(userVO.getUserName());
                 chatFriendUserVO.setUserAvatar(userVO.getUserAvatar());
             }
+            fillFriendProfile(chatFriendUserVO);
             chatFriendUserVO.setOnlineStatus(onlineStatusMap.getOrDefault(friendUserId, 0));
             chatFriendUserVO.setFriendStatus(2);
             return chatFriendUserVO;
@@ -202,9 +215,11 @@ public class UserFriendServiceImpl extends ServiceImpl<UserFriendMapper, UserFri
         UserFriend a = new UserFriend();
         a.setUserId(userId);
         a.setFriendUserId(friendUserId);
+        a.setFriendGroupName(DEFAULT_FRIEND_GROUP_NAME);
         UserFriend b = new UserFriend();
         b.setUserId(friendUserId);
         b.setFriendUserId(userId);
+        b.setFriendGroupName(DEFAULT_FRIEND_GROUP_NAME);
         boolean ok = this.save(a) && this.save(b);
         ThrowUtils.throwIf(!ok, ErrorCode.OPERATION_ERROR, "添加好友失败");
 
@@ -234,16 +249,73 @@ public class UserFriendServiceImpl extends ServiceImpl<UserFriendMapper, UserFri
 
     @Override
     public List<ChatFriendUserVO> listFriends(Long userId) {
+        return listFriends(userId, null);
+    }
+
+    @Override
+    public List<ChatFriendUserVO> listFriends(Long userId, String friendGroupName) {
         ThrowUtils.throwIf(userId == null, ErrorCode.PARAMS_ERROR);
+        String normalizedGroupName = normalizeFriendGroupNameForQuery(friendGroupName);
         List<UserFriend> rows = this.list(new LambdaQueryWrapper<UserFriend>()
                 .eq(UserFriend::getUserId, userId)
+                .eq(StringUtils.isNotBlank(normalizedGroupName), UserFriend::getFriendGroupName, normalizedGroupName)
                 .orderByDesc(UserFriend::getCreateTime));
         return getUserFriendVO(rows, null);
     }
 
     @Override
+    public void updateFriendProfile(Long userId, ChatFriendProfileUpdateRequest request) {
+        ThrowUtils.throwIf(userId == null || request == null || request.getFriendUserId() == null, ErrorCode.PARAMS_ERROR);
+        ThrowUtils.throwIf(Objects.equals(userId, request.getFriendUserId()), ErrorCode.PARAMS_ERROR, "不能设置自己为好友");
+        String remarkName = normalizeRemarkName(request.getRemarkName());
+        String friendGroupName = normalizeFriendGroupName(request.getFriendGroupName());
+
+        UserFriend friend = getFriendByPair(userId, request.getFriendUserId());
+        ThrowUtils.throwIf(friend == null, ErrorCode.NO_AUTH_ERROR, "非好友不可设置联系人资料");
+        friend.setRemarkName(remarkName);
+        friend.setFriendGroupName(friendGroupName);
+        ThrowUtils.throwIf(!this.updateById(friend), ErrorCode.OPERATION_ERROR, "更新好友资料失败");
+    }
+
+    @Override
+    public void blockUser(Long userId, Long targetUserId) {
+        ThrowUtils.throwIf(userId == null || targetUserId == null, ErrorCode.PARAMS_ERROR);
+        ThrowUtils.throwIf(Objects.equals(userId, targetUserId), ErrorCode.PARAMS_ERROR, "不能拉黑自己");
+        ThrowUtils.throwIf(getUserById(targetUserId) == null, ErrorCode.NOT_FOUND_ERROR, "用户不存在");
+        if (getBlock(userId, targetUserId) != null) {
+            clearFriendCache(userId, targetUserId);
+            return;
+        }
+        UserFriendBlock block = new UserFriendBlock();
+        block.setUserId(userId);
+        block.setBlockedUserId(targetUserId);
+        ThrowUtils.throwIf(!saveBlock(block), ErrorCode.OPERATION_ERROR, "拉黑用户失败");
+        clearFriendCache(userId, targetUserId);
+    }
+
+    @Override
+    public void unblockUser(Long userId, Long targetUserId) {
+        ThrowUtils.throwIf(userId == null || targetUserId == null, ErrorCode.PARAMS_ERROR);
+        ThrowUtils.throwIf(Objects.equals(userId, targetUserId), ErrorCode.PARAMS_ERROR, "不能解除自己");
+        removeBlock(userId, targetUserId);
+        clearFriendCache(userId, targetUserId);
+        restoreFriendCacheIfMutual(userId, targetUserId);
+    }
+
+    @Override
+    public boolean isBlockedBetween(Long userId, Long targetUserId) {
+        if (userId == null || targetUserId == null) {
+            return false;
+        }
+        return getBlock(userId, targetUserId) != null || getBlock(targetUserId, userId) != null;
+    }
+
+    @Override
     public boolean isMutualFriend(Long userId, Long friendUserId) {
         if (userId == null || friendUserId == null) {
+            return false;
+        }
+        if (isBlockedBetween(userId, friendUserId)) {
             return false;
         }
         String key = ChatCacheConstant.getUserFriendKey(userId);
@@ -279,6 +351,7 @@ public class UserFriendServiceImpl extends ServiceImpl<UserFriendMapper, UserFri
         return friendIds.stream()
                 .filter(friendId -> friendId != null && !ChatCacheConstant.EMPTY_SET_PLACEHOLDER.equals(friendId))
                 .map(Long::valueOf)
+                .filter(friendId -> !isBlockedBetween(userId, friendId))
                 .collect(Collectors.toCollection(LinkedHashSet::new));
     }
 
@@ -338,6 +411,83 @@ public class UserFriendServiceImpl extends ServiceImpl<UserFriendMapper, UserFri
         String key = ChatCacheConstant.getUserFriendKey(userId);
         cacheUtils.sAdd(key, String.valueOf(friendUserId));
         cacheUtils.expire(key, ChatCacheConstant.USER_FRIEND_CACHE_EXPIRE_SECONDS);
+    }
+
+    private void clearFriendCache(Long userId, Long targetUserId) {
+        cacheUtils.sRemove(ChatCacheConstant.getUserFriendKey(userId), String.valueOf(targetUserId));
+        cacheUtils.sRemove(ChatCacheConstant.getUserFriendKey(targetUserId), String.valueOf(userId));
+    }
+
+    private void restoreFriendCacheIfMutual(Long userId, Long targetUserId) {
+        if (getFriendByPair(userId, targetUserId) == null || getFriendByPair(targetUserId, userId) == null) {
+            return;
+        }
+        syncFriendToCache(userId, targetUserId);
+        syncFriendToCache(targetUserId, userId);
+    }
+
+    private void fillFriendProfile(ChatFriendUserVO vo) {
+        if (StringUtils.isBlank(vo.getFriendGroupName())) {
+            vo.setFriendGroupName(DEFAULT_FRIEND_GROUP_NAME);
+        }
+    }
+
+    private String normalizeRemarkName(String remarkName) {
+        String normalized = StringUtils.trimToNull(remarkName);
+        ThrowUtils.throwIf(normalized != null && normalized.length() > MAX_REMARK_NAME_LENGTH,
+                ErrorCode.PARAMS_ERROR, "好友备注过长");
+        return normalized;
+    }
+
+    private String normalizeFriendGroupName(String friendGroupName) {
+        String normalized = StringUtils.trimToNull(friendGroupName);
+        if (normalized == null) {
+            return DEFAULT_FRIEND_GROUP_NAME;
+        }
+        ThrowUtils.throwIf(normalized.length() > MAX_FRIEND_GROUP_NAME_LENGTH,
+                ErrorCode.PARAMS_ERROR, "好友分组名称过长");
+        return normalized;
+    }
+
+    private String normalizeFriendGroupNameForQuery(String friendGroupName) {
+        String normalized = StringUtils.trimToNull(friendGroupName);
+        if (normalized == null) {
+            return null;
+        }
+        ThrowUtils.throwIf(normalized.length() > MAX_FRIEND_GROUP_NAME_LENGTH,
+                ErrorCode.PARAMS_ERROR, "好友分组名称过长");
+        return normalized;
+    }
+
+    protected UserVO getUserById(Long userId) {
+        return userFeignClient.getUserVOById(userId).getData();
+    }
+
+    protected UserFriend getFriendByPair(Long userId, Long friendUserId) {
+        return this.getOne(new LambdaQueryWrapper<UserFriend>()
+                .eq(UserFriend::getUserId, userId)
+                .eq(UserFriend::getFriendUserId, friendUserId)
+                .last("LIMIT 1"));
+    }
+
+    protected UserFriendBlock getBlock(Long userId, Long blockedUserId) {
+        if (userFriendBlockMapper == null) {
+            return null;
+        }
+        return userFriendBlockMapper.selectOne(new LambdaQueryWrapper<UserFriendBlock>()
+                .eq(UserFriendBlock::getUserId, userId)
+                .eq(UserFriendBlock::getBlockedUserId, blockedUserId)
+                .last("LIMIT 1"));
+    }
+
+    protected boolean saveBlock(UserFriendBlock block) {
+        return userFriendBlockMapper.insert(block) > 0;
+    }
+
+    protected boolean removeBlock(Long userId, Long blockedUserId) {
+        return userFriendBlockMapper.delete(new LambdaQueryWrapper<UserFriendBlock>()
+                .eq(UserFriendBlock::getUserId, userId)
+                .eq(UserFriendBlock::getBlockedUserId, blockedUserId)) >= 0;
     }
 
     private void loadFriendCache(Long userId) {

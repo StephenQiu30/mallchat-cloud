@@ -2,16 +2,19 @@ package com.stephen.cloud.chat.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.Wrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import com.stephen.cloud.api.chat.model.dto.ChatFriendProfileUpdateRequest;
 import com.stephen.cloud.api.chat.model.vo.ChatFriendUserVO;
 import com.stephen.cloud.api.user.client.UserFeignClient;
 import com.stephen.cloud.api.user.model.dto.UserQueryRequest;
 import com.stephen.cloud.api.user.model.vo.UserVO;
 import com.stephen.cloud.common.common.BaseResponse;
 import com.stephen.cloud.chat.service.ChatOnlineStatusService;
+import com.stephen.cloud.chat.model.entity.UserFriendBlock;
 import com.stephen.cloud.chat.model.entity.UserFriend;
 import com.stephen.cloud.common.cache.constants.ChatCacheConstant;
 import com.stephen.cloud.common.cache.utils.CacheUtils;
 import com.stephen.cloud.common.common.ErrorCode;
+import com.stephen.cloud.common.exception.BusinessException;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -189,6 +192,85 @@ class UserFriendServiceImplTest {
     }
 
     @Test
+    void shouldBlockAndUnblockUserWithCacheCleanup() {
+        userFriendService.setTargetUser(friend);
+        userFriendService.setSaveBlockResult(true);
+        cacheUtils.sAdd(ChatCacheConstant.getUserFriendKey(1L), "2");
+        cacheUtils.sAdd(ChatCacheConstant.getUserFriendKey(2L), "1");
+
+        userFriendService.blockUser(1L, 2L);
+
+        Assertions.assertEquals(1L, userFriendService.savedBlock.getUserId());
+        Assertions.assertEquals(2L, userFriendService.savedBlock.getBlockedUserId());
+        Assertions.assertEquals(1, cacheUtils.removeCallCount.getOrDefault(ChatCacheConstant.getUserFriendKey(1L) + ":2", 0));
+        Assertions.assertEquals(1, cacheUtils.removeCallCount.getOrDefault(ChatCacheConstant.getUserFriendKey(2L) + ":1", 0));
+
+        userFriendService.setBlockBetween(1L, 2L, true);
+        Assertions.assertTrue(userFriendService.isBlockedBetween(1L, 2L));
+
+        userFriendService.unblockUser(1L, 2L);
+        Assertions.assertEquals(1L, userFriendService.removedBlockUserId);
+        Assertions.assertEquals(2L, userFriendService.removedBlockedUserId);
+    }
+
+    @Test
+    void shouldRestoreFriendCacheWhenUnblockExistingFriend() {
+        userFriendService.setFriendByPair(createFriend(1L, 2L));
+
+        userFriendService.unblockUser(1L, 2L);
+
+        Assertions.assertTrue(cacheUtils.sIsMember(ChatCacheConstant.getUserFriendKey(1L), "2"));
+        Assertions.assertTrue(cacheUtils.sIsMember(ChatCacheConstant.getUserFriendKey(2L), "1"));
+    }
+
+    @Test
+    void shouldRejectBlockingSelf() {
+        BusinessException exception = Assertions.assertThrows(BusinessException.class,
+                () -> userFriendService.blockUser(1L, 1L));
+
+        Assertions.assertEquals(ErrorCode.PARAMS_ERROR.getCode(), exception.getCode());
+    }
+
+    @Test
+    void shouldExcludeBlockedFriendsFromMutualFriendIds() {
+        userFriendService.listResult = List.of(createFriend(1L, 2L), createFriend(1L, 3L));
+        userFriendService.setBlockBetween(1L, 2L, true);
+
+        Set<Long> friendIds = userFriendService.listMutualFriendIds(1L);
+
+        Assertions.assertEquals(new LinkedHashSet<>(Set.of(3L)), friendIds);
+    }
+
+    @Test
+    void shouldUpdateFriendRemarkAndGroup() {
+        UserFriend existing = createFriend(1L, 2L);
+        existing.setId(10L);
+        userFriendService.setFriendByPair(existing);
+        ChatFriendProfileUpdateRequest request = new ChatFriendProfileUpdateRequest();
+        request.setFriendUserId(2L);
+        request.setRemarkName("产品同学");
+        request.setFriendGroupName("项目组");
+
+        userFriendService.updateFriendProfile(1L, request);
+
+        Assertions.assertEquals("产品同学", userFriendService.updatedFriend.getRemarkName());
+        Assertions.assertEquals("项目组", userFriendService.updatedFriend.getFriendGroupName());
+    }
+
+    @Test
+    void shouldReturnDefaultGroupNameWhenFriendGroupMissing() {
+        UserFriend existing = createFriend(1L, 2L);
+        existing.setRemarkName("小明");
+        userFriendService.listResult = List.of(existing);
+        userFriendService.setOnlineStatusMap(Map.of(2L, 1));
+
+        List<ChatFriendUserVO> friends = userFriendService.listFriends(1L);
+
+        Assertions.assertEquals("小明", friends.get(0).getRemarkName());
+        Assertions.assertEquals("默认分组", friends.get(0).getFriendGroupName());
+    }
+
+    @Test
     void shouldRejectSearchFriendsWithInvalidPageSize() {
         Assertions.assertThrows(RuntimeException.class,
                 () -> userFriendService.searchFriends(1L, "abc", 1, 0));
@@ -220,6 +302,20 @@ class UserFriendServiceImplTest {
                         userFriendService.setCapturedSearchRequest((UserQueryRequest) args[0]);
                         Page<UserVO> searchUsersPage = userFriendService.getSearchUsersPage();
                         return new BaseResponse<>(ErrorCode.SUCCESS.getCode(), searchUsersPage, "ok");
+                    }
+                    if ("getUserVOByIds".equals(method.getName())) {
+                        @SuppressWarnings("unchecked")
+                        List<Long> ids = (List<Long>) args[0];
+                        List<UserVO> users = new ArrayList<>();
+                        for (Long id : ids) {
+                            if (friend.getId().equals(id)) {
+                                users.add(friend);
+                            }
+                            if (stranger.getId().equals(id)) {
+                                users.add(stranger);
+                            }
+                        }
+                        return new BaseResponse<>(ErrorCode.SUCCESS.getCode(), users, "ok");
                     }
                     return defaultValue(method.getReturnType());
                 });
@@ -264,8 +360,16 @@ class UserFriendServiceImplTest {
         private List<UserFriend> listResult = new ArrayList<>();
         private int removeInvocationCount;
         private boolean removeResult;
+        private UserVO targetUser;
+        private UserFriendBlock savedBlock;
+        private boolean saveBlockResult;
+        private Long removedBlockUserId;
+        private Long removedBlockedUserId;
+        private UserFriend friendByPair;
+        private UserFriend updatedFriend;
         private final Map<String, Boolean> pendingFriendApply = new HashMap<>();
         private final Map<String, Boolean> mutualFriend = new HashMap<>();
+        private final Map<String, Boolean> blockedBetween = new HashMap<>();
         private Page<UserVO> searchUsersPage = new Page<>();
         private UserQueryRequest capturedSearchRequest;
         private Map<Long, Integer> onlineStatusMap = new HashMap<>();
@@ -289,6 +393,66 @@ class UserFriendServiceImplTest {
         @Override
         protected boolean hasPendingFriendApply(Long userId, Long targetUserId) {
             return pendingFriendApply.getOrDefault(key(userId, targetUserId), false);
+        }
+
+        @Override
+        protected UserVO getUserById(Long userId) {
+            return targetUser;
+        }
+
+        @Override
+        protected UserFriendBlock getBlock(Long userId, Long blockedUserId) {
+            return blockedBetween.getOrDefault(key(userId, blockedUserId), false)
+                    ? new UserFriendBlock()
+                    : null;
+        }
+
+        @Override
+        protected boolean saveBlock(UserFriendBlock block) {
+            this.savedBlock = block;
+            return saveBlockResult;
+        }
+
+        @Override
+        protected boolean removeBlock(Long userId, Long blockedUserId) {
+            this.removedBlockUserId = userId;
+            this.removedBlockedUserId = blockedUserId;
+            return true;
+        }
+
+        @Override
+        protected UserFriend getFriendByPair(Long userId, Long friendUserId) {
+            return friendByPair;
+        }
+
+        @Override
+        public boolean updateById(UserFriend entity) {
+            this.updatedFriend = entity;
+            return true;
+        }
+
+        void setTargetUser(UserVO targetUser) {
+            this.targetUser = targetUser;
+        }
+
+        void setSaveBlockResult(boolean saveBlockResult) {
+            this.saveBlockResult = saveBlockResult;
+        }
+
+        void setBlockBetween(Long userId, Long targetUserId, boolean exists) {
+            String forward = key(userId, targetUserId);
+            String reverse = key(targetUserId, userId);
+            if (exists) {
+                blockedBetween.put(forward, true);
+                blockedBetween.put(reverse, true);
+                return;
+            }
+            blockedBetween.remove(forward);
+            blockedBetween.remove(reverse);
+        }
+
+        void setFriendByPair(UserFriend friendByPair) {
+            this.friendByPair = friendByPair;
         }
 
         void setPendingFriendApply(Long userId, Long targetUserId, boolean exists) {

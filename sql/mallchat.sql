@@ -239,23 +239,63 @@ DROP TABLE IF EXISTS `chat_moment`;
 DROP TABLE IF EXISTS `chat_room_member`;
 DROP TABLE IF EXISTS `chat_private_room`;
 DROP TABLE IF EXISTS `chat_room`;
+DROP TABLE IF EXISTS `chat_report`;
+DROP TABLE IF EXISTS `user_friend_block`;
 DROP TABLE IF EXISTS `user_friend`;
 
 CREATE TABLE `user_friend`
 (
-    `id`             bigint   NOT NULL AUTO_INCREMENT COMMENT '主键',
-    `user_id`        bigint   NOT NULL COMMENT '用户ID',
-    `friend_user_id` bigint   NOT NULL COMMENT '好友用户ID',
-    `create_time`    datetime NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
-    `update_time`    datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
-    `is_delete`      tinyint  NOT NULL DEFAULT 0 COMMENT '是否删除',
+    `id`                bigint   NOT NULL AUTO_INCREMENT COMMENT '主键',
+    `user_id`           bigint   NOT NULL COMMENT '用户ID',
+    `friend_user_id`    bigint   NOT NULL COMMENT '好友用户ID',
+    `remark_name`       varchar(64)      DEFAULT NULL COMMENT '好友备注',
+    `friend_group_name` varchar(32)      DEFAULT '默认分组' COMMENT '好友分组名称',
+    `create_time`       datetime NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    `update_time`       datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+    `is_delete`         tinyint  NOT NULL DEFAULT 0 COMMENT '是否删除',
     PRIMARY KEY (`id`),
     UNIQUE KEY `uk_user_friend` (`user_id`, `friend_user_id`),
     KEY `idx_user_id` (`user_id`),
-    KEY `idx_friend_user_id` (`friend_user_id`)
+    KEY `idx_friend_user_id` (`friend_user_id`),
+    KEY `idx_user_group` (`user_id`, `friend_group_name`)
 ) ENGINE = InnoDB
   DEFAULT CHARSET = utf8mb4
   COLLATE = utf8mb4_unicode_ci COMMENT = '用户好友表';
+
+CREATE TABLE `user_friend_block`
+(
+    `id`              bigint   NOT NULL AUTO_INCREMENT COMMENT '主键',
+    `user_id`         bigint   NOT NULL COMMENT '拉黑用户ID',
+    `blocked_user_id` bigint   NOT NULL COMMENT '被拉黑用户ID',
+    `create_time`     datetime NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    `update_time`     datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+    PRIMARY KEY (`id`),
+    UNIQUE KEY `uk_user_blocked` (`user_id`, `blocked_user_id`),
+    KEY `idx_blocked_user_id` (`blocked_user_id`)
+) ENGINE = InnoDB
+  DEFAULT CHARSET = utf8mb4
+  COLLATE = utf8mb4_unicode_ci COMMENT = '用户拉黑关系表';
+
+CREATE TABLE `chat_report`
+(
+    `id`               bigint       NOT NULL AUTO_INCREMENT COMMENT '举报ID',
+    `reporter_user_id` bigint       NOT NULL COMMENT '举报用户ID',
+    `target_type`      tinyint      NOT NULL COMMENT '举报对象类型：1-用户，2-消息，3-动态',
+    `target_id`        bigint       NOT NULL COMMENT '举报对象ID',
+    `target_owner_id`  bigint       NOT NULL COMMENT '被举报对象归属用户ID',
+    `reason_type`      varchar(64)  NOT NULL COMMENT '举报原因类型',
+    `reason`           varchar(500)          DEFAULT NULL COMMENT '举报说明',
+    `status`           tinyint      NOT NULL DEFAULT 0 COMMENT '状态：0-待处理，1-已处理',
+    `create_time`      datetime     NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    `update_time`      datetime     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+    `is_delete`        tinyint      NOT NULL DEFAULT 0 COMMENT '是否删除',
+    PRIMARY KEY (`id`),
+    UNIQUE KEY `uk_report_target` (`reporter_user_id`, `target_type`, `target_id`),
+    KEY `idx_target_owner` (`target_owner_id`),
+    KEY `idx_status_time` (`status`, `create_time`)
+) ENGINE = InnoDB
+  DEFAULT CHARSET = utf8mb4
+  COLLATE = utf8mb4_unicode_ci COMMENT = '聊天举报表';
 
 CREATE TABLE `chat_room`
 (

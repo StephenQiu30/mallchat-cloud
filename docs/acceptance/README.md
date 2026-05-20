@@ -23,6 +23,7 @@
 | [A-017-m3-message-reliability-acceptance.md](./A-017-m3-message-reliability-acceptance.md) | m3 消息可靠性与可恢复 Epic 验收 |
 | [A-018-m4-ops-observability-acceptance.md](./A-018-m4-ops-observability-acceptance.md) | m4 可观测性与运维门禁 Epic 验收 |
 | [A-019-m5-data-recovery-acceptance.md](./A-019-m5-data-recovery-acceptance.md) | m5 数据安全与备份恢复 Epic 验收 |
+| [A-020-m6-user-governance-acceptance.md](./A-020-m6-user-governance-acceptance.md) | m6 用户安全与关系治理 Epic 验收 |
 
 ## 不适合放入
 
