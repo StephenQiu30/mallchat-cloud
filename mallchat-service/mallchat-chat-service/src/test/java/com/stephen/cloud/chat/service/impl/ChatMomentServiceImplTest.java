@@ -2,9 +2,13 @@ package com.stephen.cloud.chat.service.impl;
 
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.stephen.cloud.api.chat.model.dto.ChatMomentMediaRequest;
+import com.stephen.cloud.api.chat.model.dto.ChatMomentCommentRequest;
 import com.stephen.cloud.api.chat.model.dto.ChatMomentPublishRequest;
+import com.stephen.cloud.api.chat.model.vo.ChatMomentCommentVO;
 import com.stephen.cloud.api.chat.model.vo.ChatMomentVO;
 import com.stephen.cloud.chat.model.entity.ChatMoment;
+import com.stephen.cloud.chat.model.entity.ChatMomentComment;
+import com.stephen.cloud.chat.model.entity.ChatMomentLike;
 import com.stephen.cloud.chat.model.entity.ChatMomentMedia;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
@@ -158,6 +162,121 @@ class ChatMomentServiceImplTest {
         Assertions.assertThrows(RuntimeException.class, () -> chatMomentService.deleteMoment(1L, 10L));
     }
 
+    @Test
+    void shouldLikeVisibleMomentAndCreateNotification() {
+        chatMomentService.visibleFriendIds = new LinkedHashSet<>(Set.of(2L));
+        chatMomentService.momentById = Map.of(10L, moment(10L, 2L, "friend"));
+
+        chatMomentService.likeMoment(1L, 10L);
+
+        Assertions.assertEquals(1, chatMomentService.savedLikes.size());
+        Assertions.assertEquals(10L, chatMomentService.savedLikes.get(0).getMomentId());
+        Assertions.assertEquals(1L, chatMomentService.savedLikes.get(0).getUserId());
+        Assertions.assertEquals(List.of(10L), chatMomentService.likeIncrementMomentIds);
+        Assertions.assertEquals(List.of("like:10:2:1"), chatMomentService.sentNotifications);
+    }
+
+    @Test
+    void shouldKeepRepeatedLikeIdempotent() {
+        chatMomentService.visibleFriendIds = new LinkedHashSet<>(Set.of(2L));
+        chatMomentService.momentById = Map.of(10L, moment(10L, 2L, "friend"));
+        chatMomentService.likeByMomentAndUser = Map.of("10:1", activeLike(31L, 10L, 1L));
+
+        chatMomentService.likeMoment(1L, 10L);
+
+        Assertions.assertTrue(chatMomentService.savedLikes.isEmpty());
+        Assertions.assertTrue(chatMomentService.likeIncrementMomentIds.isEmpty());
+        Assertions.assertTrue(chatMomentService.sentNotifications.isEmpty());
+    }
+
+    @Test
+    void shouldUnlikeLikedMomentAndDecreaseCount() {
+        chatMomentService.visibleFriendIds = new LinkedHashSet<>(Set.of(2L));
+        chatMomentService.momentById = Map.of(10L, moment(10L, 2L, "friend"));
+        chatMomentService.likeByMomentAndUser = Map.of("10:1", activeLike(31L, 10L, 1L));
+
+        chatMomentService.unlikeMoment(1L, 10L);
+
+        Assertions.assertEquals(List.of(31L), chatMomentService.deletedLikeIds);
+        Assertions.assertEquals(List.of(10L), chatMomentService.likeDecreaseMomentIds);
+    }
+
+    @Test
+    void shouldKeepRepeatedUnlikeIdempotent() {
+        chatMomentService.visibleFriendIds = new LinkedHashSet<>(Set.of(2L));
+        chatMomentService.momentById = Map.of(10L, moment(10L, 2L, "friend"));
+
+        chatMomentService.unlikeMoment(1L, 10L);
+
+        Assertions.assertTrue(chatMomentService.deletedLikeIds.isEmpty());
+        Assertions.assertTrue(chatMomentService.likeDecreaseMomentIds.isEmpty());
+    }
+
+    @Test
+    void shouldRejectInvisibleMomentInteraction() {
+        chatMomentService.visibleFriendIds = new LinkedHashSet<>();
+        chatMomentService.momentById = Map.of(10L, moment(10L, 2L, "stranger"));
+
+        Assertions.assertThrows(RuntimeException.class, () -> chatMomentService.likeMoment(1L, 10L));
+        Assertions.assertThrows(RuntimeException.class, () -> chatMomentService.commentMoment(1L, commentRequest(10L, "hi")));
+        Assertions.assertTrue(chatMomentService.savedLikes.isEmpty());
+        Assertions.assertTrue(chatMomentService.savedComments.isEmpty());
+    }
+
+    @Test
+    void shouldRejectInvalidCommentContent() {
+        chatMomentService.visibleFriendIds = new LinkedHashSet<>(Set.of(2L));
+        chatMomentService.momentById = Map.of(10L, moment(10L, 2L, "friend"));
+
+        Assertions.assertThrows(RuntimeException.class, () -> chatMomentService.commentMoment(1L, commentRequest(10L, " ")));
+        Assertions.assertThrows(RuntimeException.class, () -> chatMomentService.commentMoment(1L, commentRequest(10L, "a".repeat(501))));
+    }
+
+    @Test
+    void shouldCommentVisibleMomentAndCreateNotification() {
+        chatMomentService.visibleFriendIds = new LinkedHashSet<>(Set.of(2L));
+        chatMomentService.momentById = Map.of(10L, moment(10L, 2L, "friend"));
+
+        Long commentId = chatMomentService.commentMoment(1L, commentRequest(10L, " hello "));
+
+        Assertions.assertEquals(200L, commentId);
+        Assertions.assertEquals(1, chatMomentService.savedComments.size());
+        Assertions.assertEquals(10L, chatMomentService.savedComments.get(0).getMomentId());
+        Assertions.assertEquals(1L, chatMomentService.savedComments.get(0).getUserId());
+        Assertions.assertEquals("hello", chatMomentService.savedComments.get(0).getContent());
+        Assertions.assertEquals(List.of(10L), chatMomentService.commentIncrementMomentIds);
+        Assertions.assertEquals(List.of("comment:10:2:1"), chatMomentService.sentNotifications);
+    }
+
+    @Test
+    void shouldListVisibleMomentComments() {
+        chatMomentService.visibleFriendIds = new LinkedHashSet<>(Set.of(2L));
+        chatMomentService.momentById = Map.of(10L, moment(10L, 2L, "friend"));
+        chatMomentService.comments = List.of(comment(101L, 10L, 2L, "first"), comment(102L, 10L, 3L, "second"));
+
+        Page<ChatMomentCommentVO> page = chatMomentService.listComments(1L, 10L, 1, 10);
+
+        Assertions.assertEquals(2, page.getRecords().size());
+        Assertions.assertEquals(101L, page.getRecords().get(0).getId());
+        Assertions.assertEquals("first", page.getRecords().get(0).getContent());
+    }
+
+    @Test
+    void shouldKeepInteractionWhenNotificationFails() {
+        chatMomentService.visibleFriendIds = new LinkedHashSet<>(Set.of(2L));
+        chatMomentService.momentById = Map.of(10L, moment(10L, 2L, "friend"));
+        chatMomentService.failNotification = true;
+
+        chatMomentService.likeMoment(1L, 10L);
+        Long commentId = chatMomentService.commentMoment(1L, commentRequest(10L, "still saved"));
+
+        Assertions.assertEquals(200L, commentId);
+        Assertions.assertEquals(1, chatMomentService.savedLikes.size());
+        Assertions.assertEquals(1, chatMomentService.savedComments.size());
+        Assertions.assertEquals(List.of(10L), chatMomentService.likeIncrementMomentIds);
+        Assertions.assertEquals(List.of(10L), chatMomentService.commentIncrementMomentIds);
+    }
+
     private static ChatMomentMediaRequest media(String url, int sortOrder) {
         ChatMomentMediaRequest request = new ChatMomentMediaRequest();
         request.setUrl(url);
@@ -182,6 +301,33 @@ class ChatMomentServiceImplTest {
         return moment;
     }
 
+    private static ChatMomentLike activeLike(Long id, Long momentId, Long userId) {
+        ChatMomentLike like = new ChatMomentLike();
+        like.setId(id);
+        like.setMomentId(momentId);
+        like.setUserId(userId);
+        like.setIsDelete(0);
+        return like;
+    }
+
+    private static ChatMomentComment comment(Long id, Long momentId, Long userId, String content) {
+        ChatMomentComment comment = new ChatMomentComment();
+        comment.setId(id);
+        comment.setMomentId(momentId);
+        comment.setUserId(userId);
+        comment.setContent(content);
+        comment.setIsDelete(0);
+        comment.setCreateTime(new Date(id));
+        return comment;
+    }
+
+    private static ChatMomentCommentRequest commentRequest(Long momentId, String content) {
+        ChatMomentCommentRequest request = new ChatMomentCommentRequest();
+        request.setMomentId(momentId);
+        request.setContent(content);
+        return request;
+    }
+
     private static class TestableChatMomentServiceImpl extends ChatMomentServiceImpl {
         private ChatMoment savedMoment;
         private final List<ChatMomentMedia> savedMediaList = new ArrayList<>();
@@ -190,6 +336,17 @@ class ChatMomentServiceImplTest {
         private Set<Long> capturedVisibleAuthorIds = new LinkedHashSet<>();
         private Map<Long, ChatMoment> momentById = Map.of();
         private final List<Long> deletedMomentIds = new ArrayList<>();
+        private Map<String, ChatMomentLike> likeByMomentAndUser = Map.of();
+        private final List<ChatMomentLike> savedLikes = new ArrayList<>();
+        private final List<Long> restoredLikeIds = new ArrayList<>();
+        private final List<Long> deletedLikeIds = new ArrayList<>();
+        private final List<Long> likeIncrementMomentIds = new ArrayList<>();
+        private final List<Long> likeDecreaseMomentIds = new ArrayList<>();
+        private final List<ChatMomentComment> savedComments = new ArrayList<>();
+        private final List<Long> commentIncrementMomentIds = new ArrayList<>();
+        private List<ChatMomentComment> comments = new ArrayList<>();
+        private final List<String> sentNotifications = new ArrayList<>();
+        private boolean failNotification;
 
         @Override
         protected boolean saveMoment(ChatMoment moment) {
@@ -237,6 +394,73 @@ class ChatMomentServiceImplTest {
         protected boolean softDeleteMoment(Long momentId) {
             deletedMomentIds.add(momentId);
             return true;
+        }
+
+        @Override
+        protected ChatMomentLike getMomentLikeIncludingDeleted(Long momentId, Long userId) {
+            return likeByMomentAndUser.get(momentId + ":" + userId);
+        }
+
+        @Override
+        protected boolean saveMomentLike(ChatMomentLike like) {
+            savedLikes.add(like);
+            return true;
+        }
+
+        @Override
+        protected boolean restoreMomentLike(Long likeId) {
+            restoredLikeIds.add(likeId);
+            return true;
+        }
+
+        @Override
+        protected boolean softDeleteMomentLike(Long likeId) {
+            deletedLikeIds.add(likeId);
+            return true;
+        }
+
+        @Override
+        protected boolean increaseMomentLikeCount(Long momentId) {
+            likeIncrementMomentIds.add(momentId);
+            return true;
+        }
+
+        @Override
+        protected boolean decreaseMomentLikeCount(Long momentId) {
+            likeDecreaseMomentIds.add(momentId);
+            return true;
+        }
+
+        @Override
+        protected boolean saveMomentComment(ChatMomentComment comment) {
+            comment.setId(200L);
+            savedComments.add(comment);
+            return true;
+        }
+
+        @Override
+        protected boolean increaseMomentCommentCount(Long momentId) {
+            commentIncrementMomentIds.add(momentId);
+            return true;
+        }
+
+        @Override
+        protected Page<ChatMomentComment> pageMomentComments(Long momentId, int current, int pageSize) {
+            List<ChatMomentComment> records = comments.stream()
+                    .filter(item -> momentId.equals(item.getMomentId()))
+                    .filter(item -> Integer.valueOf(0).equals(item.getIsDelete()))
+                    .toList();
+            Page<ChatMomentComment> page = new Page<>(current, pageSize, records.size());
+            page.setRecords(records);
+            return page;
+        }
+
+        @Override
+        protected void sendMomentInteractionNotification(ChatMoment moment, Long actorUserId, String type, Long commentId) {
+            if (failNotification) {
+                throw new RuntimeException("notification down");
+            }
+            sentNotifications.add(type + ":" + moment.getId() + ":" + moment.getUserId() + ":" + actorUserId);
         }
     }
 }
