@@ -335,7 +335,12 @@ public class ChatRoomServiceImpl extends ServiceImpl<ChatRoomMapper, ChatRoom>
         chatSessionService.remove(new LambdaQueryWrapper<com.stephen.cloud.chat.model.entity.ChatSession>()
                 .eq(com.stephen.cloud.chat.model.entity.ChatSession::getUserId, userId)
                 .eq(com.stephen.cloud.chat.model.entity.ChatSession::getRoomId, roomId));
-        chatMqProducer.sendSessionDelete(userId, roomId, "session_quit:" + roomId + ":" + userId);
+        try {
+            chatMqProducer.sendSessionDelete(userId, roomId, "session_quit:" + roomId + ":" + userId);
+        } catch (Exception e) {
+            log.warn("[ChatRoomServiceImpl] 推送退群会话删除失败, roomId={}, userId={}, reason={}",
+                    roomId, userId, e.toString());
+        }
     }
 
     @Override

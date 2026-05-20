@@ -223,8 +223,13 @@ public class ChatSessionServiceImpl extends ServiceImpl<ChatSessionMapper, ChatS
         if (updated) {
             ChatSessionVO sessionVO = getSessionVO(roomId, userId);
             if (sessionVO != null) {
-                chatMqProducer.sendSessionUpdate(userId, roomId, sessionVO,
-                        "session_top:" + roomId + ":" + userId + ":" + topStatus);
+                try {
+                    chatMqProducer.sendSessionUpdate(userId, roomId, sessionVO,
+                            "session_top:" + roomId + ":" + userId + ":" + topStatus);
+                } catch (Exception e) {
+                    log.warn("[ChatSessionServiceImpl] 推送会话置顶刷新失败, roomId={}, userId={}, reason={}",
+                            roomId, userId, e.toString());
+                }
             }
         }
         return updated;
@@ -236,7 +241,12 @@ public class ChatSessionServiceImpl extends ServiceImpl<ChatSessionMapper, ChatS
         queryWrapper.eq(ChatSession::getRoomId, roomId).eq(ChatSession::getUserId, userId);
         boolean removed = this.remove(queryWrapper);
         if (removed) {
-            chatMqProducer.sendSessionDelete(userId, roomId, "session_delete:" + roomId + ":" + userId);
+            try {
+                chatMqProducer.sendSessionDelete(userId, roomId, "session_delete:" + roomId + ":" + userId);
+            } catch (Exception e) {
+                log.warn("[ChatSessionServiceImpl] 推送会话删除失败, roomId={}, userId={}, reason={}",
+                        roomId, userId, e.toString());
+            }
         }
         return removed;
     }

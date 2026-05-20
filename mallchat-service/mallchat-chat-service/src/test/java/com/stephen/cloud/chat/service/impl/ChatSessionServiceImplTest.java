@@ -120,6 +120,22 @@ class ChatSessionServiceImplTest {
     }
 
     @Test
+    void shouldKeepTopStatusWhenSessionUpdatePushThrows() {
+        chatSessionService.getOneResult = createSession(1L, 10L, 1, 0);
+        rooms = List.of(createRoom(1L, ChatRoomTypeEnum.PRIVATE.getCode(), null));
+        privateRooms = List.of(createPrivateRoom(1L, 1L, 2L));
+        messages = List.of(createMessage(10L, 1L, "top"));
+        users = List.of(createUser(2L, "peer", "avatar-2"));
+        chatMqProducer.sessionUpdateThrows = true;
+
+        boolean result = Assertions.assertDoesNotThrow(() -> chatSessionService.topSession(1L, 1L, 1));
+
+        Assertions.assertTrue(result);
+        Assertions.assertEquals(1, chatSessionService.getOneResult.getTopStatus());
+        Assertions.assertEquals(List.of(1L), chatMqProducer.sessionUpdateAttemptUsers);
+    }
+
+    @Test
     void shouldPushSessionDeleteAfterDeleteOperation() {
         chatSessionService.removeResult = true;
 
@@ -128,6 +144,17 @@ class ChatSessionServiceImplTest {
         Assertions.assertTrue(result);
         Assertions.assertEquals(1L, chatMqProducer.lastSessionDeleteUserId);
         Assertions.assertEquals(1L, chatMqProducer.lastSessionDeleteRoomId);
+    }
+
+    @Test
+    void shouldKeepDeleteResultWhenSessionDeletePushThrows() {
+        chatSessionService.removeResult = true;
+        chatMqProducer.sessionDeleteThrows = true;
+
+        boolean result = Assertions.assertDoesNotThrow(() -> chatSessionService.deleteSession(1L, 1L));
+
+        Assertions.assertTrue(result);
+        Assertions.assertEquals(List.of(1L), chatMqProducer.sessionDeleteAttemptUsers);
     }
 
     @Test
@@ -337,9 +364,17 @@ class ChatSessionServiceImplTest {
         private Object lastSessionUpdatePayload;
         private Long lastSessionDeleteUserId;
         private Long lastSessionDeleteRoomId;
+        private List<Long> sessionUpdateAttemptUsers = new ArrayList<>();
+        private List<Long> sessionDeleteAttemptUsers = new ArrayList<>();
+        private boolean sessionUpdateThrows;
+        private boolean sessionDeleteThrows;
 
         @Override
         public void sendSessionUpdate(Long userId, Long roomId, Object data, String bizId) {
+            this.sessionUpdateAttemptUsers.add(userId);
+            if (sessionUpdateThrows) {
+                throw new RuntimeException("session update failed");
+            }
             this.lastSessionUpdateUserId = userId;
             this.lastSessionUpdateRoomId = roomId;
             this.lastSessionUpdatePayload = data;
@@ -347,6 +382,10 @@ class ChatSessionServiceImplTest {
 
         @Override
         public void sendSessionDelete(Long userId, Long roomId, String bizId) {
+            this.sessionDeleteAttemptUsers.add(userId);
+            if (sessionDeleteThrows) {
+                throw new RuntimeException("session delete failed");
+            }
             this.lastSessionDeleteUserId = userId;
             this.lastSessionDeleteRoomId = roomId;
         }

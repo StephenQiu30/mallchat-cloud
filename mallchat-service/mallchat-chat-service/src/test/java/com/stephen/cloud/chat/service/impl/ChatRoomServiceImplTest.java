@@ -497,6 +497,24 @@ class ChatRoomServiceImplTest {
     }
 
     @Test
+    void shouldQuitGroupWhenSessionDeletePushThrows() {
+        chatRoomService.stubRoom = buildGroupRoom();
+        currentUserIsMember = true;
+        currentUserIsOwner = false;
+        targetMember = buildMember(90L, 1L, ChatRoomRoleEnum.MEMBER.getCode());
+        sessionDeleteFailureUserId = 1L;
+
+        Assertions.assertDoesNotThrow(() -> chatRoomService.quitRoom(90L, 1L));
+
+        Assertions.assertEquals(90L, leftRoomId);
+        Assertions.assertEquals(1L, leftUserId);
+        Assertions.assertEquals(90L, removedSessionRoomId);
+        Assertions.assertEquals(1L, removedSessionUserId);
+        Assertions.assertEquals(List.of(1L), sessionDeleteAttemptUsers);
+        Assertions.assertTrue(sessionDeleteUsers.isEmpty());
+    }
+
+    @Test
     void shouldDismissGroupWhenSessionDeletePushThrows() {
         chatRoomService.stubRoom = buildGroupRoom();
         currentUserIsMember = true;
