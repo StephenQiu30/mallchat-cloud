@@ -18,6 +18,8 @@ import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.test.util.ReflectionTestUtils;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.lang.reflect.Proxy;
 import java.util.ArrayList;
@@ -204,6 +206,41 @@ class UserFriendApplyServiceImplTest {
     }
 
     @Test
+    void shouldCreateFriendApplicationNotificationAfterTransactionCommit() {
+        UserVO applyUser = new UserVO();
+        applyUser.setId(1L);
+        applyUser.setUserName("u1");
+        users.put(1L, applyUser);
+        UserVO targetUser = new UserVO();
+        targetUser.setId(2L);
+        users.put(2L, targetUser);
+        userFriendService.mutualFriend = false;
+
+        UserFriendApply apply = new UserFriendApply();
+        apply.setTargetId(2L);
+        apply.setMsg("hello");
+        userFriendApplyService.nextSaveId = 10L;
+        userFriendApplyService.saveResult = true;
+
+        TransactionSynchronizationManager.initSynchronization();
+        List<TransactionSynchronization> synchronizations;
+        try {
+            Long result = userFriendApplyService.applyFriend(apply, 1L);
+
+            Assertions.assertEquals(10L, result);
+            Assertions.assertTrue(notifications.isEmpty());
+            synchronizations = TransactionSynchronizationManager.getSynchronizations();
+        } finally {
+            TransactionSynchronizationManager.clearSynchronization();
+        }
+
+        synchronizations.forEach(TransactionSynchronization::afterCommit);
+
+        Assertions.assertEquals(1, notifications.size());
+        Assertions.assertEquals("friend_apply:10", notifications.get(0).getBizId());
+    }
+
+    @Test
     void shouldApproveFriendByCreatingFriendshipAndPrivateRoom() {
         UserVO applyUser = new UserVO();
         applyUser.setId(1L);
@@ -303,6 +340,43 @@ class UserFriendApplyServiceImplTest {
         Assertions.assertEquals(2L, chatRoomService.lastUserId);
         Assertions.assertEquals(List.of("friend_approve:10"), chatMqProducer.approveAttemptBizIds);
         Assertions.assertEquals(1, notificationAttempts);
+        Assertions.assertEquals(1, notifications.size());
+        Assertions.assertEquals("friend_approve:10", notifications.get(0).getBizId());
+    }
+
+    @Test
+    void shouldCreateFriendApprovalNotificationAfterTransactionCommit() {
+        UserVO applyUser = new UserVO();
+        applyUser.setId(1L);
+        applyUser.setUserName("u1");
+        users.put(1L, applyUser);
+
+        ChatFriendApproveRequest request = new ChatFriendApproveRequest();
+        request.setApplyId(10L);
+        request.setStatus(2);
+
+        UserFriendApply apply = new UserFriendApply();
+        apply.setId(10L);
+        apply.setUserId(1L);
+        apply.setTargetId(2L);
+        apply.setStatus(1);
+        userFriendApplyService.applyById = apply;
+        userFriendApplyService.updateResult = true;
+
+        TransactionSynchronizationManager.initSynchronization();
+        List<TransactionSynchronization> synchronizations;
+        try {
+            boolean result = userFriendApplyService.approveFriend(request, 2L);
+
+            Assertions.assertTrue(result);
+            Assertions.assertTrue(notifications.isEmpty());
+            synchronizations = TransactionSynchronizationManager.getSynchronizations();
+        } finally {
+            TransactionSynchronizationManager.clearSynchronization();
+        }
+
+        synchronizations.forEach(TransactionSynchronization::afterCommit);
+
         Assertions.assertEquals(1, notifications.size());
         Assertions.assertEquals("friend_approve:10", notifications.get(0).getBizId());
     }

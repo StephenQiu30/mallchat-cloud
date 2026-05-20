@@ -28,6 +28,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.util.Collections;
 import java.util.List;
@@ -249,6 +251,19 @@ public class UserFriendApplyServiceImpl extends ServiceImpl<UserFriendApplyMappe
     }
 
     private void trySendFriendNotification(Long userId, String title, String content, String bizId, Long applyId) {
+        if (TransactionSynchronizationManager.isSynchronizationActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    doTrySendFriendNotification(userId, title, content, bizId, applyId);
+                }
+            });
+            return;
+        }
+        doTrySendFriendNotification(userId, title, content, bizId, applyId);
+    }
+
+    private void doTrySendFriendNotification(Long userId, String title, String content, String bizId, Long applyId) {
         try {
             sendFriendNotification(userId, title, content, bizId, applyId);
         } catch (Exception e) {
