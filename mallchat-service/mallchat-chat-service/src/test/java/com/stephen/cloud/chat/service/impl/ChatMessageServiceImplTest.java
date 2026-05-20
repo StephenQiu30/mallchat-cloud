@@ -326,6 +326,32 @@ class ChatMessageServiceImplTest {
     }
 
     @Test
+    void shouldRejectInvalidImageMessageWithoutPersistenceOrPush() {
+        ChatMessage message = createMediaMessage(ChatMessageTypeEnum.IMAGE,
+                "{\"url\":\"https://example.com/a.png\",\"width\":100,\"height\":200,\"size\":0}");
+
+        BusinessException exception = Assertions.assertThrows(BusinessException.class,
+                () -> chatMessageService.sendMessage(message, 1L));
+
+        Assertions.assertEquals(ErrorCode.PARAMS_ERROR.getCode(), exception.getCode());
+        Assertions.assertNull(chatMessageService.messageById);
+        Assertions.assertNull(chatMqProducer.lastGroupPushRoomId);
+    }
+
+    @Test
+    void shouldRejectInvalidFileMessageWithoutPersistenceOrPush() {
+        ChatMessage message = createMediaMessage(ChatMessageTypeEnum.FILE,
+                "{\"url\":\"https://example.com/a.zip\",\"name\":\" \",\"size\":1024,\"ext\":\"zip\"}");
+
+        BusinessException exception = Assertions.assertThrows(BusinessException.class,
+                () -> chatMessageService.sendMessage(message, 1L));
+
+        Assertions.assertEquals(ErrorCode.PARAMS_ERROR.getCode(), exception.getCode());
+        Assertions.assertNull(chatMessageService.messageById);
+        Assertions.assertNull(chatMqProducer.lastGroupPushRoomId);
+    }
+
+    @Test
     void shouldSendRoomMemberSnapshotWhenMessageReadIsCreated() {
         ChatMessage stored = createStoredMessage(8L, 1L);
         chatMessageService.messageById = stored;
@@ -448,6 +474,15 @@ class ChatMessageServiceImplTest {
         message.setClientMsgId(clientMsgId);
         message.setType(ChatMessageTypeEnum.TEXT.getCode());
         message.setContent(content);
+        return message;
+    }
+
+    private ChatMessage createMediaMessage(ChatMessageTypeEnum type, String extra) {
+        ChatMessage message = new ChatMessage();
+        message.setRoomId(1L);
+        message.setClientMsgId(type.name().toLowerCase() + "-1");
+        message.setType(type.getCode());
+        message.setExtra(extra);
         return message;
     }
 

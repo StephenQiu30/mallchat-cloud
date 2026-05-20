@@ -1,6 +1,7 @@
 package com.stephen.cloud.chat.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.Wrapper;
+import com.stephen.cloud.api.chat.model.enums.ChatMessageTypeEnum;
 import com.stephen.cloud.api.chat.model.enums.ChatRoomTypeEnum;
 import com.stephen.cloud.api.chat.model.enums.MessageStatusEnum;
 import com.stephen.cloud.api.chat.model.vo.ChatSessionVO;
@@ -79,6 +80,25 @@ class ChatSessionServiceImplTest {
         Assertions.assertEquals(1, sessionVO.getOnlineStatus());
         Assertions.assertEquals("hello", sessionVO.getLastMessage());
         Assertions.assertEquals(2, sessionVO.getUnreadCount());
+    }
+
+    @Test
+    void shouldBuildImageAndFileSessionPreviewPlaceholders() {
+        ChatSession imageSession = createSession(1L, 10L, 0, 0);
+        ChatSession fileSession = createSession(2L, 11L, 0, 0);
+        chatSessionService.listResult = List.of(imageSession, fileSession);
+        rooms = List.of(
+                createRoom(1L, ChatRoomTypeEnum.GROUP.getCode(), "group-1"),
+                createRoom(2L, ChatRoomTypeEnum.GROUP.getCode(), "group-2")
+        );
+        messages = List.of(
+                createMessage(10L, 1L, "", ChatMessageTypeEnum.IMAGE),
+                createMessage(11L, 2L, "", ChatMessageTypeEnum.FILE)
+        );
+
+        List<ChatSessionVO> sessions = chatSessionService.listMySessions(1L);
+
+        Assertions.assertEquals(List.of("[图片]", "[文件]"), sessions.stream().map(ChatSessionVO::getLastMessage).toList());
     }
 
     @Test
@@ -163,13 +183,17 @@ class ChatSessionServiceImplTest {
     }
 
     private ChatMessage createMessage(Long id, Long roomId, String content) {
+        return createMessage(id, roomId, content, ChatMessageTypeEnum.TEXT);
+    }
+
+    private ChatMessage createMessage(Long id, Long roomId, String content, ChatMessageTypeEnum type) {
         ChatMessage message = new ChatMessage();
         message.setId(id);
         message.setRoomId(roomId);
         message.setFromUserId(2L);
         message.setContent(content);
         message.setStatus(MessageStatusEnum.NORMAL.getCode());
-        message.setType(1);
+        message.setType(type.getCode());
         message.setCreateTime(new Date());
         return message;
     }
