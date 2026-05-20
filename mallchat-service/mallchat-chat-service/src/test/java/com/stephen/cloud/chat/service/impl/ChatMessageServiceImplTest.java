@@ -360,6 +360,20 @@ class ChatMessageServiceImplTest {
     }
 
     @Test
+    void shouldReturnExistingMessageWhenDuplicateClientMsgIdWinsDatabaseRace() {
+        room.setType(ChatRoomTypeEnum.GROUP.getCode());
+        chatMessageService.saveDuplicateKey = true;
+        ChatMessage existing = createStoredMessage(88L, 1L);
+        existing.setClientMsgId("dup-1");
+        chatMessageService.duplicateExistingMessage = existing;
+
+        ChatMessageVO result = chatMessageService.sendMessage(createTextMessage(1L, "dup-1", "hello"), 1L);
+
+        Assertions.assertEquals(88L, result.getId());
+        Assertions.assertNull(chatMqProducer.lastGroupPushRoomId);
+    }
+
+    @Test
     void shouldKeepMessageFactWhenGroupPushThrows() {
         room.setType(ChatRoomTypeEnum.GROUP.getCode());
         chatMqProducer.groupPushThrows = true;
@@ -693,6 +707,8 @@ class ChatMessageServiceImplTest {
         private ChatMessage messageByRoomQuery;
         private List<ChatMessage> listResult = new ArrayList<>();
         private boolean saveResult = true;
+        private boolean saveDuplicateKey;
+        private ChatMessage duplicateExistingMessage;
         private boolean updateResult = true;
         private boolean sessionUpdateInvoked;
         private int updatedUnreadCount = -1;
@@ -713,6 +729,10 @@ class ChatMessageServiceImplTest {
 
         @Override
         public boolean save(ChatMessage entity) {
+            if (saveDuplicateKey) {
+                existingByClient = duplicateExistingMessage;
+                throw new org.springframework.dao.DuplicateKeyException("duplicate client msg id");
+            }
             if (saveResult && entity.getId() == null) {
                 entity.setId(100L);
                 entity.setCreateTime(new Date());

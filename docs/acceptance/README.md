@@ -19,6 +19,8 @@
 | [A-013-friend-apply-push-degradation-acceptance.md](./A-013-friend-apply-push-degradation-acceptance.md) | 好友申请、好友通过推送失败降级验收结论 |
 | [A-014-friend-notification-after-commit-acceptance.md](./A-014-friend-notification-after-commit-acceptance.md) | 好友申请、好友通过通知 afterCommit 验收结论 |
 | [A-015-im-backend-long-task-acceptance-summary.md](./A-015-im-backend-long-task-acceptance-summary.md) | IM 后端长任务最终验收摘要 |
+| [A-016-im-production-readiness-issue-generation-acceptance.md](./A-016-im-production-readiness-issue-generation-acceptance.md) | IM 生产可用 P0 Issue 编排验收 |
+| [A-017-m3-message-reliability-acceptance.md](./A-017-m3-message-reliability-acceptance.md) | m3 消息可靠性与可恢复 Epic 验收 |
 
 ## 不适合放入
 
