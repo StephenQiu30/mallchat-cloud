@@ -115,7 +115,7 @@ downstream:
 
 | PR 编号 | 分支 | 关联 Issue | 预期标题 | 状态 |
 | --- | --- | --- | --- | --- |
-| `m1` | `m1-websocket-handshake-security` | [#6](https://github.com/StephenQiu30/mallchat-cloud/issues/6) | `[m1] 加固 WebSocket 握手鉴权与 Origin 校验` | 准备消费 |
+| `m1` | `m1-websocket-handshake-security` | [#6](https://github.com/StephenQiu30/mallchat-cloud/issues/6) | [[m1] 加固 WebSocket 握手鉴权与 Origin 校验](https://github.com/StephenQiu30/mallchat-cloud/pull/20) | PR 已创建 |
 
 ## 7. 编排阶段验证命令
 
