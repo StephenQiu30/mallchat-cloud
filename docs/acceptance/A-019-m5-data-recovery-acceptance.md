@@ -28,6 +28,7 @@ triggers:
   - "回归数据安全与备份恢复 Epic #5"
 downstream:
   - "GitHub Epic #5"
+  - "GitHub PR #24"
 ---
 
 # m5 数据安全与备份恢复验收
@@ -35,6 +36,8 @@ downstream:
 ## 1. 验收范围
 
 本次 m5 聚合消费 Epic #5 下的 #17、#18、#19。实现保持最小生产可用闭环：不建设完整灾备系统、不让旧登录态自动恢复、不引入文件内容审核或杀毒扫描。
+
+交付 PR：[https://github.com/StephenQiu30/mallchat-cloud/pull/24](https://github.com/StephenQiu30/mallchat-cloud/pull/24)
 
 ## 2. 结论
 
