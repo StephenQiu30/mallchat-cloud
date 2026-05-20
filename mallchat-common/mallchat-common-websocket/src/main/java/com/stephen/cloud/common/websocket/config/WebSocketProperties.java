@@ -46,4 +46,14 @@ public class WebSocketProperties {
      */
     private List<String> allowedOrigins = List.of();
 
+    /**
+     * 单用户本地最大连接数
+     */
+    private Integer maxConnectionsPerUser = 5;
+
+    /**
+     * 同用户最小连接间隔，0 表示不限制
+     */
+    private Long minConnectIntervalMillis = 0L;
+
 }

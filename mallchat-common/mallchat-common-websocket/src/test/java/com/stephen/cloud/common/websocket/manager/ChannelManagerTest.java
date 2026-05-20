@@ -6,6 +6,7 @@ import com.stephen.cloud.common.rabbitmq.enums.MqBizTypeEnum;
 import com.stephen.cloud.common.rabbitmq.model.ImWebSocketEvent;
 import com.stephen.cloud.common.rabbitmq.model.WebSocketMessage;
 import com.stephen.cloud.common.rabbitmq.producer.RabbitMqSender;
+import io.netty.channel.DefaultChannelId;
 import io.netty.channel.embedded.EmbeddedChannel;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
@@ -18,6 +19,11 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 
 class ChannelManagerTest {
 
@@ -39,7 +45,7 @@ class ChannelManagerTest {
     @Test
     void shouldNotifyFriendsWhenFirstConnectionComesOnline() {
         channelManager.setFriendIdsResolver(userId -> Set.of(2L));
-        EmbeddedChannel channel = new EmbeddedChannel();
+        EmbeddedChannel channel = newChannel();
 
         channelManager.addChannel("1", channel);
 
@@ -56,7 +62,7 @@ class ChannelManagerTest {
     @Test
     void shouldOnlyNotifyOfflineWhenLastConnectionIsRemoved() {
         channelManager.setFriendIdsResolver(userId -> Set.of(2L));
-        EmbeddedChannel channel = new EmbeddedChannel();
+        EmbeddedChannel channel = newChannel();
 
         channelManager.addChannel("1", channel);
         rabbitMqSender.clear();
@@ -75,13 +81,95 @@ class ChannelManagerTest {
 
     @Test
     void shouldHandleEmptyFriendResolverResult() {
-        EmbeddedChannel channel = new EmbeddedChannel();
+        EmbeddedChannel channel = newChannel();
 
         channelManager.addChannel("1", channel);
 
         WebSocketMessage message = (WebSocketMessage) rabbitMqSender.lastPayload;
         Assertions.assertEquals(Set.of(1L), new HashSet<>(message.getUserIds()));
         channel.close();
+    }
+
+    @Test
+    void shouldRejectNewChannelWhenUserConnectionLimitExceeded() {
+        channelManager.setRuntimeGuard(1, 0L);
+        EmbeddedChannel first = newChannel();
+        EmbeddedChannel second = newChannel();
+
+        Assertions.assertTrue(channelManager.addChannel("1", first));
+        Assertions.assertFalse(channelManager.addChannel("1", second));
+
+        Assertions.assertEquals(1, channelManager.getChannels("1").size());
+        Assertions.assertEquals(1L, channelManager.getRejectedConnectionCount());
+        Assertions.assertFalse(second.isActive());
+        first.close();
+    }
+
+    @Test
+    void shouldKeepConnectionLimitWhenHandshakeCompletesConcurrently() throws InterruptedException {
+        channelManager.setRuntimeGuard(1, 0L);
+        CountDownLatch startLatch = new CountDownLatch(1);
+        AtomicInteger acceptedCount = new AtomicInteger();
+        ExecutorService executorService = Executors.newFixedThreadPool(2);
+
+        for (int i = 0; i < 2; i++) {
+            executorService.submit(() -> {
+                EmbeddedChannel channel = newChannel();
+                try {
+                    startLatch.await();
+                    if (channelManager.addChannel("1", channel)) {
+                        acceptedCount.incrementAndGet();
+                    }
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                }
+            });
+        }
+
+        startLatch.countDown();
+        executorService.shutdown();
+        Assertions.assertTrue(executorService.awaitTermination(5, TimeUnit.SECONDS));
+        Assertions.assertEquals(1, acceptedCount.get());
+        Assertions.assertEquals(1, channelManager.getChannels("1").size());
+        Assertions.assertEquals(1L, channelManager.getRejectedConnectionCount());
+    }
+
+    @Test
+    void shouldRejectRepeatedConnectionWithinGuardWindow() {
+        channelManager.setRuntimeGuard(5, 60_000L);
+        EmbeddedChannel first = newChannel();
+        EmbeddedChannel second = newChannel();
+
+        Assertions.assertTrue(channelManager.addChannel("1", first));
+        channelManager.removeChannel(first);
+        Assertions.assertFalse(channelManager.addChannel("1", second));
+
+        Assertions.assertEquals(1L, channelManager.getRejectedConnectionCount());
+        Assertions.assertFalse(second.isActive());
+    }
+
+    @Test
+    void shouldNotAuditGuardRejectedChannelAsAbnormalDisconnect() {
+        channelManager.setRuntimeGuard(1, 0L);
+        EmbeddedChannel first = newChannel();
+        EmbeddedChannel second = newChannel();
+
+        Assertions.assertTrue(channelManager.addChannel("1", first));
+        Assertions.assertFalse(channelManager.addChannel("1", second));
+        channelManager.removeChannel(second);
+
+        Assertions.assertEquals(1L, channelManager.getRejectedConnectionCount());
+        Assertions.assertEquals(0L, channelManager.getAbnormalDisconnectCount());
+        first.close();
+    }
+
+    @Test
+    void shouldAuditUnknownChannelDisconnect() {
+        EmbeddedChannel channel = newChannel();
+
+        channelManager.removeChannel(channel);
+
+        Assertions.assertEquals(1L, channelManager.getAbnormalDisconnectCount());
     }
 
     private static class RecordingRabbitMqSender extends RabbitMqSender {
@@ -98,6 +186,10 @@ class ChannelManagerTest {
             this.lastBizType = null;
             this.lastPayload = null;
         }
+    }
+
+    private EmbeddedChannel newChannel() {
+        return new EmbeddedChannel(DefaultChannelId.newInstance());
     }
 
     private static class FakeCacheUtils extends CacheUtils {
