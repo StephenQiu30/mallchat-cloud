@@ -99,6 +99,25 @@ class UserFriendApplyServiceImplTest {
     }
 
     @Test
+    void shouldRejectFriendApplicationWhenEitherUserBlocked() {
+        UserVO targetUser = new UserVO();
+        targetUser.setId(2L);
+        users.put(2L, targetUser);
+        userFriendService.blockedBetween = true;
+
+        UserFriendApply apply = new UserFriendApply();
+        apply.setTargetId(2L);
+        apply.setMsg("hello");
+
+        BusinessException exception = Assertions.assertThrows(BusinessException.class,
+                () -> userFriendApplyService.applyFriend(apply, 1L));
+
+        Assertions.assertEquals(ErrorCode.NO_AUTH_ERROR.getCode(), exception.getCode());
+        Assertions.assertNull(chatMqProducer.lastApplyUserId);
+        Assertions.assertTrue(notifications.isEmpty());
+    }
+
+    @Test
     void shouldReturnExistingIdForSameDirectionPendingApplication() {
         UserVO targetUser = new UserVO();
         targetUser.setId(2L);
@@ -465,6 +484,7 @@ class UserFriendApplyServiceImplTest {
 
     private static class FakeUserFriendService {
         private boolean mutualFriend;
+        private boolean blockedBetween;
         private Long lastAddUserId;
         private Long lastAddFriendUserId;
 
@@ -476,6 +496,8 @@ class UserFriendApplyServiceImplTest {
                         switch (method.getName()) {
                             case "isMutualFriend":
                                 return mutualFriend;
+                            case "isBlockedBetween":
+                                return blockedBetween;
                             case "addFriend":
                                 lastAddUserId = (Long) args[0];
                                 lastAddFriendUserId = (Long) args[1];

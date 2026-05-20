@@ -3,6 +3,7 @@ package com.stephen.cloud.chat.service;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.IService;
+import com.stephen.cloud.api.chat.model.dto.ChatFriendProfileUpdateRequest;
 import com.stephen.cloud.api.chat.model.dto.ChatFriendQueryRequest;
 import com.stephen.cloud.api.chat.model.vo.ChatFriendUserVO;
 import com.stephen.cloud.chat.model.entity.UserFriend;
@@ -98,6 +99,48 @@ public interface UserFriendService extends IService<UserFriend> {
      * @return 好友视图列表
      */
     List<ChatFriendUserVO> listFriends(Long userId);
+
+    /**
+     * 好友列表（可按轻量分组过滤）
+     *
+     * @param userId          当前用户 ID
+     * @param friendGroupName 好友分组名称
+     * @return 好友视图列表
+     */
+    List<ChatFriendUserVO> listFriends(Long userId, String friendGroupName);
+
+    /**
+     * 更新好友备注和轻量分组
+     *
+     * @param userId  当前用户 ID
+     * @param request 更新请求
+     */
+    void updateFriendProfile(Long userId, ChatFriendProfileUpdateRequest request);
+
+    /**
+     * 拉黑用户
+     *
+     * @param userId       当前用户 ID
+     * @param targetUserId 目标用户 ID
+     */
+    void blockUser(Long userId, Long targetUserId);
+
+    /**
+     * 解除拉黑
+     *
+     * @param userId       当前用户 ID
+     * @param targetUserId 目标用户 ID
+     */
+    void unblockUser(Long userId, Long targetUserId);
+
+    /**
+     * 两个用户间是否存在任一方向拉黑
+     *
+     * @param userId       用户 ID
+     * @param targetUserId 目标用户 ID
+     * @return 是否存在拉黑
+     */
+    boolean isBlockedBetween(Long userId, Long targetUserId);
 
     /**
      * 是否互为好友（双向关系均存在）

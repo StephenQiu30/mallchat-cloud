@@ -1,38 +1,33 @@
 package com.stephen.cloud.chat.model.entity;
 
-import com.baomidou.mybatisplus.annotation.*;
+import com.baomidou.mybatisplus.annotation.IdType;
+import com.baomidou.mybatisplus.annotation.TableField;
+import com.baomidou.mybatisplus.annotation.TableId;
+import com.baomidou.mybatisplus.annotation.TableName;
 import lombok.Data;
 
 import java.io.Serializable;
 import java.util.Date;
 
 /**
- * 用户好友表
+ * 用户拉黑关系表
  *
  * @author StephenQiu30
- * @TableName user_friend
  */
-@TableName(value = "user_friend")
+@TableName(value = "user_friend_block")
 @Data
-public class UserFriend implements Serializable {
+public class UserFriendBlock implements Serializable {
 
     @TableId(type = IdType.AUTO)
     private Long id;
 
     private Long userId;
 
-    private Long friendUserId;
-
-    private String remarkName;
-
-    private String friendGroupName;
+    private Long blockedUserId;
 
     private Date createTime;
 
     private Date updateTime;
-
-    @TableLogic
-    private Integer isDelete;
 
     @TableField(exist = false)
     private static final long serialVersionUID = 1L;

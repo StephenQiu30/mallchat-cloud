@@ -24,6 +24,12 @@ public class ChatFriendUserVO implements Serializable {
     @Schema(description = "头像")
     private String userAvatar;
 
+    @Schema(description = "好友备注")
+    private String remarkName;
+
+    @Schema(description = "好友分组名称")
+    private String friendGroupName;
+
     @Schema(description = "在线状态：0-离线，1-在线")
     private Integer onlineStatus;
 

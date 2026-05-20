@@ -2,6 +2,8 @@ package com.stephen.cloud.chat.controller;
 
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.stephen.cloud.api.chat.model.dto.ChatFriendAddRequest;
+import com.stephen.cloud.api.chat.model.dto.ChatFriendBlockRequest;
+import com.stephen.cloud.api.chat.model.dto.ChatFriendProfileUpdateRequest;
 import com.stephen.cloud.api.chat.model.vo.ChatFriendUserVO;
 import com.stephen.cloud.chat.service.UserFriendService;
 import com.stephen.cloud.common.auth.utils.SecurityUtils;
@@ -57,10 +59,12 @@ public class ChatFriendController {
      */
     @GetMapping("/list/vo")
     @Operation(summary = "我的好友列表", description = "获取当前登录用户的所有好友基本信息（昵称、头像）")
-    public BaseResponse<List<ChatFriendUserVO>> listFriends(HttpServletRequest servletRequest) {
+    public BaseResponse<List<ChatFriendUserVO>> listFriends(
+            @RequestParam(value = "friendGroupName", required = false) String friendGroupName,
+            HttpServletRequest servletRequest) {
         Long userId = SecurityUtils.getLoginUserId();
         // 批量查询好友详细信息并封装为 VO
-        return ResultUtils.success(userFriendService.listFriends(userId));
+        return ResultUtils.success(userFriendService.listFriends(userId, friendGroupName));
     }
 
     /**
@@ -97,6 +101,37 @@ public class ChatFriendController {
         ThrowUtils.throwIf(friendUserId == null, ErrorCode.PARAMS_ERROR);
         Long userId = SecurityUtils.getLoginUserId();
         userFriendService.removeFriend(userId, friendUserId);
+        return ResultUtils.success(true);
+    }
+
+    @PostMapping("/profile/update")
+    @OperationLog(module = "好友管理", action = "更新好友资料")
+    @Operation(summary = "更新好友资料", description = "更新好友备注和轻量分组")
+    public BaseResponse<Boolean> updateFriendProfile(@Validated @RequestBody ChatFriendProfileUpdateRequest request,
+                                                     HttpServletRequest servletRequest) {
+        Long userId = SecurityUtils.getLoginUserId();
+        userFriendService.updateFriendProfile(userId, request);
+        return ResultUtils.success(true);
+    }
+
+    @PostMapping("/block")
+    @OperationLog(module = "好友管理", action = "拉黑用户")
+    @Operation(summary = "拉黑用户", description = "拉黑指定用户并限制好友申请、私聊和动态可见性")
+    public BaseResponse<Boolean> blockUser(@Validated @RequestBody ChatFriendBlockRequest request,
+                                           HttpServletRequest servletRequest) {
+        ThrowUtils.throwIf(request == null || request.getTargetUserId() == null, ErrorCode.PARAMS_ERROR);
+        Long userId = SecurityUtils.getLoginUserId();
+        userFriendService.blockUser(userId, request.getTargetUserId());
+        return ResultUtils.success(true);
+    }
+
+    @DeleteMapping("/block")
+    @OperationLog(module = "好友管理", action = "解除拉黑")
+    @Operation(summary = "解除拉黑", description = "解除对指定用户的拉黑")
+    public BaseResponse<Boolean> unblockUser(@RequestParam Long targetUserId, HttpServletRequest servletRequest) {
+        ThrowUtils.throwIf(targetUserId == null, ErrorCode.PARAMS_ERROR);
+        Long userId = SecurityUtils.getLoginUserId();
+        userFriendService.unblockUser(userId, targetUserId);
         return ResultUtils.success(true);
     }
 }

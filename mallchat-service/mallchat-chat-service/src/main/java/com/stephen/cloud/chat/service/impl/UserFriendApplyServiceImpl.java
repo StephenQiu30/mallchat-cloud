@@ -172,6 +172,7 @@ public class UserFriendApplyServiceImpl extends ServiceImpl<UserFriendApplyMappe
 
         // 校验是否已经是好友，避免重复申请
         ThrowUtils.throwIf(userFriendService.isMutualFriend(userId, targetId), ErrorCode.OPERATION_ERROR, "已经是好友了");
+        ThrowUtils.throwIf(userFriendService.isBlockedBetween(userId, targetId), ErrorCode.NO_AUTH_ERROR, "双方存在拉黑关系");
 
         // 幂等校验：同一对用户任意时刻只允许存在一条待处理申请
         UserFriendApply existing = this.getOne(new LambdaQueryWrapper<UserFriendApply>()
@@ -229,6 +230,8 @@ public class UserFriendApplyServiceImpl extends ServiceImpl<UserFriendApplyMappe
         }
 
         // 同意申请：建立双向好友并初始化私聊房间
+        ThrowUtils.throwIf(userFriendService.isBlockedBetween(apply.getUserId(), apply.getTargetId()),
+                ErrorCode.NO_AUTH_ERROR, "双方存在拉黑关系");
         apply.setStatus(status);
         userFriendService.addFriend(apply.getUserId(), apply.getTargetId());
         chatRoomService.getOrCreatePrivateRoom(apply.getUserId(), apply.getTargetId());
