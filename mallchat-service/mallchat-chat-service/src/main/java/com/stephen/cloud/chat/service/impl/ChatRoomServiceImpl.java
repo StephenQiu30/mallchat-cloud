@@ -348,7 +348,12 @@ public class ChatRoomServiceImpl extends ServiceImpl<ChatRoomMapper, ChatRoom>
         List<ChatRoomMember> members = chatRoomMemberService.listByRoomId(roomId);
         for (ChatRoomMember member : members) {
             chatRoomMemberService.leaveRoom(roomId, member.getUserId());
-            chatMqProducer.sendSessionDelete(member.getUserId(), roomId, "session_dismiss:" + roomId + ":" + member.getUserId());
+            try {
+                chatMqProducer.sendSessionDelete(member.getUserId(), roomId, "session_dismiss:" + roomId + ":" + member.getUserId());
+            } catch (Exception e) {
+                log.warn("[ChatRoomServiceImpl] 推送群解散会话删除失败, roomId={}, userId={}, reason={}",
+                        roomId, member.getUserId(), e.toString());
+            }
         }
         chatSessionService.remove(new LambdaQueryWrapper<com.stephen.cloud.chat.model.entity.ChatSession>()
                 .eq(com.stephen.cloud.chat.model.entity.ChatSession::getRoomId, roomId));

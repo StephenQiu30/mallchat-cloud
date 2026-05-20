@@ -53,9 +53,15 @@ class ChatRoomServiceImplTest {
     private ChatRoomMember targetMember;
     private Long leftRoomId;
     private Long leftUserId;
+    private List<Long> leftUsers;
     private Long removedSessionRoomId;
     private Long removedSessionUserId;
+    private Long removedAllSessionsRoomId;
+    private Long removedGroupInfoRoomId;
+    private Long removedRoomId;
     private List<Long> sessionDeleteUsers;
+    private List<Long> sessionDeleteAttemptUsers;
+    private Long sessionDeleteFailureUserId;
     private boolean sessionDeleteThrows;
     private boolean sessionRemoveThrows;
     private List<NotificationCreateRequest> notifications;
@@ -78,6 +84,8 @@ class ChatRoomServiceImplTest {
         sessionUpdatePayloads = new ArrayList<>();
         sessionUpdateBizIds = new ArrayList<>();
         sessionDeleteUsers = new ArrayList<>();
+        sessionDeleteAttemptUsers = new ArrayList<>();
+        leftUsers = new ArrayList<>();
         notifications = new ArrayList<>();
     }
 
@@ -488,6 +496,27 @@ class ChatRoomServiceImplTest {
         Assertions.assertTrue(sessionDeleteUsers.isEmpty());
     }
 
+    @Test
+    void shouldDismissGroupWhenSessionDeletePushThrows() {
+        chatRoomService.stubRoom = buildGroupRoom();
+        currentUserIsMember = true;
+        currentUserIsOwner = true;
+        roomMembers.add(buildMember(90L, 1L, ChatRoomRoleEnum.OWNER.getCode()));
+        roomMembers.add(buildMember(90L, 2L, ChatRoomRoleEnum.MEMBER.getCode()));
+        sessionDeleteFailureUserId = 1L;
+
+        Assertions.assertDoesNotThrow(() -> chatRoomService.dismissRoom(90L, 1L));
+
+        Assertions.assertEquals(90L, removedAllSessionsRoomId);
+        Assertions.assertEquals(90L, removedGroupInfoRoomId);
+        Assertions.assertEquals(90L, removedRoomId);
+        Assertions.assertEquals(List.of(1L, 2L), sessionDeleteAttemptUsers);
+        Assertions.assertEquals(List.of(2L), sessionDeleteUsers);
+        Assertions.assertEquals(2, leftUsers.size());
+        Assertions.assertTrue(leftUsers.contains(1L));
+        Assertions.assertTrue(leftUsers.contains(2L));
+    }
+
     private UserFriendService createUserFriendService() {
         return (UserFriendService) Proxy.newProxyInstance(
                 UserFriendService.class.getClassLoader(),
@@ -547,6 +576,7 @@ class ChatRoomServiceImplTest {
                     if ("leaveRoom".equals(method.getName())) {
                         leftRoomId = (Long) args[0];
                         leftUserId = (Long) args[1];
+                        leftUsers.add((Long) args[1]);
                         return null;
                     }
                     return defaultValue(method.getReturnType());
@@ -574,6 +604,10 @@ class ChatRoomServiceImplTest {
                         updatedGroupInfo = (ChatGroupInfo) args[0];
                         return true;
                     }
+                    if ("remove".equals(method.getName())) {
+                        removedGroupInfoRoomId = currentRoomId();
+                        return true;
+                    }
                     return defaultValue(method.getReturnType());
                 }
         );
@@ -598,8 +632,12 @@ class ChatRoomServiceImplTest {
                         if (sessionRemoveThrows) {
                             throw new RuntimeException("session remove failed");
                         }
-                        removedSessionRoomId = targetMember == null ? null : targetMember.getRoomId();
-                        removedSessionUserId = targetMember == null ? null : targetMember.getUserId();
+                        if (targetMember == null) {
+                            removedAllSessionsRoomId = currentRoomId();
+                        } else {
+                            removedSessionRoomId = targetMember.getRoomId();
+                            removedSessionUserId = targetMember.getUserId();
+                        }
                         return true;
                     }
                     return defaultValue(method.getReturnType());
@@ -621,7 +659,8 @@ class ChatRoomServiceImplTest {
 
             @Override
             public void sendSessionDelete(Long userId, Long roomId, String bizId) {
-                if (sessionDeleteThrows) {
+                sessionDeleteAttemptUsers.add(userId);
+                if (sessionDeleteThrows || (sessionDeleteFailureUserId != null && sessionDeleteFailureUserId.equals(userId))) {
                     throw new RuntimeException("session delete failed");
                 }
                 sessionDeleteUsers.add(userId);
@@ -693,7 +732,7 @@ class ChatRoomServiceImplTest {
         Assertions.assertTrue(sessionDeleteUsers.isEmpty());
     }
 
-    private static final class TestableChatRoomServiceImpl extends ChatRoomServiceImpl {
+    private final class TestableChatRoomServiceImpl extends ChatRoomServiceImpl {
         private ChatRoom stubRoom;
 
         @Override
@@ -713,6 +752,16 @@ class ChatRoomServiceImplTest {
             stubRoom = entity;
             return true;
         }
+
+        @Override
+        public boolean removeById(java.io.Serializable id) {
+            removedRoomId = (Long) id;
+            return true;
+        }
+    }
+
+    private Long currentRoomId() {
+        return chatRoomService.stubRoom == null ? null : chatRoomService.stubRoom.getId();
     }
 
     private static Object defaultValue(Class<?> returnType) {
