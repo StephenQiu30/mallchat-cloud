@@ -6,6 +6,9 @@ import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.stephen.cloud.api.chat.model.dto.ChatFriendApproveRequest;
 import com.stephen.cloud.api.chat.model.vo.ChatFriendApplyVO;
+import com.stephen.cloud.api.notification.client.NotificationFeignClient;
+import com.stephen.cloud.api.notification.model.dto.NotificationCreateRequest;
+import com.stephen.cloud.api.notification.model.enums.NotificationTypeEnum;
 import com.stephen.cloud.api.user.client.UserFeignClient;
 import com.stephen.cloud.api.user.model.vo.UserVO;
 import com.stephen.cloud.chat.convert.ChatFriendApplyConvert;
@@ -15,11 +18,13 @@ import com.stephen.cloud.chat.mq.producer.ChatMqProducer;
 import com.stephen.cloud.chat.service.ChatRoomService;
 import com.stephen.cloud.chat.service.UserFriendApplyService;
 import com.stephen.cloud.chat.service.UserFriendService;
+import com.stephen.cloud.common.common.BaseResponse;
 import com.stephen.cloud.common.common.ErrorCode;
 import com.stephen.cloud.common.common.ThrowUtils;
 import com.stephen.cloud.common.exception.BusinessException;
 import jakarta.annotation.Resource;
 import jakarta.servlet.http.HttpServletRequest;
+import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -34,9 +39,12 @@ import java.util.stream.Collectors;
  *
  * @author StephenQiu30
  */
+@Slf4j
 @Service
 public class UserFriendApplyServiceImpl extends ServiceImpl<UserFriendApplyMapper, UserFriendApply>
         implements UserFriendApplyService {
+
+    private static final String RELATED_TYPE_USER_FRIEND_APPLY = "user_friend_apply";
 
     @Resource
     private UserFriendService userFriendService;
@@ -49,6 +57,9 @@ public class UserFriendApplyServiceImpl extends ServiceImpl<UserFriendApplyMappe
 
     @Resource
     private ChatMqProducer chatMqProducer;
+
+    @Resource
+    private NotificationFeignClient notificationFeignClient;
 
     /**
      * 校验好友申请数据
@@ -176,7 +187,9 @@ public class UserFriendApplyServiceImpl extends ServiceImpl<UserFriendApplyMappe
         apply.setUserId(userId);
         apply.setStatus(1); // 1-待处理
         this.save(apply);
-        chatMqProducer.sendFriendApply(targetId, getUserFriendApplyVO(apply, null), "friend_apply:" + apply.getId());
+        String bizId = "friend_apply:" + apply.getId();
+        chatMqProducer.sendFriendApply(targetId, getUserFriendApplyVO(apply, null), bizId);
+        trySendFriendNotification(targetId, "好友申请", "你收到一条新的好友申请", bizId, apply.getId());
         return apply.getId();
     }
 
@@ -210,6 +223,7 @@ public class UserFriendApplyServiceImpl extends ServiceImpl<UserFriendApplyMappe
         // 发送 WebSocket 通知
         String bizId = "friend_approve:" + apply.getId();
         chatMqProducer.sendFriendApprove(apply.getUserId(), getUserFriendApplyVO(apply, null), bizId);
+        trySendFriendNotification(apply.getUserId(), "好友申请已通过", "你的好友申请已通过", bizId, apply.getId());
 
         return this.updateById(apply);
     }
@@ -222,5 +236,29 @@ public class UserFriendApplyServiceImpl extends ServiceImpl<UserFriendApplyMappe
                         .orderByDesc(UserFriendApply::getCreateTime));
 
         return getUserFriendApplyVOPage(page, null);
+    }
+
+    private void trySendFriendNotification(Long userId, String title, String content, String bizId, Long applyId) {
+        try {
+            sendFriendNotification(userId, title, content, bizId, applyId);
+        } catch (Exception e) {
+            log.warn("[UserFriendApplyServiceImpl] 发送好友通知失败, userId: {}, applyId: {}, bizId: {}, reason: {}",
+                    userId, applyId, bizId, e.getMessage());
+        }
+    }
+
+    private void sendFriendNotification(Long userId, String title, String content, String bizId, Long applyId) {
+        NotificationCreateRequest request = new NotificationCreateRequest();
+        request.setTitle(title);
+        request.setContent(content);
+        request.setType(NotificationTypeEnum.USER.getCode());
+        request.setUserId(userId);
+        request.setRelatedId(applyId);
+        request.setRelatedType(RELATED_TYPE_USER_FRIEND_APPLY);
+        request.setContentUrl("/chat/friend/apply?id=" + applyId);
+        request.setBizId(bizId);
+        BaseResponse<Long> response = notificationFeignClient.addBusinessNotification(request);
+        ThrowUtils.throwIf(response == null || response.getData() == null,
+                ErrorCode.OPERATION_ERROR, "创建好友通知失败");
     }
 }
