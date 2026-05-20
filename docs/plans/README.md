@@ -27,3 +27,5 @@
 | [PL-001-im-mvp-openspec-plan.md](./PL-001-im-mvp-openspec-plan.md) | IM MVP OpenSpec 初始执行计划 |
 | [PL-002-friend-discovery-phase9-plan.md](./PL-002-friend-discovery-phase9-plan.md) | 好友发现与关系增强执行计划 |
 | [PL-003-im-backend-long-task-consolidation-plan.md](./PL-003-im-backend-long-task-consolidation-plan.md) | IM 后端长任务阶段收口计划 |
+| [PL-004-im-production-readiness-issue-plan.md](./PL-004-im-production-readiness-issue-plan.md) | IM 生产可用 P0 Issue 编排计划 |
+| [PL-005-im-p1-backend-governance-plan.md](./PL-005-im-p1-backend-governance-plan.md) | IM P1 后端治理 Issue 编排计划 |
