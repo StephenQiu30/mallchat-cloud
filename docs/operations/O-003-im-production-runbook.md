@@ -144,12 +144,37 @@ curl -fsS http://localhost:8083/actuator/health/readiness
 3. RabbitMQ 消息堆积时先确认消费者 readiness，再观察 DLX 或失败日志。
 4. Nacos 配置误改时优先回滚配置版本，再重启受影响服务。
 
+核心 IM 表恢复 smoke：
+
+```bash
+bash scripts/backup-im-core-tables.sh --dry-run
+bash scripts/verify-im-core-data-recovery.sh --dry-run
+```
+
+生产演练时使用 `MYSQL_HOST`、`MYSQL_PORT`、`MYSQL_USER`、`MYSQL_PASSWORD`、`MYSQL_DATABASE` 指定源库。`verify-im-core-data-recovery.sh` 默认恢复到 `mallchat_recovery_smoke_*` 临时库并在退出时清理，验证消息、会话、房间成员、私聊房间、群资料、好友和动态关联不存在孤儿数据。
+
+Redis 失效恢复边界：
+
+1. 好友缓存和房间成员缓存以 MySQL 为事实来源，缓存 key 缺失时从数据库回源。
+2. WebSocket 连接仍在本机存活但 Redis 在线态丢失时，心跳刷新会重建当前用户连接集合和连接元数据。
+3. Sa-Token 登录态丢失后旧 token 可以失效，用户通过重新登录恢复，不尝试服务端复活旧登录态。
+
+文件上传边界：
+
+1. `user_avatar`、`chat_image` 只允许常见图片类型，并做最小图片魔数校验。
+2. `chat_file` 只允许 PDF、文本、Office 和 zip 等白名单类型。
+3. 空文件、超业务大小、危险文件名、无后缀和不支持类型会在上传到对象存储前拒绝。
+
 ## 11. 验收命令
 
 ```bash
 openspec validate --all --strict
 mvn -pl mallchat-common/mallchat-common-web -am -Dtest=BackendHealthGateConfigTest -Dsurefire.failIfNoSpecifiedTests=false test
 mvn -pl mallchat-service/mallchat-chat-service -am -Dtest=ChatBusinessMetricsRecorderTest,ChatMessageServiceImplTest,UserFriendApplyServiceImplTest,ChatMomentServiceImplTest -Dsurefire.failIfNoSpecifiedTests=false test
+mvn -pl mallchat-common/mallchat-common-websocket -am -Dtest=ChannelManagerTest -Dsurefire.failIfNoSpecifiedTests=false test
+mvn -pl mallchat-service/mallchat-chat-service -am -Dtest=ChatRoomMemberServiceImplTest,UserFriendServiceImplTest -Dsurefire.failIfNoSpecifiedTests=false test
+mvn -pl mallchat-service/mallchat-file-service -am -Dtest=FileUploadValidatorTest,FileUploadRecordRecorderTest,FileServiceApplicationTest -Dsurefire.failIfNoSpecifiedTests=false test
+bash scripts/verify-im-core-data-recovery.sh --dry-run
 docker compose config
 bash scripts/validate-repository.sh
 git diff --check
