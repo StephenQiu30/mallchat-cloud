@@ -19,6 +19,11 @@ import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
 
 import java.lang.reflect.Method;
+import java.lang.reflect.RecordComponent;
+import java.util.Collection;
+import java.util.LinkedHashMap;
+import java.util.Map;
+import java.util.Set;
 
 /**
  * 操作日志AOP切面（通用版）
@@ -32,6 +37,11 @@ import java.lang.reflect.Method;
 @Component
 @Slf4j
 public class OperationLogAspect {
+
+    private static final String MASK_VALUE = "***";
+
+    private static final Set<String> SENSITIVE_FIELD_KEYWORDS = Set.of(
+            "password", "passwd", "pwd", "token", "secret", "code", "credential", "authorization");
 
     @Autowired(required = false)
     private OperationLogRecorder operationLogService;
@@ -119,7 +129,7 @@ public class OperationLogAspect {
                                 String.format("File(name=%s, size=%d)", file.getOriginalFilename(), file.getSize()));
                     } else {
                         try {
-                            params.append(JSONUtil.toJsonStr(arg));
+                            params.append(JSONUtil.toJsonStr(maskSensitiveValue(arg)));
                         } catch (Exception e) {
                             params.append(arg);
                         }
@@ -161,8 +171,48 @@ public class OperationLogAspect {
             try {
                 operationLogService.recordOperationLogAsync(context);
             } catch (Exception e) {
-                log.error("记录操作日志失败", e);
+            log.error("记录操作日志失败", e);
             }
         }
+    }
+
+    private Object maskSensitiveValue(Object value) {
+        if (value == null || value instanceof Number || value instanceof Boolean || value instanceof Character) {
+            return value;
+        }
+        if (value instanceof CharSequence) {
+            return value;
+        }
+        if (value instanceof Map<?, ?> sourceMap) {
+            Map<String, Object> maskedMap = new LinkedHashMap<>();
+            sourceMap.forEach((key, itemValue) -> {
+                String fieldName = String.valueOf(key);
+                maskedMap.put(fieldName, isSensitiveField(fieldName) ? MASK_VALUE : maskSensitiveValue(itemValue));
+            });
+            return maskedMap;
+        }
+        if (value instanceof Collection<?> sourceCollection) {
+            return sourceCollection.stream().map(this::maskSensitiveValue).toList();
+        }
+        if (value.getClass().isRecord()) {
+            Map<String, Object> recordMap = new LinkedHashMap<>();
+            for (RecordComponent component : value.getClass().getRecordComponents()) {
+                try {
+                    Object componentValue = component.getAccessor().invoke(value);
+                    recordMap.put(component.getName(), isSensitiveField(component.getName()) ? MASK_VALUE : maskSensitiveValue(componentValue));
+                } catch (Exception ignored) {
+                    recordMap.put(component.getName(), null);
+                }
+            }
+            return recordMap;
+        }
+
+        Map<String, Object> valueMap = JSONUtil.parseObj(JSONUtil.toJsonStr(value)).toBean(Map.class);
+        return maskSensitiveValue(valueMap);
+    }
+
+    private boolean isSensitiveField(String fieldName) {
+        String lowerFieldName = fieldName.toLowerCase();
+        return SENSITIVE_FIELD_KEYWORDS.stream().anyMatch(lowerFieldName::contains);
     }
 }
