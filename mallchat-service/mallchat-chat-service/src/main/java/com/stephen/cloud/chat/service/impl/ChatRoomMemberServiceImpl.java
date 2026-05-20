@@ -104,10 +104,6 @@ public class ChatRoomMemberServiceImpl extends ServiceImpl<ChatRoomMemberMapper,
         ChatRoomMember existing = getMember(roomId, userId);
         if (existing != null) {
             log.info("[ChatRoomMemberServiceImpl] 用户已在房间中: userId={}, roomId={}", userId, roomId);
-            if (role != null && !role.equals(existing.getRole())) {
-                existing.setRole(role);
-                this.updateById(existing);
-            }
             return;
         }
 
