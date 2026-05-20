@@ -9,6 +9,7 @@
 - [x] 2.1 先补 Gateway 配置测试，覆盖 `/api/chat/message/send`、`/api/chat/friend/apply/add`、`/api/chat/moment/publish`、`/api/file/upload` 专用路由。
 - [x] 2.2 先补 Gateway 配置测试，覆盖专用路由优先于 `/api/chat/**` 通用路由。
 - [x] 2.3 运行目标测试确认红灯来自缺失专用路由。
+- [x] 2.4 补充 Gateway 行为测试，覆盖四个核心写接口在限流允许时放行、拒绝时返回 429。
 
 ## 3. Implementation
 

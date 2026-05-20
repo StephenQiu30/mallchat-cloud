@@ -13,3 +13,8 @@ The gateway SHALL apply user-scoped rate limiting to high-frequency IM write end
 - **WHEN** a request path matches other `/api/chat/**` or `/api/file/**` APIs
 - **THEN** the gateway SHALL keep the existing general route
 - **AND** the route SHALL keep the existing user key resolver rate limit policy
+
+#### Scenario: Rate limiter denies excessive core writes
+- **WHEN** the user-scoped rate limiter rejects a core IM write request for message send, friend apply, moment publish, or file upload
+- **THEN** the gateway SHALL return HTTP 429
+- **AND** the downstream service chain SHALL NOT be invoked

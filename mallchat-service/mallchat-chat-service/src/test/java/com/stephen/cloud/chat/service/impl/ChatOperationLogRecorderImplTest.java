@@ -27,6 +27,7 @@ class ChatOperationLogRecorderImplTest {
         OperationLogAddRequest request = captor.getValue();
         Assertions.assertEquals("聊天室管理", request.getModule());
         Assertions.assertEquals("解散群聊", request.getAction());
+        Assertions.assertEquals("room:1", request.getBizId());
         Assertions.assertEquals("POST", request.getMethod());
         Assertions.assertEquals("/chat/room/dismiss", request.getPath());
         Assertions.assertEquals("{\"roomId\":1}", request.getRequestParams());
@@ -53,6 +54,7 @@ class ChatOperationLogRecorderImplTest {
         OperationLogContext context = new OperationLogContext();
         context.setModule("聊天室管理");
         context.setAction("解散群聊");
+        context.setBizId("room:1");
         context.setMethod("POST");
         context.setPath("/chat/room/dismiss");
         context.setRequestParams("{\"roomId\":1}");

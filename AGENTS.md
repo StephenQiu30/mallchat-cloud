@@ -41,7 +41,7 @@
 7. 主智能体负责汇总子智能体结果、解决冲突、运行回归、更新 OpenSpec tasks、归档完成 change、提交和推送。
 8. Issue 完成状态不能替代 OpenSpec 状态；完成代码后必须同步 OpenSpec tasks、验收文档和 GitHub Issue 结果。
 9. 生产化 Issue 必须通过 PR 消费，不直接提交到 `main`；PR 编号从 `m1` 开始递增，分支使用 `m1-<issue-slug>`、`m2-<issue-slug>` 形式，PR 标题使用 `[m1] ...`、`[m2] ...` 形式。
-10. 每个 m 系列 PR 只消费一个明确子 Issue，PR 描述必须写明关联 Issue、OpenSpec change id、RED 测试证据、GREEN 验证命令和残余风险。
+10. m 系列 PR 默认只消费一个明确子 Issue；当用户明确要求按 Epic 聚合提交时，可以在同一 m PR 中消费同一 Parent Epic 下的多个子 Issue，但 PR 描述必须逐项列出关联 Issue、OpenSpec change id、RED 测试证据、GREEN 验证命令、影响范围和残余风险。
 
 ## 代码风格一致性规范
 

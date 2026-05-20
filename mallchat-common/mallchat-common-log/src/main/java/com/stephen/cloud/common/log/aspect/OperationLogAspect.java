@@ -1,11 +1,13 @@
 package com.stephen.cloud.common.log.aspect;
 
+import cn.hutool.core.bean.BeanUtil;
+import cn.hutool.core.util.StrUtil;
 import cn.hutool.json.JSONUtil;
+import cn.dev33.satoken.stp.StpUtil;
 import com.stephen.cloud.common.log.annotation.OperationLog;
 import com.stephen.cloud.common.log.model.OperationLogContext;
 import com.stephen.cloud.common.log.service.OperationLogRecorder;
 import com.stephen.cloud.common.utils.IpUtils;
-import cn.dev33.satoken.stp.StpUtil;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
 import org.aspectj.lang.ProceedingJoinPoint;
@@ -22,6 +24,7 @@ import java.lang.reflect.Method;
 import java.lang.reflect.RecordComponent;
 import java.util.Collection;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -42,6 +45,9 @@ public class OperationLogAspect {
 
     private static final Set<String> SENSITIVE_FIELD_KEYWORDS = Set.of(
             "password", "passwd", "pwd", "token", "secret", "code", "credential", "authorization");
+
+    private static final List<String> BIZ_ID_FIELD_NAMES = List.of(
+            "bizId", "messageId", "roomId", "momentId", "commentId", "applyId", "targetId", "friendUserId", "peerUserId", "id");
 
     @Autowired(required = false)
     private OperationLogRecorder operationLogService;
@@ -103,10 +109,11 @@ public class OperationLogAspect {
             // 提取客户端IP和UA
             context.setClientIp(IpUtils.getClientIp(request));
             context.setUserAgent(request.getHeader("User-Agent"));
+            Object[] args = joinPoint.getArgs();
+            context.setBizId(resolveBizId(request, args));
 
             // 记录请求参数
             if (operationLog.recordParams()) {
-                Object[] args = joinPoint.getArgs();
                 // 过滤掉 HttpServletRequest 等非业务参数
                 StringBuilder params = new StringBuilder();
                 for (Object arg : args) {
@@ -131,7 +138,7 @@ public class OperationLogAspect {
                         try {
                             params.append(JSONUtil.toJsonStr(maskSensitiveValue(arg)));
                         } catch (Exception e) {
-                            params.append(arg);
+                            params.append(String.format("Unserializable(type=%s)", arg.getClass().getSimpleName()));
                         }
                     }
                 }
@@ -171,7 +178,7 @@ public class OperationLogAspect {
             try {
                 operationLogService.recordOperationLogAsync(context);
             } catch (Exception e) {
-            log.error("记录操作日志失败", e);
+                log.error("记录操作日志失败", e);
             }
         }
     }
@@ -209,6 +216,73 @@ public class OperationLogAspect {
 
         Map<String, Object> valueMap = JSONUtil.parseObj(JSONUtil.toJsonStr(value)).toBean(Map.class);
         return maskSensitiveValue(valueMap);
+    }
+
+    private String resolveBizId(HttpServletRequest request, Object[] args) {
+        if (request != null) {
+            for (String fieldName : BIZ_ID_FIELD_NAMES) {
+                String value = request.getParameter(fieldName);
+                if (StrUtil.isNotBlank(value)) {
+                    return value;
+                }
+            }
+        }
+        if (args == null) {
+            return null;
+        }
+        for (Object arg : args) {
+            String bizId = resolveBizId(arg);
+            if (StrUtil.isNotBlank(bizId)) {
+                return bizId;
+            }
+        }
+        return null;
+    }
+
+    private String resolveBizId(Object value) {
+        if (value == null || value instanceof HttpServletRequest
+                || value instanceof jakarta.servlet.http.HttpServletResponse
+                || value instanceof org.springframework.validation.BindingResult
+                || value instanceof org.springframework.web.multipart.MultipartFile) {
+            return null;
+        }
+        if (value instanceof Map<?, ?> sourceMap) {
+            for (String fieldName : BIZ_ID_FIELD_NAMES) {
+                Object fieldValue = sourceMap.get(fieldName);
+                if (fieldValue != null) {
+                    return String.valueOf(fieldValue);
+                }
+            }
+            return null;
+        }
+        if (value.getClass().isRecord()) {
+            for (RecordComponent component : value.getClass().getRecordComponents()) {
+                if (!BIZ_ID_FIELD_NAMES.contains(component.getName())) {
+                    continue;
+                }
+                try {
+                    Object fieldValue = component.getAccessor().invoke(value);
+                    if (fieldValue != null) {
+                        return String.valueOf(fieldValue);
+                    }
+                } catch (Exception ignored) {
+                    return null;
+                }
+            }
+            return null;
+        }
+        try {
+            Map<String, Object> valueMap = BeanUtil.beanToMap(value);
+            for (String fieldName : BIZ_ID_FIELD_NAMES) {
+                Object fieldValue = valueMap.get(fieldName);
+                if (fieldValue != null) {
+                    return String.valueOf(fieldValue);
+                }
+            }
+        } catch (Exception ignored) {
+            return null;
+        }
+        return null;
     }
 
     private boolean isSensitiveField(String fieldName) {

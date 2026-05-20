@@ -112,6 +112,7 @@ CREATE TABLE `operation_log`
     `operator_name`   varchar(128)      DEFAULT NULL COMMENT '操作人名称',
     `module`          varchar(64)       DEFAULT NULL COMMENT '模块',
     `action`          varchar(128)      DEFAULT NULL COMMENT '操作类型',
+    `biz_id`          varchar(128)      DEFAULT NULL COMMENT '业务ID',
     `method`          varchar(16)       DEFAULT NULL COMMENT 'HTTP方法',
     `path`            varchar(512)      DEFAULT NULL COMMENT '请求路径',
     `request_params`  text COMMENT '请求参数',
@@ -127,6 +128,7 @@ CREATE TABLE `operation_log`
     PRIMARY KEY (`id`),
     KEY `idx_operator_id` (`operator_id`),
     KEY `idx_module` (`module`),
+    KEY `idx_biz_id` (`biz_id`),
     KEY `idx_success` (`success`),
     KEY `idx_create_time` (`create_time`)
 ) ENGINE = InnoDB
