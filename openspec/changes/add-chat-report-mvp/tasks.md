@@ -21,4 +21,4 @@
 
 - [x] 4.1 运行 m6 聚焦 Maven 测试。
 - [x] 4.2 运行 OpenSpec strict 校验。
-- [ ] 4.3 同步 GitHub Issue #28。
+- [x] 4.3 同步 GitHub Issue #28。

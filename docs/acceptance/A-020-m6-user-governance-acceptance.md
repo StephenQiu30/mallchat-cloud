@@ -29,7 +29,7 @@ triggers:
   - "回归用户安全与关系治理 Epic #25"
 downstream:
   - "GitHub Epic #25"
-  - "GitHub PR 待创建"
+  - "GitHub PR #34"
 ---
 
 # m6 用户安全与关系治理验收
@@ -37,6 +37,8 @@ downstream:
 ## 1. 验收范围
 
 本次 m6 聚合消费 Epic #25 下的 #27、#28、#29。实现保持最小生产可用闭环：拉黑只阻断好友申请、私聊和动态可见好友集合；举报只记录待处理事实；好友分组只做 `user_friend` 单表轻量字段。
+
+交付 PR：[https://github.com/StephenQiu30/mallchat-cloud/pull/34](https://github.com/StephenQiu30/mallchat-cloud/pull/34)
 
 ## 2. 结论
 
