@@ -11,4 +11,11 @@ class WebSocketPropertiesTest {
 
         Assertions.assertFalse(properties.getEnabled());
     }
+
+    @Test
+    void shouldNotRestrictOriginsByDefault() {
+        WebSocketProperties properties = new WebSocketProperties();
+
+        Assertions.assertTrue(properties.getAllowedOrigins().isEmpty());
+    }
 }
