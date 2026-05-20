@@ -28,6 +28,7 @@ import com.stephen.cloud.chat.service.ChatRoomMemberService;
 import com.stephen.cloud.chat.service.ChatRoomService;
 import com.stephen.cloud.chat.service.ChatSessionService;
 import com.stephen.cloud.chat.service.UserFriendService;
+import com.stephen.cloud.chat.support.ChatBusinessMetricsRecorder;
 import com.stephen.cloud.chat.support.ChatMessageHelper;
 import com.stephen.cloud.common.common.ErrorCode;
 import com.stephen.cloud.common.common.ThrowUtils;
@@ -86,6 +87,9 @@ public class ChatMessageServiceImpl extends ServiceImpl<ChatMessageMapper, ChatM
 
     @Resource
     private UserFeignClient userFeignClient;
+
+    @Resource
+    private ChatBusinessMetricsRecorder businessMetricsRecorder;
 
     @Override
     public void validChatMessage(ChatMessage chatMessage) {
@@ -164,6 +168,7 @@ public class ChatMessageServiceImpl extends ServiceImpl<ChatMessageMapper, ChatM
                 .eq(ChatMessage::getClientMsgId, chatMessage.getClientMsgId())
                 .last("LIMIT 1"));
         if (existing != null) {
+            businessMetricsRecorder.record("message_send", "duplicate");
             return getChatMessageVO(existing, null);
         }
 
@@ -186,11 +191,13 @@ public class ChatMessageServiceImpl extends ServiceImpl<ChatMessageMapper, ChatM
         } catch (DuplicateKeyException e) {
             ChatMessage duplicate = getExistingMessageByClientMsgId(userId, chatMessage.getClientMsgId());
             ThrowUtils.throwIf(duplicate == null, ErrorCode.OPERATION_ERROR, "发送消息失败");
+            businessMetricsRecorder.record("message_send", "duplicate");
             return getChatMessageVO(duplicate, null);
         }
         ThrowUtils.throwIf(!result, ErrorCode.OPERATION_ERROR, "发送消息失败");
 
         ChatMessageVO messageVO = getChatMessageVO(chatMessage, null);
+        businessMetricsRecorder.record("message_send", "success");
         try {
             chatMqProducer.sendChatMessageGroupPush(roomId, messageVO, listRoomMemberUserIds(roomId));
         } catch (Exception e) {

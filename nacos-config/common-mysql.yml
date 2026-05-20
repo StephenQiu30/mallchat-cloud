@@ -32,3 +32,10 @@ mybatis-plus:
       logic-delete-value: 1
       logic-not-delete-value: 0
   mapper-locations: classpath*:mapper/**/*.xml
+
+management:
+  endpoint:
+    health:
+      group:
+        readiness:
+          include: ping,db,redis
