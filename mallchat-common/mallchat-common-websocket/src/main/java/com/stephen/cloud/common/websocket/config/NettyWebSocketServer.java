@@ -73,6 +73,8 @@ public class NettyWebSocketServer {
             log.warn("获取本地 IP 失败，serverId 可能不完整", e);
             channelManager.setServerId("unknown:" + webSocketProperties.getPort());
         }
+        channelManager.setRuntimeGuard(webSocketProperties.getMaxConnectionsPerUser(),
+                webSocketProperties.getMinConnectIntervalMillis());
 
         // 初始化 Boss 和 Worker 线程组
         bossGroup = new NioEventLoopGroup(webSocketProperties.getBossThread());

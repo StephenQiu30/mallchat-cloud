@@ -110,12 +110,17 @@ downstream:
 6. 回归命令包含相关 Maven 测试、`openspec validate --all --strict` 和 `git diff --check`。
 7. 完成后更新 GitHub Issue、OpenSpec tasks、验收文档和中文提交。
 8. 完成后创建或更新对应 m 系列 PR，不直接推送实现到 `main`。
+9. m 系列 PR 默认按子 Issue 提交；用户明确授权时可以按同一 Parent Epic 聚合，但 PR 正文必须遵循项目 PR 模板并逐项列出 Issue、OpenSpec、RED/GREEN 证据和残余风险。
 
 ## 6. PR 编号验收
 
 | PR 编号 | 分支 | 关联 Issue | 预期标题 | 状态 |
 | --- | --- | --- | --- | --- |
 | `m1` | `m1-websocket-handshake-security` | [#6](https://github.com/StephenQiu30/mallchat-cloud/issues/6) | [[m1] 加固 WebSocket 握手鉴权与 Origin 校验](https://github.com/StephenQiu30/mallchat-cloud/pull/20) | PR 已创建 |
+| `m2` | `m2-backend-security-epic` | [#7](https://github.com/StephenQiu30/mallchat-cloud/issues/7), [#8](https://github.com/StephenQiu30/mallchat-cloud/issues/8), [#9](https://github.com/StephenQiu30/mallchat-cloud/issues/9) | [[m2][epic-security] 生产安全与访问控制加固](https://github.com/StephenQiu30/mallchat-cloud/pull/21) | PR 已创建，base 为 `m1-websocket-handshake-security`；按用户要求聚合 #2 Epic 下安全子 Issue，需使用项目 PR 模板补齐证据 |
+| `m3` | `m3-backend-message-reliability-epic` | [#10](https://github.com/StephenQiu30/mallchat-cloud/issues/10), [#11](https://github.com/StephenQiu30/mallchat-cloud/issues/11), [#12](https://github.com/StephenQiu30/mallchat-cloud/issues/12), [#13](https://github.com/StephenQiu30/mallchat-cloud/issues/13) | [[m3][epic-message] 消息可靠性与可恢复加固](https://github.com/StephenQiu30/mallchat-cloud/pull/22) | PR 已创建，base 为 `m2-backend-security-epic`；按用户要求聚合 #3 Epic 下消息可靠性子 Issue |
+| `m4` | `m4-backend-ops-observability-epic` | [#14](https://github.com/StephenQiu30/mallchat-cloud/issues/14), [#15](https://github.com/StephenQiu30/mallchat-cloud/issues/15), [#16](https://github.com/StephenQiu30/mallchat-cloud/issues/16) | [[m4][epic-ops] 可观测性与运维门禁加固](https://github.com/StephenQiu30/mallchat-cloud/pull/23) | PR 已创建，base 为 `m3-backend-message-reliability-epic`；按用户要求聚合 #4 Epic 下运维与可观测性子 Issue |
+| `m5` | `m5-backend-data-recovery-epic` | [#17](https://github.com/StephenQiu30/mallchat-cloud/issues/17), [#18](https://github.com/StephenQiu30/mallchat-cloud/issues/18), [#19](https://github.com/StephenQiu30/mallchat-cloud/issues/19) | [[m5][epic-data] 数据安全与备份恢复加固](https://github.com/StephenQiu30/mallchat-cloud/pull/24) | PR 已创建，base 为 `m4-backend-ops-observability-epic`；按用户要求聚合 #5 Epic 下数据、缓存和文件边界子 Issue |
 
 ## 7. 编排阶段验证命令
 

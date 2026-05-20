@@ -179,8 +179,9 @@ public class TextWebSocketFrameHandler extends SimpleChannelInboundHandler<TextW
             String userId = ctx.channel().attr(ATTR_USER_ID).get();
             if (userId != null) {
                 // 此时在 HttpHeadersHandler 已经认证并将 userId 存入 attr
-                channelManager.addChannel(userId, ctx.channel());
-                log.info("用户 {} WebSocket 握手完成并注册成功", userId);
+                if (channelManager.addChannel(userId, ctx.channel())) {
+                    log.info("用户 {} WebSocket 握手完成并注册成功", userId);
+                }
             } else {
                 log.warn("握手完成但未发现绑定的用户ID，可能未经过认证处理器，关闭连接");
                 ctx.close();

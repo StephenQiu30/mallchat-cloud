@@ -52,6 +52,12 @@ public class OperationLogQueryRequest extends PageRequest implements Serializabl
     private String action;
 
     /**
+     * 业务ID
+     */
+    @Schema(description = "业务ID")
+    private String bizId;
+
+    /**
      * 是否成功
      */
     @Schema(description = "是否成功")

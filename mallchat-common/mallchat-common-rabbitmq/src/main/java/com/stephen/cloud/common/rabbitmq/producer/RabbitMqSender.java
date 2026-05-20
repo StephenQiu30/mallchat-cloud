@@ -5,6 +5,7 @@ import com.stephen.cloud.common.rabbitmq.enums.MqBizTypeEnum;
 import com.stephen.cloud.common.rabbitmq.model.RabbitMessage;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.amqp.rabbit.connection.CorrelationData;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.stereotype.Component;
 
@@ -23,25 +24,37 @@ public class RabbitMqSender {
     @Resource
     private RabbitTemplate rabbitTemplateBean;
 
+    @Resource
+    private RabbitMqPublishObservation publishObservation;
+
     public void send(MqBizTypeEnum bizTypeEnum, String msgId, Object payload) {
         if (payload == null) {
             log.error("[RabbitMqSender] 发送被拒绝，因业务载体 (Payload) 为 null。业务分类: {}", bizTypeEnum.getValue());
+            publishObservation.recordPublish(bizTypeEnum.getValue(), msgId, "rejected");
             return;
         }
 
+        String finalMsgId = msgId != null ? msgId : UUID.randomUUID().toString();
         try {
             RabbitMessage rabbitMessage = RabbitMessage.builder()
-                    .msgId(msgId != null ? msgId : UUID.randomUUID().toString())
+                    .msgId(finalMsgId)
                     .bizType(bizTypeEnum.getValue())
                     .msgText(JSONUtil.toJsonStr(payload))
                     .build();
 
-            rabbitTemplateBean.convertAndSend(bizTypeEnum.getExchange(), bizTypeEnum.getRoutingKey(), rabbitMessage);
+            rabbitTemplateBean.convertAndSend(bizTypeEnum.getExchange(), bizTypeEnum.getRoutingKey(), rabbitMessage,
+                    message -> {
+                        message.getMessageProperties().setHeader("bizType", bizTypeEnum.getValue());
+                        message.getMessageProperties().setHeader("bizId", finalMsgId);
+                        return message;
+                    }, new CorrelationData(buildCorrelationId(bizTypeEnum, finalMsgId)));
 
+            publishObservation.recordPublish(bizTypeEnum.getValue(), finalMsgId, "accepted");
             log.info("[RabbitMqSender - 直接发送成功] Exchange={}, Route={}, BizType={}, MsgId={}",
                     bizTypeEnum.getExchange(), bizTypeEnum.getRoutingKey(), bizTypeEnum.getValue(),
                     rabbitMessage.getMsgId());
         } catch (Exception e) {
+            publishObservation.recordPublish(bizTypeEnum.getValue(), finalMsgId, "failed");
             log.error("[RabbitMqSender - 网络投递异常] 业务类型: {}, 消息编号: {}", bizTypeEnum.getValue(), msgId, e);
             throw e;
         }
@@ -62,5 +75,8 @@ public class RabbitMqSender {
     public void sendTransactional(MqBizTypeEnum bizTypeEnum, Object payload) {
         sendTransactional(bizTypeEnum, null, payload);
     }
-}
 
+    private String buildCorrelationId(MqBizTypeEnum bizTypeEnum, String msgId) {
+        return bizTypeEnum.getValue() + ":" + msgId;
+    }
+}

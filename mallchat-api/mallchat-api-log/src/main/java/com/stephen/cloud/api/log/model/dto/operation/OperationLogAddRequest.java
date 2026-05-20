@@ -43,6 +43,12 @@ public class OperationLogAddRequest implements Serializable {
     private String action;
 
     /**
+     * 业务ID
+     */
+    @Schema(description = "业务ID")
+    private String bizId;
+
+    /**
      * HTTP方法
      */
     @Schema(description = "HTTP方法")

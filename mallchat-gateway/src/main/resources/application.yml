@@ -81,17 +81,6 @@ spring:
                     redis-rate-limiter.burstCapacity: 40
                     key-resolver: "#{@userKeyResolver}"
 
-            - id: mallchat-file-service
-              uri: lb://mallchat-file-service
-              predicates:
-                - Path=/api/file/**
-              filters:
-                - name: RequestRateLimiter
-                  args:
-                    redis-rate-limiter.replenishRate: 10
-                    redis-rate-limiter.burstCapacity: 20
-                    key-resolver: "#{@userKeyResolver}"
-
             - id: mallchat-ai-service
               uri: lb://mallchat-ai-service
               predicates:
@@ -114,6 +103,39 @@ spring:
                     redis-rate-limiter.burstCapacity: 20
                     key-resolver: "#{@userKeyResolver}"
 
+            - id: mallchat-chat-friend-apply-service
+              uri: lb://mallchat-chat-service
+              predicates:
+                - Path=/api/chat/friend/apply/add
+              filters:
+                - name: RequestRateLimiter
+                  args:
+                    redis-rate-limiter.replenishRate: 5
+                    redis-rate-limiter.burstCapacity: 10
+                    key-resolver: "#{@userKeyResolver}"
+
+            - id: mallchat-chat-message-send-service
+              uri: lb://mallchat-chat-service
+              predicates:
+                - Path=/api/chat/message/send
+              filters:
+                - name: RequestRateLimiter
+                  args:
+                    redis-rate-limiter.replenishRate: 5
+                    redis-rate-limiter.burstCapacity: 10
+                    key-resolver: "#{@userKeyResolver}"
+
+            - id: mallchat-chat-moment-publish-service
+              uri: lb://mallchat-chat-service
+              predicates:
+                - Path=/api/chat/moment/publish
+              filters:
+                - name: RequestRateLimiter
+                  args:
+                    redis-rate-limiter.replenishRate: 5
+                    redis-rate-limiter.burstCapacity: 10
+                    key-resolver: "#{@userKeyResolver}"
+
             - id: mallchat-chat-service
               uri: lb://mallchat-chat-service
               predicates:
@@ -123,6 +145,28 @@ spring:
                   args:
                     redis-rate-limiter.replenishRate: 20
                     redis-rate-limiter.burstCapacity: 40
+                    key-resolver: "#{@userKeyResolver}"
+
+            - id: mallchat-file-upload-service
+              uri: lb://mallchat-file-service
+              predicates:
+                - Path=/api/file/upload
+              filters:
+                - name: RequestRateLimiter
+                  args:
+                    redis-rate-limiter.replenishRate: 5
+                    redis-rate-limiter.burstCapacity: 10
+                    key-resolver: "#{@userKeyResolver}"
+
+            - id: mallchat-file-service
+              uri: lb://mallchat-file-service
+              predicates:
+                - Path=/api/file/**
+              filters:
+                - name: RequestRateLimiter
+                  args:
+                    redis-rate-limiter.replenishRate: 10
+                    redis-rate-limiter.burstCapacity: 20
                     key-resolver: "#{@userKeyResolver}"
           
           # 全局跨域配置

@@ -23,6 +23,11 @@ public class OperationLogContext {
     private String action;
 
     /**
+     * 业务ID
+     */
+    private String bizId;
+
+    /**
      * 请求方法（GET/POST/PUT/DELETE等）
      */
     private String method;

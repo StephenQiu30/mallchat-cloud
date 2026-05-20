@@ -18,4 +18,12 @@ class WebSocketPropertiesTest {
 
         Assertions.assertTrue(properties.getAllowedOrigins().isEmpty());
     }
+
+    @Test
+    void shouldUseConservativeRuntimeGuardDefaults() {
+        WebSocketProperties properties = new WebSocketProperties();
+
+        Assertions.assertEquals(5, properties.getMaxConnectionsPerUser());
+        Assertions.assertEquals(0L, properties.getMinConnectIntervalMillis());
+    }
 }

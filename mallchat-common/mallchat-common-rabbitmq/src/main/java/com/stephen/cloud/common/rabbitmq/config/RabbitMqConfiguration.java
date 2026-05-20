@@ -1,5 +1,6 @@
 package com.stephen.cloud.common.rabbitmq.config;
 
+import com.stephen.cloud.common.rabbitmq.producer.RabbitMqPublishObservation;
 import jakarta.annotation.PostConstruct;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.amqp.rabbit.config.SimpleRabbitListenerContainerFactory;
@@ -35,7 +36,9 @@ public class RabbitMqConfiguration {
      * @return 返回结果
      */
     @Bean("rabbitTemplateBean")
-    public RabbitTemplate rabbitTemplate(ConnectionFactory connectionFactory, MessageConverter messageConverter) {
+    public RabbitTemplate rabbitTemplate(ConnectionFactory connectionFactory,
+                                         MessageConverter messageConverter,
+                                         RabbitMqPublishObservation publishObservation) {
         RabbitTemplate rabbitTemplate = new RabbitTemplate(connectionFactory);
         // 开启 Mandatory 以触发回调，确保消息进入交换机后未被队列接收时不被丢弃
         rabbitTemplate.setMandatory(true);
@@ -45,6 +48,9 @@ public class RabbitMqConfiguration {
         rabbitTemplate.setMessageConverter(messageConverter);
         // 交换机和队列的回调配置
         rabbitTemplate.setConfirmCallback((correlationData, ack, cause) -> {
+            if (publishObservation != null) {
+                publishObservation.recordConfirm(correlationData == null ? null : correlationData.getId(), ack, cause);
+            }
             if (ack) {
                 log.info(">>>>>>>>>> 确认消息成功送到交换机(Exchange)，相关数据：{}", correlationData);
             } else {
@@ -53,6 +59,10 @@ public class RabbitMqConfiguration {
         });
 
         rabbitTemplate.setReturnsCallback(returnedMessage -> {
+            if (publishObservation != null) {
+                publishObservation.recordReturned(returnedMessage.getMessage().getMessageProperties().getHeaders(),
+                        returnedMessage.getReplyCode());
+            }
             log.error(">>>>>>>>>> 确认消息没能送到队列(Queue)，发生消息：{}，回应码：{}，回应信息：{}，交换机：{}，路由键值：{}",
                     returnedMessage.getMessage(),
                     returnedMessage.getReplyCode(),
