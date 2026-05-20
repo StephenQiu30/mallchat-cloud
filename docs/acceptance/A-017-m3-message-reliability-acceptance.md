@@ -22,6 +22,7 @@ inputs:
   - "openspec/changes/harden-message-idempotency"
 outputs:
   - "m3-backend-message-reliability-epic"
+  - "PR #22"
   - "RabbitMQ 发布观测"
   - "IM 推送结果指标"
   - "重连补偿与消息幂等验收"
@@ -29,7 +30,7 @@ triggers:
   - "创建或更新 m3 PR"
   - "回归消息可靠性 Epic #3"
 downstream:
-  - "PR m3"
+  - "PR #22"
 ---
 
 # m3 消息可靠性与可恢复验收

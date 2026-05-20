@@ -21,4 +21,4 @@
 - [x] 4.1 运行 common-rabbitmq 目标测试。
 - [x] 4.2 运行相关 Maven 模块测试。
 - [x] 4.3 运行 OpenSpec strict 校验。
-- [ ] 4.4 同步 GitHub Issue #10。
+- [x] 4.4 同步 GitHub Issue #10。
