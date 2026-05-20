@@ -183,7 +183,12 @@ public class ChatMessageServiceImpl extends ServiceImpl<ChatMessageMapper, ChatM
         ThrowUtils.throwIf(!result, ErrorCode.OPERATION_ERROR, "发送消息失败");
 
         ChatMessageVO messageVO = getChatMessageVO(chatMessage, null);
-        chatMqProducer.sendChatMessageGroupPush(roomId, messageVO, listRoomMemberUserIds(roomId));
+        try {
+            chatMqProducer.sendChatMessageGroupPush(roomId, messageVO, listRoomMemberUserIds(roomId));
+        } catch (Exception e) {
+            log.warn("[ChatMessageServiceImpl] 推送聊天消息失败, roomId={}, messageId={}, reason={}",
+                    roomId, chatMessage.getId(), e.toString());
+        }
         eventPublisher.publishEvent(new ChatMessageSentEvent(this, chatMessage, userId));
         return messageVO;
     }
@@ -268,13 +273,23 @@ public class ChatMessageServiceImpl extends ServiceImpl<ChatMessageMapper, ChatM
                 "userId", userId,
                 "lastReadMessageId", lastReadMessageId
         );
-        chatMqProducer.sendMessageRead(roomId, readPayload, "chat_read:" + roomId + ":" + userId + ":" + lastReadMessageId,
-                listRoomMemberUserIds(roomId));
+        try {
+            chatMqProducer.sendMessageRead(roomId, readPayload, "chat_read:" + roomId + ":" + userId + ":" + lastReadMessageId,
+                    listRoomMemberUserIds(roomId));
+        } catch (Exception e) {
+            log.warn("[ChatMessageServiceImpl] 推送消息已读失败, roomId={}, userId={}, lastReadMessageId={}, reason={}",
+                    roomId, userId, lastReadMessageId, e.toString());
+        }
 
         ChatSessionVO sessionVO = chatSessionService.getSessionVO(roomId, userId);
         if (sessionVO != null) {
-            chatMqProducer.sendSessionUpdate(userId, roomId, sessionVO,
-                    "session_update:" + roomId + ":" + userId + ":" + lastReadMessageId);
+            try {
+                chatMqProducer.sendSessionUpdate(userId, roomId, sessionVO,
+                        "session_update:" + roomId + ":" + userId + ":" + lastReadMessageId);
+            } catch (Exception e) {
+                log.warn("[ChatMessageServiceImpl] 推送已读会话刷新失败, roomId={}, userId={}, reason={}",
+                        roomId, userId, e.toString());
+            }
         }
         return true;
     }
@@ -339,7 +354,12 @@ public class ChatMessageServiceImpl extends ServiceImpl<ChatMessageMapper, ChatM
         ChatMessageVO messageVO = getChatMessageVO(msg, null);
         List<ChatRoomMember> members = chatRoomMemberService.listByRoomId(msg.getRoomId());
         List<Long> memberUserIds = extractRoomMemberUserIds(members);
-        chatMqProducer.sendMessageRecall(msg.getRoomId(), messageVO, memberUserIds);
+        try {
+            chatMqProducer.sendMessageRecall(msg.getRoomId(), messageVO, memberUserIds);
+        } catch (Exception e) {
+            log.warn("[ChatMessageServiceImpl] 推送消息撤回失败, roomId={}, messageId={}, reason={}",
+                    msg.getRoomId(), messageId, e.toString());
+        }
 
         if (CollUtil.isEmpty(members)) {
             return true;
@@ -347,8 +367,13 @@ public class ChatMessageServiceImpl extends ServiceImpl<ChatMessageMapper, ChatM
         for (ChatRoomMember member : members) {
             ChatSessionVO sessionVO = chatSessionService.getSessionVO(msg.getRoomId(), member.getUserId());
             if (sessionVO != null) {
-                chatMqProducer.sendSessionUpdate(member.getUserId(), msg.getRoomId(), sessionVO,
-                        "session_recall:" + msg.getRoomId() + ":" + member.getUserId() + ":" + messageId);
+                try {
+                    chatMqProducer.sendSessionUpdate(member.getUserId(), msg.getRoomId(), sessionVO,
+                            "session_recall:" + msg.getRoomId() + ":" + member.getUserId() + ":" + messageId);
+                } catch (Exception e) {
+                    log.warn("[ChatMessageServiceImpl] 推送撤回会话刷新失败, roomId={}, userId={}, messageId={}, reason={}",
+                            msg.getRoomId(), member.getUserId(), messageId, e.toString());
+                }
             }
         }
         return true;

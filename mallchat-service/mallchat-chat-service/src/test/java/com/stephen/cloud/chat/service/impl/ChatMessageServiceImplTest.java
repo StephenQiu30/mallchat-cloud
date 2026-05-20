@@ -182,6 +182,40 @@ class ChatMessageServiceImplTest {
     }
 
     @Test
+    void shouldKeepReadFactWhenReadPushThrows() {
+        ChatMessage stored = createStoredMessage(8L, 1L);
+        chatMessageService.messageById = stored;
+        roomMember.setLastReadMessageId(5L);
+        unreadCountAfterBoundary = 2L;
+        chatMqProducer.readPushThrows = true;
+
+        boolean result = Assertions.assertDoesNotThrow(() -> chatMessageService.markMessageRead(1L, 8L, 1L));
+
+        Assertions.assertTrue(result);
+        Assertions.assertEquals(8L, roomMember.getLastReadMessageId());
+        Assertions.assertEquals(2, chatMessageService.updatedUnreadCount);
+        Assertions.assertEquals(8L, chatMessageService.updatedLastReadMessageId);
+        Assertions.assertEquals(List.of(1L), chatMqProducer.readAttemptRoomIds);
+    }
+
+    @Test
+    void shouldKeepReadFactWhenSessionUpdatePushThrows() {
+        ChatMessage stored = createStoredMessage(8L, 1L);
+        chatMessageService.messageById = stored;
+        roomMember.setLastReadMessageId(5L);
+        unreadCountAfterBoundary = 2L;
+        chatMqProducer.sessionUpdateThrows = true;
+
+        boolean result = Assertions.assertDoesNotThrow(() -> chatMessageService.markMessageRead(1L, 8L, 1L));
+
+        Assertions.assertTrue(result);
+        Assertions.assertEquals(8L, roomMember.getLastReadMessageId());
+        Assertions.assertEquals(2, chatMessageService.updatedUnreadCount);
+        Assertions.assertEquals(8L, chatMessageService.updatedLastReadMessageId);
+        Assertions.assertEquals(List.of(1L), chatMqProducer.sessionUpdateAttemptUsers);
+    }
+
+    @Test
     void shouldClearUnreadCountAfterReadingNewestMessage() {
         ChatMessage stored = createStoredMessage(10L, 1L);
         chatMessageService.messageById = stored;
@@ -326,6 +360,19 @@ class ChatMessageServiceImplTest {
     }
 
     @Test
+    void shouldKeepMessageFactWhenGroupPushThrows() {
+        room.setType(ChatRoomTypeEnum.GROUP.getCode());
+        chatMqProducer.groupPushThrows = true;
+
+        ChatMessageVO result = Assertions.assertDoesNotThrow(
+                () -> chatMessageService.sendMessage(createTextMessage(1L, "c1", "hello"), 1L));
+
+        Assertions.assertEquals(100L, result.getId());
+        Assertions.assertEquals(100L, chatMessageService.messageById.getId());
+        Assertions.assertEquals(List.of(1L), chatMqProducer.groupPushAttemptRoomIds);
+    }
+
+    @Test
     void shouldRejectInvalidImageMessageWithoutPersistenceOrPush() {
         ChatMessage message = createMediaMessage(ChatMessageTypeEnum.IMAGE,
                 "{\"url\":\"https://example.com/a.png\",\"width\":100,\"height\":200,\"size\":0}");
@@ -379,6 +426,37 @@ class ChatMessageServiceImplTest {
 
         Assertions.assertTrue(result);
         Assertions.assertEquals(List.of(1L, 2L), chatMqProducer.lastRecallUserIds);
+    }
+
+    @Test
+    void shouldKeepRecallFactWhenRecallPushThrows() {
+        ChatMessage stored = createStoredMessage(9L, 1L);
+        chatMessageService.messageById = stored;
+        chatMqProducer.recallPushThrows = true;
+
+        boolean result = Assertions.assertDoesNotThrow(() -> chatMessageService.recallMessage(9L, 1L));
+
+        Assertions.assertTrue(result);
+        Assertions.assertEquals(MessageStatusEnum.RECALL.getCode(), chatMessageService.messageById.getStatus());
+        Assertions.assertEquals(List.of(1L), chatMqProducer.recallAttemptRoomIds);
+    }
+
+    @Test
+    void shouldKeepRecallFactAndContinueSessionUpdatesWhenOneSessionUpdateThrows() {
+        ChatMessage stored = createStoredMessage(9L, 1L);
+        chatMessageService.messageById = stored;
+        ChatRoomMember peerMember = new ChatRoomMember();
+        peerMember.setRoomId(1L);
+        peerMember.setUserId(2L);
+        roomMembers = List.of(roomMember, peerMember);
+        chatMqProducer.sessionUpdateFailureUserId = 1L;
+
+        boolean result = Assertions.assertDoesNotThrow(() -> chatMessageService.recallMessage(9L, 1L));
+
+        Assertions.assertTrue(result);
+        Assertions.assertEquals(MessageStatusEnum.RECALL.getCode(), chatMessageService.messageById.getStatus());
+        Assertions.assertEquals(List.of(1L, 2L), chatMqProducer.sessionUpdateAttemptUsers);
+        Assertions.assertEquals(2L, chatMqProducer.lastSessionUpdateUserId);
     }
 
     @Test
@@ -676,9 +754,22 @@ class ChatMessageServiceImplTest {
         private List<Long> lastGroupPushUserIds;
         private List<Long> lastReadUserIds;
         private List<Long> lastRecallUserIds;
+        private List<Long> groupPushAttemptRoomIds = new ArrayList<>();
+        private List<Long> readAttemptRoomIds = new ArrayList<>();
+        private List<Long> recallAttemptRoomIds = new ArrayList<>();
+        private List<Long> sessionUpdateAttemptUsers = new ArrayList<>();
+        private Long sessionUpdateFailureUserId;
+        private boolean groupPushThrows;
+        private boolean readPushThrows;
+        private boolean recallPushThrows;
+        private boolean sessionUpdateThrows;
 
         @Override
         public void sendChatMessageGroupPush(Long roomId, ChatMessageVO chatMessageVO, List<Long> userIds) {
+            this.groupPushAttemptRoomIds.add(roomId);
+            if (groupPushThrows) {
+                throw new RuntimeException("group push failed");
+            }
             this.lastGroupPushRoomId = roomId;
             this.lastGroupPushUserIds = userIds;
         }
@@ -690,17 +781,29 @@ class ChatMessageServiceImplTest {
 
         @Override
         public void sendMessageRead(Long roomId, Object data, String bizId, List<Long> userIds) {
+            this.readAttemptRoomIds.add(roomId);
+            if (readPushThrows) {
+                throw new RuntimeException("read push failed");
+            }
             this.lastReadPayload = data;
             this.lastReadUserIds = userIds;
         }
 
         @Override
         public void sendMessageRecall(Long roomId, ChatMessageVO chatMessageVO, List<Long> userIds) {
+            this.recallAttemptRoomIds.add(roomId);
+            if (recallPushThrows) {
+                throw new RuntimeException("recall push failed");
+            }
             this.lastRecallUserIds = userIds;
         }
 
         @Override
         public void sendSessionUpdate(Long userId, Long roomId, Object data, String bizId) {
+            this.sessionUpdateAttemptUsers.add(userId);
+            if (sessionUpdateThrows || (sessionUpdateFailureUserId != null && sessionUpdateFailureUserId.equals(userId))) {
+                throw new RuntimeException("session update failed");
+            }
             this.lastSessionUpdateUserId = userId;
         }
     }

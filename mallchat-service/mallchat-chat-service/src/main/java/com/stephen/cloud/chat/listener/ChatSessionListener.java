@@ -61,8 +61,13 @@ public class ChatSessionListener {
         for (Long targetUserId : userIds) {
             ChatSessionVO sessionVO = chatSessionService.getSessionVO(roomId, targetUserId);
             if (sessionVO != null) {
-                chatMqProducer.sendSessionUpdate(targetUserId, roomId, sessionVO,
-                        "session_msg:" + roomId + ":" + targetUserId + ":" + chatMessage.getId());
+                try {
+                    chatMqProducer.sendSessionUpdate(targetUserId, roomId, sessionVO,
+                            "session_msg:" + roomId + ":" + targetUserId + ":" + chatMessage.getId());
+                } catch (Exception e) {
+                    log.warn("[ChatSessionListener] 推送消息会话刷新失败, roomId={}, userId={}, messageId={}, reason={}",
+                            roomId, targetUserId, chatMessage.getId(), e.toString());
+                }
             }
         }
     }
