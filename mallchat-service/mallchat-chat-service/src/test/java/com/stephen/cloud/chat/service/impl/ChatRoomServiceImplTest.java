@@ -23,6 +23,8 @@ import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.test.util.ReflectionTestUtils;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.lang.reflect.Proxy;
 import java.util.ArrayList;
@@ -274,6 +276,11 @@ class ChatRoomServiceImplTest {
         Assertions.assertEquals(100L, roomId);
         Assertions.assertEquals(List.of(1L, 2L, 3L), addedMembers);
         Assertions.assertEquals(List.of(2L, 3L, 1L), sessionUpdateUsers);
+        Assertions.assertEquals(List.of(
+                "session_join:100:2",
+                "session_join:100:3",
+                "session_create:100:1"
+        ), sessionUpdateBizIds);
         Assertions.assertEquals(2, notifications.size());
         assertGroupInvitationNotification(notifications.get(0), 2L, 100L);
         assertGroupInvitationNotification(notifications.get(1), 3L, 100L);
@@ -289,6 +296,54 @@ class ChatRoomServiceImplTest {
 
         Assertions.assertEquals(List.of(2L), addedMembers);
         Assertions.assertEquals(List.of(2L), sessionUpdateUsers);
+        Assertions.assertEquals(List.of("session_invite:90:2"), sessionUpdateBizIds);
+        Assertions.assertEquals(1, notifications.size());
+        assertGroupInvitationNotification(notifications.get(0), 2L, 90L);
+    }
+
+    @Test
+    void shouldSendGroupInviteNotificationsAfterTransactionCommit() {
+        mutualFriend = true;
+        ChatRoom room = new ChatRoom();
+        room.setName("group");
+
+        TransactionSynchronizationManager.initSynchronization();
+        List<TransactionSynchronization> synchronizations;
+        try {
+            chatRoomService.addChatRoom(room, List.of(2L, 3L), "hello", 1L);
+
+            Assertions.assertTrue(notifications.isEmpty());
+            synchronizations = TransactionSynchronizationManager.getSynchronizations();
+        } finally {
+            TransactionSynchronizationManager.clearSynchronization();
+        }
+
+        synchronizations.forEach(TransactionSynchronization::afterCommit);
+
+        Assertions.assertEquals(2, notifications.size());
+        assertGroupInvitationNotification(notifications.get(0), 2L, 100L);
+        assertGroupInvitationNotification(notifications.get(1), 3L, 100L);
+    }
+
+    @Test
+    void shouldSendMemberInviteNotificationAfterTransactionCommit() {
+        chatRoomService.stubRoom = buildGroupRoom();
+        currentUserIsMember = true;
+        mutualFriend = true;
+
+        TransactionSynchronizationManager.initSynchronization();
+        List<TransactionSynchronization> synchronizations;
+        try {
+            chatRoomService.inviteMembers(90L, List.of(2L), 1L);
+
+            Assertions.assertTrue(notifications.isEmpty());
+            synchronizations = TransactionSynchronizationManager.getSynchronizations();
+        } finally {
+            TransactionSynchronizationManager.clearSynchronization();
+        }
+
+        synchronizations.forEach(TransactionSynchronization::afterCommit);
+
         Assertions.assertEquals(1, notifications.size());
         assertGroupInvitationNotification(notifications.get(0), 2L, 90L);
     }

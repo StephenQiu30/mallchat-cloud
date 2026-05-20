@@ -38,6 +38,8 @@ import org.apache.commons.lang3.StringUtils;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -476,6 +478,19 @@ public class ChatRoomServiceImpl extends ServiceImpl<ChatRoomMapper, ChatRoom>
     }
 
     private void trySendGroupInviteNotification(Long userId, ChatRoom room) {
+        if (TransactionSynchronizationManager.isSynchronizationActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    doTrySendGroupInviteNotification(userId, room);
+                }
+            });
+            return;
+        }
+        doTrySendGroupInviteNotification(userId, room);
+    }
+
+    private void doTrySendGroupInviteNotification(Long userId, ChatRoom room) {
         try {
             sendGroupInviteNotification(userId, room);
         } catch (Exception e) {

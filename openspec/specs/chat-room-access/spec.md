@@ -21,6 +21,11 @@ The system SHALL allow room membership to be created only through controlled MVP
 - **AND** the notification `relatedType` is `chat_room`
 - **AND** the notification `relatedId` is the group room ID
 
+#### Scenario: Group invitation notification waits for local transaction commit
+- **WHEN** a direct group invitation is handled inside a local transaction
+- **THEN** the system SHALL send the notification-center creation request only after the local transaction commits
+- **AND** a rolled-back room, membership, or session transaction SHALL NOT leave a notification-center record behind
+
 #### Scenario: Group invitation notification failure is degraded
 - **WHEN** a direct group invitation creates membership and session facts but notification-center creation fails
 - **THEN** the invited member remains in the room
@@ -129,4 +134,3 @@ The system SHALL allow only the group owner to remove an existing ordinary `MEMB
 - **THEN** the system rejects the request
 - **AND** no room membership is removed
 - **AND** no session delete event is emitted
-
