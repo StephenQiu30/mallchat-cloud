@@ -30,6 +30,17 @@
 7. 如果 PRD 中存在“待确认问题”，不得在实现中静默做最终选择；必须先在 OpenSpec proposal/design 中写明取舍，必要时向用户确认。
 8. 每次进入实现前，需要补一段自审结论：本次做什么、不做什么、依赖哪些已有模块、哪些测试会先失败、哪些接口需要高可用验证。
 
+## IM 生产化 Issue 消费规范
+
+1. 生产化任务先进入 `docs/superpowers/specs/` 和 `docs/plans/`，再创建 GitHub Issue；不得先写代码后补规格。
+2. 首批 GitHub Issue 只创建 P0，范围限定为安全、消息可靠性、可观测性和数据恢复；P1/P2 只作为候选池。
+3. 后端功能必须遵循 TDD：先写失败测试并确认失败，再写最小实现，再回归相关模块测试和 `openspec validate --all --strict`。
+4. 每个子 Issue 必须声明 Parent Epic、建议 OpenSpec change id、文件所有权、TDD 验收、生产验收和完成标准。
+5. 每轮并行最多消费 2-3 个子 Issue；多个子智能体不得同时写同一个模块核心文件或同一个 OpenSpec spec 文件。
+6. 安全、权限、事务、消息事实和数据恢复类 Issue 必须安排测试验证人或只读 reviewer 复核。
+7. 主智能体负责汇总子智能体结果、解决冲突、运行回归、更新 OpenSpec tasks、归档完成 change、提交和推送。
+8. Issue 完成状态不能替代 OpenSpec 状态；完成代码后必须同步 OpenSpec tasks、验收文档和 GitHub Issue 结果。
+
 ## 代码风格一致性规范
 
 1. 后端新增代码应优先复用当前项目风格：Spring Boot Controller + Service + Mapper + Entity + Convert + DTO/VO，避免引入平行架构或新的数据访问方式。
