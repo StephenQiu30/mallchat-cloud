@@ -126,7 +126,7 @@ public class NettyWebSocketServer {
                                 .checkStartsWith(true)
                                 .allowExtensions(true)
                                 .build();
-                        pipeline.addLast(new HttpHeadersHandler()); // 在升级前认证
+                        pipeline.addLast(new HttpHeadersHandler(webSocketProperties)); // 在升级前认证
                         pipeline.addLast(new WebSocketServerProtocolHandler(wsConfig));
                         // 添加自定义的WebSocket数据处理器，处理具体的消息逻辑
                         // 每个连接创建新的handler实例

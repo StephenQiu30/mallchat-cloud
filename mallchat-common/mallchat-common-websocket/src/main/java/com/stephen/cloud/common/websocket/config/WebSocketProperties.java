@@ -4,6 +4,8 @@ import lombok.Data;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.stereotype.Component;
 
+import java.util.List;
+
 /**
  * WebSocket 配置属性
  *
@@ -38,5 +40,10 @@ public class WebSocketProperties {
      * WebSocket 路径
      */
     private String path = "/websocket";
+
+    /**
+     * 允许握手的 Origin 列表，为空时不限制
+     */
+    private List<String> allowedOrigins = List.of();
 
 }
