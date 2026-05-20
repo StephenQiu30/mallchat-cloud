@@ -1,6 +1,7 @@
 package com.stephen.cloud.api.notification.client;
 
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import com.stephen.cloud.api.notification.model.dto.NotificationCreateRequest;
 import com.stephen.cloud.api.notification.model.dto.NotificationQueryRequest;
 import com.stephen.cloud.api.notification.model.vo.NotificationVO;
 import com.stephen.cloud.common.common.BaseResponse;
@@ -36,4 +37,13 @@ public interface NotificationFeignClient {
     @PostMapping("/list/page/vo")
     BaseResponse<Page<NotificationVO>> listNotificationByPage(
             @RequestBody NotificationQueryRequest notificationQueryRequest);
+
+    /**
+     * 创建业务通知
+     *
+     * @param request 业务通知创建请求
+     * @return 通知 ID
+     */
+    @PostMapping("/internal/add")
+    BaseResponse<Long> addBusinessNotification(@RequestBody NotificationCreateRequest request);
 }

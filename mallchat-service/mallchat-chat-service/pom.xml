@@ -32,6 +32,12 @@
             <artifactId>mallchat-api-log</artifactId>
         </dependency>
 
+        <!-- mallchat-api-notification -->
+        <dependency>
+            <groupId>com.stephen.cloud</groupId>
+            <artifactId>mallchat-api-notification</artifactId>
+        </dependency>
+
         <!-- Common Auth -->
         <dependency>
             <groupId>com.stephen.cloud</groupId>

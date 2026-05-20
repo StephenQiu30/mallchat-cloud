@@ -6,21 +6,35 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
+import com.stephen.cloud.api.chat.model.dto.ChatMomentCommentRequest;
 import com.stephen.cloud.api.chat.model.dto.ChatMomentMediaRequest;
 import com.stephen.cloud.api.chat.model.dto.ChatMomentPublishRequest;
+import com.stephen.cloud.api.chat.model.vo.ChatMomentCommentVO;
 import com.stephen.cloud.api.chat.model.vo.ChatMomentMediaVO;
 import com.stephen.cloud.api.chat.model.vo.ChatMomentVO;
+import com.stephen.cloud.api.notification.client.NotificationFeignClient;
+import com.stephen.cloud.api.notification.model.dto.NotificationCreateRequest;
+import com.stephen.cloud.api.notification.model.enums.NotificationTypeEnum;
+import com.stephen.cloud.common.common.BaseResponse;
 import com.stephen.cloud.chat.mapper.ChatMomentMapper;
+import com.stephen.cloud.chat.mapper.ChatMomentCommentMapper;
+import com.stephen.cloud.chat.mapper.ChatMomentLikeMapper;
 import com.stephen.cloud.chat.mapper.ChatMomentMediaMapper;
 import com.stephen.cloud.chat.model.entity.ChatMoment;
+import com.stephen.cloud.chat.model.entity.ChatMomentComment;
+import com.stephen.cloud.chat.model.entity.ChatMomentLike;
 import com.stephen.cloud.chat.model.entity.ChatMomentMedia;
 import com.stephen.cloud.chat.service.ChatMomentService;
 import com.stephen.cloud.chat.service.UserFriendService;
 import com.stephen.cloud.common.common.ErrorCode;
 import com.stephen.cloud.common.common.ThrowUtils;
 import jakarta.annotation.Resource;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -36,23 +50,35 @@ import java.util.stream.Collectors;
  *
  * @author StephenQiu30
  */
+@Slf4j
 @Service
 public class ChatMomentServiceImpl extends ServiceImpl<ChatMomentMapper, ChatMoment>
         implements ChatMomentService {
 
     private static final int MAX_CONTENT_LENGTH = 1000;
+    private static final int MAX_COMMENT_LENGTH = 500;
     private static final int MAX_MEDIA_COUNT = 9;
     private static final int MAX_MEDIA_URL_LENGTH = 1024;
     private static final int DEFAULT_PAGE_SIZE = 10;
     private static final int MAX_PAGE_SIZE = 20;
     private static final int STATUS_NORMAL = 0;
     private static final int STATUS_DELETED = 1;
+    private static final String RELATED_TYPE_CHAT_MOMENT = "chat_moment";
 
     @Resource
     private ChatMomentMediaMapper chatMomentMediaMapper;
 
     @Resource
+    private ChatMomentLikeMapper chatMomentLikeMapper;
+
+    @Resource
+    private ChatMomentCommentMapper chatMomentCommentMapper;
+
+    @Resource
     private UserFriendService userFriendService;
+
+    @Resource
+    private NotificationFeignClient notificationFeignClient;
 
     @Override
     @Transactional(rollbackFor = Exception.class)
@@ -116,6 +142,87 @@ public class ChatMomentServiceImpl extends ServiceImpl<ChatMomentMapper, ChatMom
         ThrowUtils.throwIf(!deleted, ErrorCode.OPERATION_ERROR, "删除动态失败");
     }
 
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void likeMoment(Long userId, Long momentId) {
+        ChatMoment moment = getVisibleActiveMoment(userId, momentId);
+        ChatMomentLike existing = getMomentLikeIncludingDeleted(momentId, userId);
+        if (existing != null && !Objects.equals(existing.getIsDelete(), 1)) {
+            return;
+        }
+        boolean saved;
+        if (existing != null) {
+            saved = restoreMomentLike(existing.getId());
+        } else {
+            ChatMomentLike like = new ChatMomentLike();
+            like.setMomentId(momentId);
+            like.setUserId(userId);
+            like.setIsDelete(0);
+            try {
+                saved = saveMomentLike(like);
+            } catch (DuplicateKeyException e) {
+                return;
+            }
+        }
+        if (!saved) {
+            return;
+        }
+        boolean increased = increaseMomentLikeCount(momentId);
+        ThrowUtils.throwIf(!increased, ErrorCode.OPERATION_ERROR, "更新点赞数失败");
+        scheduleMomentInteractionNotification(moment, userId, NotificationTypeEnum.LIKE.getCode(), null);
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void unlikeMoment(Long userId, Long momentId) {
+        getVisibleActiveMoment(userId, momentId);
+        ChatMomentLike existing = getMomentLikeIncludingDeleted(momentId, userId);
+        if (existing == null || Objects.equals(existing.getIsDelete(), 1)) {
+            return;
+        }
+        boolean deleted = softDeleteMomentLike(existing.getId());
+        if (!deleted) {
+            return;
+        }
+        boolean decreased = decreaseMomentLikeCount(momentId);
+        ThrowUtils.throwIf(!decreased, ErrorCode.OPERATION_ERROR, "更新点赞数失败");
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public Long commentMoment(Long userId, ChatMomentCommentRequest request) {
+        ThrowUtils.throwIf(userId == null || request == null || request.getMomentId() == null
+                || request.getMomentId() <= 0, ErrorCode.PARAMS_ERROR);
+        String content = normalizeCommentContent(request.getContent());
+        ChatMoment moment = getVisibleActiveMoment(userId, request.getMomentId());
+        ChatMomentComment comment = new ChatMomentComment();
+        comment.setMomentId(request.getMomentId());
+        comment.setUserId(userId);
+        comment.setContent(content);
+        comment.setStatus(STATUS_NORMAL);
+        comment.setIsDelete(0);
+        boolean saved = saveMomentComment(comment);
+        ThrowUtils.throwIf(!saved || comment.getId() == null, ErrorCode.OPERATION_ERROR, "评论动态失败");
+        boolean increased = increaseMomentCommentCount(request.getMomentId());
+        ThrowUtils.throwIf(!increased, ErrorCode.OPERATION_ERROR, "更新评论数失败");
+        scheduleMomentInteractionNotification(moment, userId, NotificationTypeEnum.COMMENT.getCode(), comment.getId());
+        return comment.getId();
+    }
+
+    @Override
+    public Page<ChatMomentCommentVO> listComments(Long userId, Long momentId, int current, int pageSize) {
+        getVisibleActiveMoment(userId, momentId);
+        int normalizedCurrent = current <= 0 ? 1 : current;
+        int normalizedPageSize = normalizePageSize(pageSize);
+        Page<ChatMomentComment> commentPage = pageMomentComments(momentId, normalizedCurrent, normalizedPageSize);
+        Page<ChatMomentCommentVO> voPage = new Page<>(commentPage.getCurrent(), commentPage.getSize(), commentPage.getTotal());
+        if (CollUtil.isEmpty(commentPage.getRecords())) {
+            return voPage;
+        }
+        voPage.setRecords(commentPage.getRecords().stream().map(this::toCommentVO).toList());
+        return voPage;
+    }
+
     protected boolean saveMoment(ChatMoment moment) {
         return this.save(moment);
     }
@@ -159,6 +266,63 @@ public class ChatMomentServiceImpl extends ServiceImpl<ChatMomentMapper, ChatMom
                 .set(ChatMoment::getIsDelete, 1));
     }
 
+    protected ChatMomentLike getMomentLikeIncludingDeleted(Long momentId, Long userId) {
+        return chatMomentLikeMapper.selectByMomentIdAndUserIdIncludingDeleted(momentId, userId);
+    }
+
+    protected boolean saveMomentLike(ChatMomentLike like) {
+        return chatMomentLikeMapper.insert(like) > 0;
+    }
+
+    protected boolean restoreMomentLike(Long likeId) {
+        return chatMomentLikeMapper.restoreByIdIncludingDeleted(likeId) > 0;
+    }
+
+    protected boolean softDeleteMomentLike(Long likeId) {
+        return chatMomentLikeMapper.update(null, new LambdaUpdateWrapper<ChatMomentLike>()
+                .eq(ChatMomentLike::getId, likeId)
+                .set(ChatMomentLike::getIsDelete, 1)) > 0;
+    }
+
+    protected boolean increaseMomentLikeCount(Long momentId) {
+        return baseMapper.increaseLikeCount(momentId) > 0;
+    }
+
+    protected boolean decreaseMomentLikeCount(Long momentId) {
+        return baseMapper.decreaseLikeCount(momentId) > 0;
+    }
+
+    protected boolean saveMomentComment(ChatMomentComment comment) {
+        return chatMomentCommentMapper.insert(comment) > 0;
+    }
+
+    protected boolean increaseMomentCommentCount(Long momentId) {
+        return baseMapper.increaseCommentCount(momentId) > 0;
+    }
+
+    protected Page<ChatMomentComment> pageMomentComments(Long momentId, int current, int pageSize) {
+        return chatMomentCommentMapper.selectPage(new Page<>(current, pageSize),
+                new LambdaQueryWrapper<ChatMomentComment>()
+                        .eq(ChatMomentComment::getMomentId, momentId)
+                        .eq(ChatMomentComment::getStatus, STATUS_NORMAL)
+                        .orderByAsc(ChatMomentComment::getCreateTime)
+                        .orderByAsc(ChatMomentComment::getId));
+    }
+
+    protected void sendMomentInteractionNotification(ChatMoment moment, Long actorUserId, String type, Long commentId) {
+        NotificationCreateRequest request = new NotificationCreateRequest();
+        request.setTitle(NotificationTypeEnum.LIKE.getCode().equals(type) ? "动态点赞" : "动态评论");
+        request.setContent(NotificationTypeEnum.LIKE.getCode().equals(type) ? "有人点赞了你的动态" : "有人评论了你的动态");
+        request.setType(type);
+        request.setUserId(moment.getUserId());
+        request.setRelatedId(moment.getId());
+        request.setRelatedType(RELATED_TYPE_CHAT_MOMENT);
+        request.setContentUrl("/chat/moment/detail?id=" + moment.getId());
+        request.setBizId(buildInteractionNotificationBizId(type, moment.getId(), actorUserId, commentId));
+        BaseResponse<Long> response = notificationFeignClient.addBusinessNotification(request);
+        ThrowUtils.throwIf(response == null || response.getData() == null, ErrorCode.OPERATION_ERROR, "创建互动通知失败");
+    }
+
     protected Map<Long, List<ChatMomentMediaVO>> listMomentMediaMap(List<Long> momentIds) {
         if (CollUtil.isEmpty(momentIds)) {
             return Collections.emptyMap();
@@ -182,6 +346,13 @@ public class ChatMomentServiceImpl extends ServiceImpl<ChatMomentMapper, ChatMom
         }
         String normalized = content.trim();
         ThrowUtils.throwIf(normalized.length() > MAX_CONTENT_LENGTH, ErrorCode.PARAMS_ERROR, "动态正文过长");
+        return normalized;
+    }
+
+    private String normalizeCommentContent(String content) {
+        ThrowUtils.throwIf(StrUtil.isBlank(content), ErrorCode.PARAMS_ERROR, "评论内容不能为空");
+        String normalized = content.trim();
+        ThrowUtils.throwIf(normalized.length() > MAX_COMMENT_LENGTH, ErrorCode.PARAMS_ERROR, "评论内容过长");
         return normalized;
     }
 
@@ -223,6 +394,52 @@ public class ChatMomentServiceImpl extends ServiceImpl<ChatMomentMapper, ChatMom
         return Math.min(pageSize, MAX_PAGE_SIZE);
     }
 
+    private ChatMoment getVisibleActiveMoment(Long userId, Long momentId) {
+        ThrowUtils.throwIf(userId == null || momentId == null || momentId <= 0, ErrorCode.PARAMS_ERROR);
+        ChatMoment moment = getMomentIncludingDeleted(momentId);
+        ThrowUtils.throwIf(moment == null || Objects.equals(moment.getStatus(), STATUS_DELETED)
+                || Objects.equals(moment.getIsDelete(), 1), ErrorCode.NOT_FOUND_ERROR, "动态不存在");
+        if (Objects.equals(userId, moment.getUserId())) {
+            return moment;
+        }
+        Set<Long> friendIds = listMutualFriendIds(userId);
+        ThrowUtils.throwIf(CollUtil.isEmpty(friendIds) || !friendIds.contains(moment.getUserId()),
+                ErrorCode.NO_AUTH_ERROR, "无权操作该动态");
+        return moment;
+    }
+
+    private void scheduleMomentInteractionNotification(ChatMoment moment, Long actorUserId, String type, Long commentId) {
+        if (Objects.equals(moment.getUserId(), actorUserId)) {
+            return;
+        }
+        if (TransactionSynchronizationManager.isActualTransactionActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    trySendMomentInteractionNotification(moment, actorUserId, type, commentId);
+                }
+            });
+            return;
+        }
+        trySendMomentInteractionNotification(moment, actorUserId, type, commentId);
+    }
+
+    private void trySendMomentInteractionNotification(ChatMoment moment, Long actorUserId, String type, Long commentId) {
+        try {
+            sendMomentInteractionNotification(moment, actorUserId, type, commentId);
+        } catch (Exception e) {
+            log.warn("[ChatMomentServiceImpl] 发送动态互动通知失败, momentId: {}, actorUserId: {}, type: {}, reason: {}",
+                    moment.getId(), actorUserId, type, e.getMessage());
+        }
+    }
+
+    private String buildInteractionNotificationBizId(String type, Long momentId, Long actorUserId, Long commentId) {
+        if (NotificationTypeEnum.COMMENT.getCode().equals(type)) {
+            return "moment_comment_" + commentId;
+        }
+        return "moment_like_" + momentId + "_" + actorUserId;
+    }
+
     private ChatMomentVO toVO(ChatMoment moment, List<ChatMomentMediaVO> mediaList) {
         ChatMomentVO vo = new ChatMomentVO();
         vo.setId(moment.getId());
@@ -245,6 +462,16 @@ public class ChatMomentServiceImpl extends ServiceImpl<ChatMomentMapper, ChatMom
         vo.setHeight(media.getHeight());
         vo.setSize(media.getSize());
         vo.setSortOrder(media.getSortOrder());
+        return vo;
+    }
+
+    private ChatMomentCommentVO toCommentVO(ChatMomentComment comment) {
+        ChatMomentCommentVO vo = new ChatMomentCommentVO();
+        vo.setId(comment.getId());
+        vo.setMomentId(comment.getMomentId());
+        vo.setUserId(comment.getUserId());
+        vo.setContent(comment.getContent());
+        vo.setCreateTime(comment.getCreateTime());
         return vo;
     }
 }

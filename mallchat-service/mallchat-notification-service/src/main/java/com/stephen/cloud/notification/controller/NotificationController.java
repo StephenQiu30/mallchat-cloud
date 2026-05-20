@@ -62,6 +62,30 @@ public class NotificationController {
     }
 
     /**
+     * 创建业务通知（服务间调用）
+     *
+     * @param request 创建请求
+     * @return 通知 ID
+     */
+    @PostMapping("/internal/add")
+    @Operation(summary = "创建业务通知", description = "供内部业务服务创建点赞、评论等业务通知")
+    public BaseResponse<Long> addBusinessNotification(@RequestBody NotificationCreateRequest request) {
+        ThrowUtils.throwIf(request == null, ErrorCode.PARAMS_ERROR);
+        Notification notification = new Notification();
+        notification.setTitle(request.getTitle());
+        notification.setContent(request.getContent());
+        notification.setType(request.getType());
+        notification.setBizId(request.getBizId());
+        notification.setUserId(request.getUserId());
+        notification.setRelatedId(request.getRelatedId());
+        notification.setRelatedType(request.getRelatedType());
+        notification.setContentUrl(request.getContentUrl());
+        notification.setStatus(0);
+        notification.setIsDelete(0);
+        return ResultUtils.success(notificationService.addNotification(notification));
+    }
+
+    /**
      * 删除通知
      *
      * @param deleteRequest 删除请求

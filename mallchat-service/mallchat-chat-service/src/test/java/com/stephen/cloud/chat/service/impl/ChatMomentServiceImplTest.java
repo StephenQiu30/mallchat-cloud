@@ -13,6 +13,7 @@ import com.stephen.cloud.chat.model.entity.ChatMomentMedia;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.springframework.dao.DuplicateKeyException;
 
 import java.util.ArrayList;
 import java.util.Date;
@@ -190,6 +191,18 @@ class ChatMomentServiceImplTest {
     }
 
     @Test
+    void shouldTreatDuplicateLikeInsertAsIdempotent() {
+        chatMomentService.visibleFriendIds = new LinkedHashSet<>(Set.of(2L));
+        chatMomentService.momentById = Map.of(10L, moment(10L, 2L, "friend"));
+        chatMomentService.duplicateLikeOnSave = true;
+
+        chatMomentService.likeMoment(1L, 10L);
+
+        Assertions.assertTrue(chatMomentService.likeIncrementMomentIds.isEmpty());
+        Assertions.assertTrue(chatMomentService.sentNotifications.isEmpty());
+    }
+
+    @Test
     void shouldUnlikeLikedMomentAndDecreaseCount() {
         chatMomentService.visibleFriendIds = new LinkedHashSet<>(Set.of(2L));
         chatMomentService.momentById = Map.of(10L, moment(10L, 2L, "friend"));
@@ -221,6 +234,23 @@ class ChatMomentServiceImplTest {
         Assertions.assertThrows(RuntimeException.class, () -> chatMomentService.commentMoment(1L, commentRequest(10L, "hi")));
         Assertions.assertTrue(chatMomentService.savedLikes.isEmpty());
         Assertions.assertTrue(chatMomentService.savedComments.isEmpty());
+    }
+
+    @Test
+    void shouldRejectMissingOrDeletedMomentInteraction() {
+        ChatMoment deletedMoment = moment(10L, 2L, "deleted");
+        deletedMoment.setStatus(1);
+        deletedMoment.setIsDelete(1);
+        chatMomentService.visibleFriendIds = new LinkedHashSet<>(Set.of(2L));
+        chatMomentService.momentById = Map.of(10L, deletedMoment);
+
+        Assertions.assertThrows(RuntimeException.class, () -> chatMomentService.likeMoment(1L, 99L));
+        Assertions.assertThrows(RuntimeException.class, () -> chatMomentService.likeMoment(1L, 10L));
+        Assertions.assertThrows(RuntimeException.class, () -> chatMomentService.commentMoment(1L, commentRequest(10L, "hi")));
+        Assertions.assertThrows(RuntimeException.class, () -> chatMomentService.listComments(1L, 10L, 1, 10));
+        Assertions.assertTrue(chatMomentService.savedLikes.isEmpty());
+        Assertions.assertTrue(chatMomentService.savedComments.isEmpty());
+        Assertions.assertTrue(chatMomentService.sentNotifications.isEmpty());
     }
 
     @Test
@@ -262,6 +292,28 @@ class ChatMomentServiceImplTest {
     }
 
     @Test
+    void shouldRejectInvisibleMomentCommentList() {
+        chatMomentService.visibleFriendIds = new LinkedHashSet<>();
+        chatMomentService.momentById = Map.of(10L, moment(10L, 2L, "stranger"));
+
+        Assertions.assertThrows(RuntimeException.class, () -> chatMomentService.listComments(1L, 10L, 1, 10));
+    }
+
+    @Test
+    void shouldFilterDeletedCommentsInList() {
+        ChatMomentComment deletedComment = comment(102L, 10L, 3L, "deleted");
+        deletedComment.setIsDelete(1);
+        chatMomentService.visibleFriendIds = new LinkedHashSet<>(Set.of(2L));
+        chatMomentService.momentById = Map.of(10L, moment(10L, 2L, "friend"));
+        chatMomentService.comments = List.of(comment(101L, 10L, 2L, "first"), deletedComment);
+
+        Page<ChatMomentCommentVO> page = chatMomentService.listComments(1L, 10L, 1, 10);
+
+        Assertions.assertEquals(1, page.getRecords().size());
+        Assertions.assertEquals(101L, page.getRecords().get(0).getId());
+    }
+
+    @Test
     void shouldKeepInteractionWhenNotificationFails() {
         chatMomentService.visibleFriendIds = new LinkedHashSet<>(Set.of(2L));
         chatMomentService.momentById = Map.of(10L, moment(10L, 2L, "friend"));
@@ -275,6 +327,18 @@ class ChatMomentServiceImplTest {
         Assertions.assertEquals(1, chatMomentService.savedComments.size());
         Assertions.assertEquals(List.of(10L), chatMomentService.likeIncrementMomentIds);
         Assertions.assertEquals(List.of(10L), chatMomentService.commentIncrementMomentIds);
+    }
+
+    @Test
+    void shouldNotNotifyWhenInteractingWithOwnMoment() {
+        chatMomentService.momentById = Map.of(10L, moment(10L, 1L, "mine"));
+
+        chatMomentService.likeMoment(1L, 10L);
+        chatMomentService.commentMoment(1L, commentRequest(10L, "mine"));
+
+        Assertions.assertEquals(1, chatMomentService.savedLikes.size());
+        Assertions.assertEquals(1, chatMomentService.savedComments.size());
+        Assertions.assertTrue(chatMomentService.sentNotifications.isEmpty());
     }
 
     private static ChatMomentMediaRequest media(String url, int sortOrder) {
@@ -347,6 +411,7 @@ class ChatMomentServiceImplTest {
         private List<ChatMomentComment> comments = new ArrayList<>();
         private final List<String> sentNotifications = new ArrayList<>();
         private boolean failNotification;
+        private boolean duplicateLikeOnSave;
 
         @Override
         protected boolean saveMoment(ChatMoment moment) {
@@ -403,6 +468,9 @@ class ChatMomentServiceImplTest {
 
         @Override
         protected boolean saveMomentLike(ChatMomentLike like) {
+            if (duplicateLikeOnSave) {
+                throw new DuplicateKeyException("duplicate moment like");
+            }
             savedLikes.add(like);
             return true;
         }

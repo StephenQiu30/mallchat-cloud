@@ -1,7 +1,9 @@
 package com.stephen.cloud.chat.controller;
 
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import com.stephen.cloud.api.chat.model.dto.ChatMomentCommentRequest;
 import com.stephen.cloud.api.chat.model.dto.ChatMomentPublishRequest;
+import com.stephen.cloud.api.chat.model.vo.ChatMomentCommentVO;
 import com.stephen.cloud.api.chat.model.vo.ChatMomentVO;
 import com.stephen.cloud.chat.service.ChatMomentService;
 import com.stephen.cloud.common.auth.utils.SecurityUtils;
@@ -62,5 +64,45 @@ public class ChatMomentController {
         Long userId = SecurityUtils.getLoginUserId();
         chatMomentService.deleteMoment(userId, id);
         return ResultUtils.success(true);
+    }
+
+    @PostMapping("/like")
+    @OperationLog(module = "动态管理", action = "点赞动态")
+    @Operation(summary = "点赞动态", description = "点赞自己可见的动态")
+    public BaseResponse<Boolean> likeMoment(@Parameter(description = "动态ID", required = true) @RequestParam Long id) {
+        ThrowUtils.throwIf(id == null || id <= 0, ErrorCode.PARAMS_ERROR);
+        Long userId = SecurityUtils.getLoginUserId();
+        chatMomentService.likeMoment(userId, id);
+        return ResultUtils.success(true);
+    }
+
+    @DeleteMapping("/like")
+    @OperationLog(module = "动态管理", action = "取消点赞动态")
+    @Operation(summary = "取消点赞动态", description = "取消点赞自己可见的动态")
+    public BaseResponse<Boolean> unlikeMoment(@Parameter(description = "动态ID", required = true) @RequestParam Long id) {
+        ThrowUtils.throwIf(id == null || id <= 0, ErrorCode.PARAMS_ERROR);
+        Long userId = SecurityUtils.getLoginUserId();
+        chatMomentService.unlikeMoment(userId, id);
+        return ResultUtils.success(true);
+    }
+
+    @PostMapping("/comment")
+    @OperationLog(module = "动态管理", action = "评论动态")
+    @Operation(summary = "评论动态", description = "评论自己可见的动态")
+    public BaseResponse<Long> commentMoment(@Validated @RequestBody ChatMomentCommentRequest request) {
+        ThrowUtils.throwIf(request == null, ErrorCode.PARAMS_ERROR);
+        Long userId = SecurityUtils.getLoginUserId();
+        return ResultUtils.success(chatMomentService.commentMoment(userId, request));
+    }
+
+    @GetMapping("/comment/list")
+    @Operation(summary = "动态评论列表", description = "分页查询自己可见动态的一级评论")
+    public BaseResponse<Page<ChatMomentCommentVO>> listComments(
+            @Parameter(description = "动态ID", required = true) @RequestParam Long momentId,
+            @Parameter(description = "页码") @RequestParam(defaultValue = "1") Integer current,
+            @Parameter(description = "每页数量") @RequestParam(defaultValue = "10") Integer pageSize) {
+        ThrowUtils.throwIf(momentId == null || momentId <= 0, ErrorCode.PARAMS_ERROR);
+        Long userId = SecurityUtils.getLoginUserId();
+        return ResultUtils.success(chatMomentService.listComments(userId, momentId, current, pageSize));
     }
 }

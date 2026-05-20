@@ -230,6 +230,8 @@ CREATE TABLE `ai_chat_record`
 -- ============================================
 
 DROP TABLE IF EXISTS `chat_message`;
+DROP TABLE IF EXISTS `chat_moment_comment`;
+DROP TABLE IF EXISTS `chat_moment_like`;
 DROP TABLE IF EXISTS `chat_moment_media`;
 DROP TABLE IF EXISTS `chat_moment`;
 DROP TABLE IF EXISTS `chat_room_member`;
@@ -347,6 +349,39 @@ CREATE TABLE `chat_moment_media`
 ) ENGINE = InnoDB
   DEFAULT CHARSET = utf8mb4
   COLLATE = utf8mb4_unicode_ci COMMENT = '动态媒体表';
+
+CREATE TABLE `chat_moment_like`
+(
+    `id`          bigint   NOT NULL AUTO_INCREMENT COMMENT '动态点赞ID',
+    `moment_id`   bigint   NOT NULL COMMENT '动态ID',
+    `user_id`     bigint   NOT NULL COMMENT '点赞用户ID',
+    `create_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    `update_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+    `is_delete`   tinyint  NOT NULL DEFAULT 0 COMMENT '是否删除',
+    PRIMARY KEY (`id`),
+    UNIQUE KEY `uk_moment_user` (`moment_id`, `user_id`),
+    KEY `idx_user_id` (`user_id`),
+    KEY `idx_moment_id` (`moment_id`)
+) ENGINE = InnoDB
+  DEFAULT CHARSET = utf8mb4
+  COLLATE = utf8mb4_unicode_ci COMMENT = '动态点赞表';
+
+CREATE TABLE `chat_moment_comment`
+(
+    `id`          bigint       NOT NULL AUTO_INCREMENT COMMENT '动态评论ID',
+    `moment_id`   bigint       NOT NULL COMMENT '动态ID',
+    `user_id`     bigint       NOT NULL COMMENT '评论用户ID',
+    `content`     varchar(500) NOT NULL COMMENT '评论正文',
+    `status`      tinyint      NOT NULL DEFAULT 0 COMMENT '状态：0-正常，1-已删除',
+    `create_time` datetime     NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    `update_time` datetime     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+    `is_delete`   tinyint      NOT NULL DEFAULT 0 COMMENT '是否删除',
+    PRIMARY KEY (`id`),
+    KEY `idx_moment_time` (`moment_id`, `create_time`, `id`),
+    KEY `idx_user_id` (`user_id`)
+) ENGINE = InnoDB
+  DEFAULT CHARSET = utf8mb4
+  COLLATE = utf8mb4_unicode_ci COMMENT = '动态评论表';
 
 -- 私聊房间映射表
 DROP TABLE IF EXISTS `chat_private_room`;

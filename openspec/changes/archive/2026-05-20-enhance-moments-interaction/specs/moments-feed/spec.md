@@ -32,6 +32,17 @@ The system SHALL return a paginated moments timeline that includes the viewer's 
 - **THEN** 系统返回无权限错误
 - **AND** 不创建点赞、评论或通知事实
 
+#### Scenario: 不可见动态不能查询评论
+- **WHEN** 用户尝试查询非本人且非互为好友作者的动态评论列表
+- **THEN** 系统返回无权限错误
+- **AND** 不返回评论内容
+
+#### Scenario: 不存在或已删除动态不能互动
+- **WHEN** 用户尝试点赞、评论或查询一条不存在或已删除的动态
+- **THEN** 系统返回错误
+- **AND** 不创建互动事实
+- **AND** 不创建通知
+
 ## ADDED Requirements
 
 ### Requirement: 系统应支持动态点赞和取消点赞
@@ -41,10 +52,17 @@ The system SHALL allow a user to like or unlike a visible moment with idempotent
 - **WHEN** 用户点赞一条自己可见且未删除的动态
 - **THEN** 系统创建一条 `chat_moment_like` 正常记录
 - **AND** 对应 `chat_moment.like_count` 增加 1
+- **AND** 点赞事实以 `moment_id + user_id` 唯一约束保持幂等
 
 #### Scenario: 重复点赞保持幂等
 - **WHEN** 用户重复点赞同一条已点赞动态
 - **THEN** 系统返回成功
+- **AND** 不重复增加 `like_count`
+- **AND** 不重复创建点赞通知
+
+#### Scenario: 唯一键冲突下点赞保持幂等
+- **WHEN** 并发请求导致点赞插入触发 `moment_id + user_id` 唯一键冲突
+- **THEN** 系统按已点赞处理并返回成功
 - **AND** 不重复增加 `like_count`
 - **AND** 不重复创建点赞通知
 
@@ -57,6 +75,11 @@ The system SHALL allow a user to like or unlike a visible moment with idempotent
 - **WHEN** 用户取消一条未点赞或已取消点赞的动态
 - **THEN** 系统返回成功
 - **AND** 不降低现有 `like_count`
+
+#### Scenario: 已取消点赞后再次点赞
+- **WHEN** 用户重新点赞一条自己已取消点赞的动态
+- **THEN** 系统恢复原点赞事实
+- **AND** 对应 `chat_moment.like_count` 增加 1
 
 ### Requirement: 系统应支持动态一级评论
 The system SHALL allow a user to add and list first-level comments on a visible moment.
@@ -103,3 +126,8 @@ The system SHALL create notification records for moment authors when other users
 - **WHEN** 点赞或评论事实已经保存但通知服务调用失败
 - **THEN** 系统保留互动事实和计数变化
 - **AND** 本次接口仍按互动成功返回
+
+#### Scenario: 通知在互动事务提交后触发
+- **WHEN** 点赞或评论事实与计数更新在本地事务中成功提交
+- **THEN** 系统再尝试创建互动通知
+- **AND** 如果本地事务回滚，系统不应创建互动通知
