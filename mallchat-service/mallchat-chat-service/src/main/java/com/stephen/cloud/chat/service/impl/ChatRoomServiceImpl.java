@@ -9,6 +9,9 @@ import com.stephen.cloud.api.chat.model.enums.ChatRoomTypeEnum;
 import com.stephen.cloud.api.chat.model.vo.ChatRoomMemberVO;
 import com.stephen.cloud.api.chat.model.vo.ChatSessionVO;
 import com.stephen.cloud.api.chat.model.vo.ChatRoomVO;
+import com.stephen.cloud.api.notification.client.NotificationFeignClient;
+import com.stephen.cloud.api.notification.model.dto.NotificationCreateRequest;
+import com.stephen.cloud.api.notification.model.enums.NotificationTypeEnum;
 import com.stephen.cloud.api.user.client.UserFeignClient;
 import com.stephen.cloud.api.user.model.vo.UserVO;
 import com.stephen.cloud.chat.convert.ChatRoomConvert;
@@ -24,6 +27,7 @@ import com.stephen.cloud.chat.service.ChatRoomMemberService;
 import com.stephen.cloud.chat.service.ChatRoomService;
 import com.stephen.cloud.chat.service.ChatSessionService;
 import com.stephen.cloud.chat.service.UserFriendService;
+import com.stephen.cloud.common.common.BaseResponse;
 import com.stephen.cloud.common.common.ErrorCode;
 import com.stephen.cloud.common.common.ThrowUtils;
 import com.stephen.cloud.common.exception.BusinessException;
@@ -56,6 +60,8 @@ import java.util.stream.Collectors;
 public class ChatRoomServiceImpl extends ServiceImpl<ChatRoomMapper, ChatRoom>
         implements ChatRoomService {
 
+    private static final String RELATED_TYPE_CHAT_ROOM = "chat_room";
+
     @Resource
     private ChatRoomMemberService chatRoomMemberService;
 
@@ -77,6 +83,9 @@ public class ChatRoomServiceImpl extends ServiceImpl<ChatRoomMapper, ChatRoom>
 
     @Resource
     private ChatMqProducer chatMqProducer;
+
+    @Resource
+    private NotificationFeignClient notificationFeignClient;
 
     @Override
     public void validChatRoom(ChatRoom chatRoom) {
@@ -120,6 +129,7 @@ public class ChatRoomServiceImpl extends ServiceImpl<ChatRoomMapper, ChatRoom>
             chatRoomMemberService.addMember(chatRoom.getId(), memberId, ChatRoomRoleEnum.MEMBER.getCode());
             chatSessionService.updateSession(memberId, chatRoom.getId(), null, false);
             pushSessionUpdate(memberId, chatRoom.getId(), "session_join:" + chatRoom.getId() + ":" + memberId);
+            trySendGroupInviteNotification(memberId, chatRoom);
         }
         chatSessionService.updateSession(userId, chatRoom.getId(), null, false);
         pushSessionUpdate(userId, chatRoom.getId(), "session_create:" + chatRoom.getId() + ":" + userId);
@@ -210,6 +220,7 @@ public class ChatRoomServiceImpl extends ServiceImpl<ChatRoomMapper, ChatRoom>
             chatRoomMemberService.addMember(roomId, memberId, ChatRoomRoleEnum.MEMBER.getCode());
             chatSessionService.updateSession(memberId, roomId, null, false);
             pushSessionUpdate(memberId, roomId, "session_invite:" + roomId + ":" + memberId);
+            trySendGroupInviteNotification(memberId, room);
         }
     }
 
@@ -462,5 +473,30 @@ public class ChatRoomServiceImpl extends ServiceImpl<ChatRoomMapper, ChatRoom>
                         roomId, member.getUserId(), e.toString());
             }
         }
+    }
+
+    private void trySendGroupInviteNotification(Long userId, ChatRoom room) {
+        try {
+            sendGroupInviteNotification(userId, room);
+        } catch (Exception e) {
+            log.warn("[ChatRoomServiceImpl] 发送群邀请通知失败, roomId={}, userId={}, reason={}",
+                    room == null ? null : room.getId(), userId, e.getMessage());
+        }
+    }
+
+    private void sendGroupInviteNotification(Long userId, ChatRoom room) {
+        ThrowUtils.throwIf(userId == null || room == null || room.getId() == null, ErrorCode.PARAMS_ERROR);
+        NotificationCreateRequest request = new NotificationCreateRequest();
+        request.setTitle("群聊邀请");
+        request.setContent("你已加入群聊：" + StringUtils.defaultIfBlank(room.getName(), "群聊"));
+        request.setType(NotificationTypeEnum.USER.getCode());
+        request.setUserId(userId);
+        request.setRelatedId(room.getId());
+        request.setRelatedType(RELATED_TYPE_CHAT_ROOM);
+        request.setContentUrl("/chat/room/detail?id=" + room.getId());
+        request.setBizId("group_invite:" + room.getId() + ":" + userId);
+        BaseResponse<Long> response = notificationFeignClient.addBusinessNotification(request);
+        ThrowUtils.throwIf(response == null || response.getData() == null,
+                ErrorCode.OPERATION_ERROR, "创建群邀请通知失败");
     }
 }
