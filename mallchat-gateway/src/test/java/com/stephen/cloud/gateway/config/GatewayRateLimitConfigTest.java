@@ -11,25 +11,25 @@ import java.util.Map;
 class GatewayRateLimitConfigTest {
 
     @Test
-    void shouldApplyStricterUserRateLimitToChatMessageSendRoute() {
+    void shouldApplyStricterUserRateLimitToCoreWriteRoutes() {
         Map<String, Object> config = loadApplicationConfig();
         List<Map<String, Object>> routes = routes(config);
 
-        Map<String, Object> route = routes.stream()
-                .filter(item -> "mallchat-chat-message-send-service".equals(item.get("id")))
-                .findFirst()
-                .orElseThrow(() -> new AssertionError("缺少消息发送专用限流路由"));
+        Map<String, String> expectedRoutes = Map.of(
+                "mallchat-chat-message-send-service", "Path=/api/chat/message/send",
+                "mallchat-chat-friend-apply-service", "Path=/api/chat/friend/apply/add",
+                "mallchat-chat-moment-publish-service", "Path=/api/chat/moment/publish",
+                "mallchat-file-upload-service", "Path=/api/file/upload"
+        );
 
-        Assertions.assertEquals(List.of("Path=/api/chat/message/send"), route.get("predicates"));
-        List<Map<String, Object>> filters = (List<Map<String, Object>>) route.get("filters");
-        Map<String, Object> rateLimiter = filters.stream()
-                .filter(item -> "RequestRateLimiter".equals(item.get("name")))
-                .findFirst()
-                .orElseThrow(() -> new AssertionError("缺少 RequestRateLimiter"));
-        Map<String, Object> args = (Map<String, Object>) rateLimiter.get("args");
-        Assertions.assertEquals(5, args.get("redis-rate-limiter.replenishRate"));
-        Assertions.assertEquals(10, args.get("redis-rate-limiter.burstCapacity"));
-        Assertions.assertEquals("#{@userKeyResolver}", args.get("key-resolver"));
+        expectedRoutes.forEach((routeId, path) -> {
+            Map<String, Object> route = findRoute(routes, routeId);
+            Assertions.assertEquals(List.of(path), route.get("predicates"));
+            Map<String, Object> args = rateLimiterArgs(route);
+            Assertions.assertEquals(5, args.get("redis-rate-limiter.replenishRate"));
+            Assertions.assertEquals(10, args.get("redis-rate-limiter.burstCapacity"));
+            Assertions.assertEquals("#{@userKeyResolver}", args.get("key-resolver"));
+        });
     }
 
     @Test
@@ -38,11 +38,22 @@ class GatewayRateLimitConfigTest {
         List<Map<String, Object>> routes = routes(config);
 
         int sendRouteIndex = routeIndex(routes, "mallchat-chat-message-send-service");
+        int friendApplyRouteIndex = routeIndex(routes, "mallchat-chat-friend-apply-service");
+        int momentPublishRouteIndex = routeIndex(routes, "mallchat-chat-moment-publish-service");
         int chatRouteIndex = routeIndex(routes, "mallchat-chat-service");
+        int fileUploadRouteIndex = routeIndex(routes, "mallchat-file-upload-service");
+        int fileRouteIndex = routeIndex(routes, "mallchat-file-service");
 
         Assertions.assertTrue(sendRouteIndex >= 0, "缺少消息发送专用路由");
+        Assertions.assertTrue(friendApplyRouteIndex >= 0, "缺少好友申请专用路由");
+        Assertions.assertTrue(momentPublishRouteIndex >= 0, "缺少动态发布专用路由");
         Assertions.assertTrue(chatRouteIndex >= 0, "缺少聊天通用路由");
+        Assertions.assertTrue(fileUploadRouteIndex >= 0, "缺少文件上传专用路由");
+        Assertions.assertTrue(fileRouteIndex >= 0, "缺少文件通用路由");
         Assertions.assertTrue(sendRouteIndex < chatRouteIndex, "消息发送路由需要优先于聊天通用路由");
+        Assertions.assertTrue(friendApplyRouteIndex < chatRouteIndex, "好友申请路由需要优先于聊天通用路由");
+        Assertions.assertTrue(momentPublishRouteIndex < chatRouteIndex, "动态发布路由需要优先于聊天通用路由");
+        Assertions.assertTrue(fileUploadRouteIndex < fileRouteIndex, "文件上传路由需要优先于文件通用路由");
     }
 
     private Map<String, Object> loadApplicationConfig() {
@@ -67,5 +78,21 @@ class GatewayRateLimitConfigTest {
             }
         }
         return -1;
+    }
+
+    private Map<String, Object> findRoute(List<Map<String, Object>> routes, String routeId) {
+        return routes.stream()
+                .filter(item -> routeId.equals(item.get("id")))
+                .findFirst()
+                .orElseThrow(() -> new AssertionError("缺少核心写接口专用限流路由: " + routeId));
+    }
+
+    private Map<String, Object> rateLimiterArgs(Map<String, Object> route) {
+        List<Map<String, Object>> filters = (List<Map<String, Object>>) route.get("filters");
+        Map<String, Object> rateLimiter = filters.stream()
+                .filter(item -> "RequestRateLimiter".equals(item.get("name")))
+                .findFirst()
+                .orElseThrow(() -> new AssertionError("缺少 RequestRateLimiter"));
+        return (Map<String, Object>) rateLimiter.get("args");
     }
 }
