@@ -18,6 +18,7 @@
 | [A-012-message-flow-push-degradation-acceptance.md](./A-012-message-flow-push-degradation-acceptance.md) | 消息发送、已读上报、消息撤回推送失败降级验收结论 |
 | [A-013-friend-apply-push-degradation-acceptance.md](./A-013-friend-apply-push-degradation-acceptance.md) | 好友申请、好友通过推送失败降级验收结论 |
 | [A-014-friend-notification-after-commit-acceptance.md](./A-014-friend-notification-after-commit-acceptance.md) | 好友申请、好友通过通知 afterCommit 验收结论 |
+| [A-015-im-backend-long-task-acceptance-summary.md](./A-015-im-backend-long-task-acceptance-summary.md) | IM 后端长任务最终验收摘要 |
 
 ## 不适合放入
 

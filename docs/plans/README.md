@@ -19,3 +19,11 @@
 ## 命名建议
 
 使用 `序号-主题-计划.md`，例如 `001-docs目录治理计划.md`。
+
+## 文档清单
+
+| 文档 | 说明 |
+| --- | --- |
+| [PL-001-im-mvp-openspec-plan.md](./PL-001-im-mvp-openspec-plan.md) | IM MVP OpenSpec 初始执行计划 |
+| [PL-002-friend-discovery-phase9-plan.md](./PL-002-friend-discovery-phase9-plan.md) | 好友发现与关系增强执行计划 |
+| [PL-003-im-backend-long-task-consolidation-plan.md](./PL-003-im-backend-long-task-consolidation-plan.md) | IM 后端长任务阶段收口计划 |
