@@ -62,6 +62,7 @@ CI 配置位于 `.github/workflows/ci.yml`。
 7. WebSocket、好友/房间冷缓存、文件上传边界相关后端目标测试通过。
 8. Maven 后端编译通过。
 9. Docker Compose 配置可解析。
+10. GitHub 官方 actions 使用 Node 24 runtime 版本，避免 Node 20 runtime 弃用告警。
 
 ## 验收或验证
 
@@ -82,4 +83,4 @@ CI 配置位于 `.github/workflows/ci.yml`。
 | --- | --- | --- |
 | 2026-05-08 | Stephen Qiu | 初始化 GitHub CI 运维说明 |
 | 2026-05-19 | Stephen Qiu | 将 CI 调整为仓库真实可执行的基础门禁 |
-| 2026-05-20 | Stephen Qiu | 为 m 系列 PR 增加 OpenSpec、目标测试、恢复脚本和 Compose 门禁 |
+| 2026-05-20 | Stephen Qiu | 为 m 系列 PR 增加 OpenSpec、目标测试、恢复脚本和 Compose 门禁，并升级官方 actions runtime |
