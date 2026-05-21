@@ -27,6 +27,8 @@
 | [A-021-m7-room-message-experience-acceptance.md](./A-021-m7-room-message-experience-acceptance.md) | m7 群聊治理与消息体验 Epic 验收 |
 | [A-022-im-p2-issue-generation-acceptance.md](./A-022-im-p2-issue-generation-acceptance.md) | IM P2 Issue 编排验收 |
 | [A-023-m8-rich-message-forward-acceptance.md](./A-023-m8-rich-message-forward-acceptance.md) | m8 富消息与转发体验 Epic 验收 |
+| [A-024-m9-moments-discovery-governance-acceptance.md](./A-024-m9-moments-discovery-governance-acceptance.md) | m9 动态发现与内容治理 Epic 验收 |
+| [A-025-m10-admin-audit-e2e-acceptance.md](./A-025-m10-admin-audit-e2e-acceptance.md) | m10 审计检索与多端验收 Epic 验收 |
 
 ## 不适合放入
 

@@ -1,8 +1,5 @@
-# sensitive-operation-audit Specification
+## MODIFIED Requirements
 
-## Purpose
-TBD - created by archiving change harden-sensitive-operation-audit. Update Purpose after archive.
-## Requirements
 ### Requirement: Sensitive operation audit masks secrets
 The operation audit system SHALL record sensitive IM operations without storing raw secret request fields.
 
@@ -48,4 +45,3 @@ The operation audit system SHALL record sensitive IM operations without storing 
 - **THEN** mallchat-log-service SHALL apply those filters to `/log/operation/list/page`
 - **AND** the response SHALL continue to return paged `OperationLogVO` records
 - **AND** the query SHALL NOT require a new audit table or external search service
-

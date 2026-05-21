@@ -7,6 +7,7 @@ import lombok.EqualsAndHashCode;
 
 import java.io.Serial;
 import java.io.Serializable;
+import java.util.Date;
 
 /**
  * 操作日志查询请求
@@ -68,6 +69,18 @@ public class OperationLogQueryRequest extends PageRequest implements Serializabl
      */
     @Schema(description = "客户端IP")
     private String clientIp;
+
+    /**
+     * 开始时间
+     */
+    @Schema(description = "开始时间")
+    private Date startTime;
+
+    /**
+     * 结束时间
+     */
+    @Schema(description = "结束时间")
+    private Date endTime;
 
     /**
      * 搜索文本
