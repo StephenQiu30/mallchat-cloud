@@ -9,7 +9,7 @@ feature_area: backend-engineering-consistency
 purpose: "记录 m11 Chat 领域工程化一致性审查、Issue 消费、TDD/Code Review 验收和风险。"
 canonical_path: "docs/acceptance/A-026-m11-chat-consistency-acceptance.md"
 status: in_progress
-version: "0.1.4"
+version: "0.1.5"
 owner: "StephenQiu30"
 inputs:
   - "docs/design/D-003-backend-engineering-consistency-design.md"
@@ -37,8 +37,8 @@ downstream:
 | [#52](https://github.com/StephenQiu30/mallchat-cloud/issues/52) | `[m11][epic][backend] 后端工程化一致性治理` | Open | m11 Epic，聚合本批治理任务 |
 | [#53](https://github.com/StephenQiu30/mallchat-cloud/issues/53) | `[m11][backend][chat] Chat 接口与模型一致性审查清单` | Closed | 已完成事实审查和文档沉淀 |
 | [#55](https://github.com/StephenQiu30/mallchat-cloud/issues/55) | `[m11][backend][chat] Chat P0/P1 一致性最小修正` | Closed | 已按审查清单完成 TDD 最小修正 |
-| [#56](https://github.com/StephenQiu30/mallchat-cloud/issues/56) | `[m11][backend][chat] Chat DTO/VO 接口契约收敛` | Open | 根据前端接口生成要求，独立收敛 DTO Request / VO Response 契约 |
-| [#54](https://github.com/StephenQiu30/mallchat-cloud/issues/54) | `[m11][backend][qa] 工程化一致性验收与 Code Review` | Open | 后续沉淀测试、review 和合并前证据 |
+| [#56](https://github.com/StephenQiu30/mallchat-cloud/issues/56) | `[m11][backend][chat] Chat DTO/VO 接口契约收敛` | Closed | 已完成 DTO Request / VO Response 契约收敛 |
+| [#54](https://github.com/StephenQiu30/mallchat-cloud/issues/54) | `[m11][backend][qa] 工程化一致性验收与 Code Review` | Closed | 已完成验收证据沉淀和只读 Code Review |
 
 ## 2. 审查范围
 
@@ -144,3 +144,4 @@ downstream:
 | 2026-05-21 | StephenQiu30 | 0.1.2 | 补充 DTO Request / VO Response 接口契约要求并拆分 #56 |
 | 2026-05-21 | StephenQiu30 | 0.1.3 | 记录 #56 DTO/VO 契约收敛、兼容性影响与 TDD 证据 |
 | 2026-05-21 | StephenQiu30 | 0.1.4 | 记录 Code Review 反馈处理和 Feign 契约同步 |
+| 2026-05-21 | StephenQiu30 | 0.1.5 | 同步 #54/#56 GitHub Issue 关闭状态 |
