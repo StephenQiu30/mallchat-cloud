@@ -8,7 +8,7 @@ audience:
 feature_area: backend-engineering-consistency
 purpose: "记录 m12 支撑领域 log/file/notification 工程化一致性事实审查、P0/P1/P2 分级和后续 Issue 消费建议。"
 canonical_path: "docs/acceptance/A-028-m12-support-consistency-audit.md"
-status: review
+status: ready
 version: "0.1.0"
 owner: "StephenQiu30"
 inputs:
@@ -34,22 +34,26 @@ downstream:
 
 | Issue | 标题 | 状态 | 说明 |
 | --- | --- | --- | --- |
-| [#58](https://github.com/StephenQiu30/mallchat-cloud/issues/58) | `[m12][epic][backend] 支撑领域工程化一致性治理` | Open | m12 Epic，聚合 log/file/notification 治理任务 |
-| [#59](https://github.com/StephenQiu30/mallchat-cloud/issues/59) | `[m12][backend][support] log/file/notification 一致性审查清单` | Open | 本文档对应的只读审查任务 |
-| [#60](https://github.com/StephenQiu30/mallchat-cloud/issues/60) | `[m12][backend][log] 日志接口 DTO/VO 契约收敛` | Open | 承接 log P1/P2 修正 |
-| [#61](https://github.com/StephenQiu30/mallchat-cloud/issues/61) | `[m12][backend][file] 文件上传接口契约与记录边界审查` | Open | 承接 file P1/P2 修正 |
-| [#62](https://github.com/StephenQiu30/mallchat-cloud/issues/62) | `[m12][backend][notification] 通知接口 DTO/VO 与 Feign 契约收敛` | Open | 承接 notification P1/P2 修正 |
-| [#63](https://github.com/StephenQiu30/mallchat-cloud/issues/63) | `[m12][backend][qa] 支撑领域验收与 Code Review` | Open | m12 收口验收和只读 Code Review |
+| [#58](https://github.com/StephenQiu30/mallchat-cloud/issues/58) | `[m12][epic][backend] 支撑领域工程化一致性治理` | 待 PR 关闭 | m12 Epic，聚合 log/file/notification 治理任务 |
+| [#59](https://github.com/StephenQiu30/mallchat-cloud/issues/59) | `[m12][backend][support] log/file/notification 一致性审查清单` | 已完成，待 PR 关闭 | 本文档对应的只读审查任务 |
+| [#60](https://github.com/StephenQiu30/mallchat-cloud/issues/60) | `[m12][backend][log] 日志接口 DTO/VO 契约收敛` | 已完成，待 PR 关闭 | 承接 log P1/P2 修正 |
+| [#61](https://github.com/StephenQiu30/mallchat-cloud/issues/61) | `[m12][backend][file] 文件上传接口契约与记录边界审查` | 已完成，待 PR 关闭 | 承接 file P1/P2 修正 |
+| [#62](https://github.com/StephenQiu30/mallchat-cloud/issues/62) | `[m12][backend][notification] 通知接口 DTO/VO 与 Feign 契约收敛` | 已完成，待 PR 关闭 | 承接 notification P1/P2 修正 |
+| [#63](https://github.com/StephenQiu30/mallchat-cloud/issues/63) | `[m12][backend][qa] 支撑领域验收与 Code Review` | 已完成，待 PR 关闭 | m12 收口验收和只读 Code Review |
 
-## 2. 审查范围
+## 2. 初始审查基线
 
-| 子领域 | API 契约 | Service 实现 | 当前结论 |
+以下内容是 #59 只读审查阶段发现的修复前基线，不代表当前代码最终状态。已修正结果见第 7-14 节。
+
+| 子领域 | API 契约 | Service 实现 | 初始结论 |
 | --- | --- | --- | --- |
 | log | `mallchat-api/mallchat-api-log` | `mallchat-service/mallchat-log-service` | 有 DTO/VO 基础，但 add/delete 仍暴露裸 `Boolean`，删除和列表空请求存在 NPE 风险 |
 | file | `mallchat-api/mallchat-api-file` | `mallchat-service/mallchat-file-service` | `multipart + bizType` 应保留，响应已是 `FileVO`；全局 multipart 10MB 与业务枚举上限不一致 |
 | notification | `mallchat-api/mallchat-api-notification` | `mallchat-service/mallchat-notification-service` | 契约问题集中：裸 ID、裸操作结果、批量数量、`DeleteRequest`、`@RequestParam("id")` 和业务通知必填边界 |
 
-## 3. P0/P1/P2 清单
+## 3. 初始 P0/P1/P2 清单
+
+以下清单记录 #59 审查阶段的待修正项；完成状态见第 7-14 节。
 
 ### 3.1 P0
 
@@ -80,6 +84,15 @@ downstream:
 | file | 上传响应 | `FileVO` 当前只有 `url/key/fileName/size` | 如端侧需要立即区分文件类型，再评估补充 `bizType/contentType/suffix`，当前不强制 |
 | notification | Bean Validation | DTO 上已有局部注解，但 Controller 仍以手写校验为主 | 后续可统一为 Bean Validation + 少量业务校验，不在 #59 中改 |
 | notification | 排序参数 | `sortOrder` 如显式传 null 可能存在空指针风险 | 在 #62 的契约测试中覆盖后修正 |
+
+### 3.4 当前修正状态
+
+| 领域 | 修正状态 | 当前证据 |
+| --- | --- | --- |
+| log | 已修正 | `LogIdRequest` 替代通用 `DeleteRequest`；add/delete 返回 `LogOperationResultVO`；空请求兜底已补；log-service focused tests 通过 |
+| file | 已修正 | 上传接口显式 `multipart/form-data`；Spring multipart 上限对齐 100MB；file-service focused tests 通过 |
+| notification | 已修正 | 通知 ID、ID 列表、操作结果、未读数、批量结果均有 VO；详情和删除使用 `NotificationIdRequest`；业务通知必填注解已补；notification-service focused tests 通过 |
+| Feign 消费方 | 已验证 | 全仓 `mvn -B -DskipTests compile` 通过；通知 Feign 返回类型变化已同步 chat 侧 4 个调用点 |
 
 ## 4. 过度设计拦截
 
@@ -140,8 +153,8 @@ downstream:
 | 阶段 | 命令 | 结果 | 说明 |
 | --- | --- | --- | --- |
 | RED | `mvn -B -pl mallchat-service/mallchat-notification-service -am -Dtest=NotificationApiContractConsistencyTest -Dsurefire.failIfNoSpecifiedTests=false test` | 失败 | 契约护栏发现 14 个接口违例：裸 `Long/Boolean/Integer/List<Long>` 响应、通用 `DeleteRequest`、`@RequestParam` 和 `NotificationCreateRequest` 必填注解缺口 |
-| GREEN | `mvn -B -pl mallchat-service/mallchat-notification-service -am -Dtest=NotificationApiContractConsistencyTest -Dsurefire.failIfNoSpecifiedTests=false test` | 通过 | 新增通知 DTO/VO 薄封装后，契约护栏 3/3 通过 |
-| Focused | `mvn -B -pl mallchat-service/mallchat-notification-service -am -Dsurefire.failIfNoSpecifiedTests=false test` | 通过 | notification-service 18 tests，0 failures，0 errors |
+| GREEN | `mvn -B -pl mallchat-service/mallchat-notification-service -am -Dtest=NotificationApiContractConsistencyTest -Dsurefire.failIfNoSpecifiedTests=false test` | 通过 | 新增通知 DTO/VO 薄封装后，契约护栏 4/4 通过 |
+| Focused | `mvn -B -pl mallchat-service/mallchat-notification-service -am -Dsurefire.failIfNoSpecifiedTests=false test` | 通过 | notification-service 20 tests，0 failures，0 errors |
 | Compile | `mvn -B -pl mallchat-service/mallchat-chat-service -am -DskipTests compile` | 通过 | chat-service 编译通过，验证 `NotificationFeignClient` 返回类型变化未破坏调用方 |
 
 ## 12. #62 修正内容
@@ -153,9 +166,33 @@ downstream:
 5. `NotificationFeignClient` 对齐 Controller 契约：详情查询使用 `NotificationIdRequest`，业务通知返回 `NotificationIdVO`。
 6. 同步 chat 侧 4 个业务通知调用的返回类型，保持跨服务调用可编译。
 7. 修正通知查询 `sortOrder` 为空时的 NPE 风险，并用契约测试固化。
-8. 未扩展 read/unread/batch 的 Feign 能力，不为了接口对称增加未使用 RPC。
+8. 补充 `NotificationIdRequest` query 参数绑定契约测试，覆盖 `GET /notification/get/vo?id=1` 的 DTO 绑定风险。
+9. 未扩展 read/unread/batch 的 Feign 能力，不为了接口对称增加未使用 RPC。
 
-## 13. 变更记录
+## 13. #63 Code Review 与验收记录
+
+| 项目 | 结果 | 说明 |
+| --- | --- | --- |
+| 只读 Code Review | 通过，已处理阻塞项 | 子智能体发现 A-028 前半段口径仍像“当前未修复状态”，已改为“初始审查基线”并新增当前修正状态 |
+| 过度设计审查 | 通过 | file 保留 multipart；notification 只新增少量薄 VO；未新增全局接口生成器、全局 PageVO 或未使用 Feign 能力 |
+| Feign 调用方审查 | 通过 | notification 4 个 chat 调用点已同步为 `NotificationIdVO`；log Feign 返回类型调用方未消费 data，无需额外改造 |
+| 绑定契约补充 | 通过 | 新增 `NotificationIdRequest` query 参数绑定测试，覆盖详情 GET DTO 绑定风险 |
+| 文档一致性审查 | 通过 | A-028 同步记录 #60/#61/#62 RED/GREEN/Focused 和 #63 验收结论 |
+
+## 14. #63 验收命令
+
+| 命令 | 结果 | 说明 |
+| --- | --- | --- |
+| `mvn -B -pl mallchat-service/mallchat-log-service -am -Dsurefire.failIfNoSpecifiedTests=false test` | 通过 | log-service 4 tests |
+| `mvn -B -pl mallchat-service/mallchat-file-service -am -Dsurefire.failIfNoSpecifiedTests=false test` | 通过 | file-service 18 tests |
+| `mvn -B -pl mallchat-service/mallchat-notification-service -am -Dsurefire.failIfNoSpecifiedTests=false test` | 通过 | notification-service 20 tests |
+| `mvn -B -DskipTests compile` | 通过 | 全仓 25 个 Maven 模块编译通过 |
+| `mvn -B -pl mallchat-service/mallchat-user-service,mallchat-service/mallchat-file-service,mallchat-service/mallchat-chat-service,mallchat-service/mallchat-notification-service,mallchat-service/mallchat-ai-service -am -DskipTests compile` | 通过 | 跨消费者 23 个 Maven 模块编译通过 |
+| `openspec validate --all --strict` | 通过 | 21 items passed |
+| `git diff --check` | 通过 | 无空白或补丁格式问题 |
+| `bash scripts/validate-repository.sh` | 通过 | 仓库规范校验通过 |
+
+## 15. 变更记录
 
 | 日期 | 作者 | 版本 | 变更说明 |
 | --- | --- | --- | --- |
@@ -163,3 +200,4 @@ downstream:
 | 2026-05-21 | StephenQiu30 | 0.1.1 | 记录 #60 log 契约 TDD 修正和 focused tests 结果 |
 | 2026-05-21 | StephenQiu30 | 0.1.2 | 记录 #61 file 上传边界 TDD 修正和 focused tests 结果 |
 | 2026-05-21 | StephenQiu30 | 0.1.3 | 记录 #62 notification 契约 TDD 修正、focused tests 和 chat 侧编译验证结果 |
+| 2026-05-21 | StephenQiu30 | 0.1.4 | 按 Code Review 修正初始基线口径，记录 #63 只读审查和整体验收结果 |

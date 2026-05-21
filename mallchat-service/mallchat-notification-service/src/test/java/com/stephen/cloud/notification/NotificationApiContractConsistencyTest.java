@@ -3,6 +3,7 @@ package com.stephen.cloud.notification;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.stephen.cloud.api.notification.client.NotificationFeignClient;
 import com.stephen.cloud.api.notification.model.dto.NotificationCreateRequest;
+import com.stephen.cloud.api.notification.model.dto.NotificationIdRequest;
 import com.stephen.cloud.api.notification.model.dto.NotificationQueryRequest;
 import com.stephen.cloud.common.common.BaseResponse;
 import com.stephen.cloud.common.common.DeleteRequest;
@@ -12,6 +13,8 @@ import com.stephen.cloud.notification.service.impl.NotificationServiceImpl;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import org.junit.jupiter.api.Test;
+import org.springframework.beans.MutablePropertyValues;
+import org.springframework.validation.DataBinder;
 import org.springframework.web.bind.annotation.RequestParam;
 
 import java.lang.reflect.Field;
@@ -21,6 +24,7 @@ import java.lang.reflect.ParameterizedType;
 import java.lang.reflect.Type;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
@@ -57,6 +61,15 @@ class NotificationApiContractConsistencyTest {
         request.setSortField("createTime");
 
         assertDoesNotThrow(() -> new NotificationServiceImpl().getQueryWrapper(request));
+    }
+
+    @Test
+    void notificationIdRequestShouldBindFromQueryParameters() {
+        NotificationIdRequest request = new NotificationIdRequest();
+        DataBinder binder = new DataBinder(request);
+        binder.bind(new MutablePropertyValues(Map.of("id", "1")));
+
+        assertEquals(1L, request.getId());
     }
 
     private static List<Class<?>> notificationApiTypes() {
