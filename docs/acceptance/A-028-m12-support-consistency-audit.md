@@ -104,8 +104,25 @@ downstream:
 | `git diff --check` | 通过 | 无空白或补丁格式问题 |
 | `bash scripts/validate-repository.sh` | 通过 | 仓库规范校验通过 |
 
-## 7. 变更记录
+## 7. #60 TDD 记录
+
+| 阶段 | 命令 | 结果 | 说明 |
+| --- | --- | --- | --- |
+| RED | `mvn -B -pl mallchat-service/mallchat-log-service -am -Dtest=LogApiContractConsistencyTest -Dsurefire.failIfNoSpecifiedTests=false test` | 失败 | 契约护栏发现 16 个违例：4 个 delete 使用通用 `DeleteRequest`，Controller / Feign 多处返回 `BaseResponse<Boolean>` |
+| GREEN | `mvn -B -pl mallchat-service/mallchat-log-service -am -Dtest=LogApiContractConsistencyTest -Dsurefire.failIfNoSpecifiedTests=false test` | 通过 | 新增 `LogIdRequest`、`LogOperationResultVO` 后，契约护栏 1/1 通过 |
+| Focused | `mvn -B -pl mallchat-service/mallchat-log-service -am -Dsurefire.failIfNoSpecifiedTests=false test` | 通过 | log-service 4 tests，0 failures，0 errors |
+
+## 8. #60 修正内容
+
+1. 新增 `LogIdRequest`，替代 log 删除接口中的通用 `DeleteRequest`。
+2. 新增 `LogOperationResultVO`，替代 log add/delete 和 `LogFeignClient` 中的裸 `Boolean` 响应。
+3. 为 4 个 log Controller 的 add/list/delete 入口补充空请求兜底，避免空请求 NPE 或 `success(false)` 语义。
+4. 同步 `LogFeignClient` 返回类型，保持 Controller 与 Feign 契约一致。
+5. 保持 Mapper / Convert / Entity 不变，不做无收益重构。
+
+## 9. 变更记录
 
 | 日期 | 作者 | 版本 | 变更说明 |
 | --- | --- | --- | --- |
 | 2026-05-21 | StephenQiu30 | 0.1.0 | 初始化 m12 支撑领域工程化一致性审查清单 |
+| 2026-05-21 | StephenQiu30 | 0.1.1 | 记录 #60 log 契约 TDD 修正和 focused tests 结果 |

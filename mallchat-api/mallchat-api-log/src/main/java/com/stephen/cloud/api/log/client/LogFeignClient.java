@@ -11,6 +11,7 @@ import com.stephen.cloud.api.log.model.dto.operation.OperationLogAddRequest;
 import com.stephen.cloud.api.log.model.dto.operation.OperationLogQueryRequest;
 import com.stephen.cloud.api.log.model.vo.ApiAccessLogVO;
 import com.stephen.cloud.api.log.model.vo.FileUploadRecordVO;
+import com.stephen.cloud.api.log.model.vo.LogOperationResultVO;
 import com.stephen.cloud.api.log.model.vo.OperationLogVO;
 import com.stephen.cloud.api.log.model.vo.UserLoginLogVO;
 import com.stephen.cloud.common.common.BaseResponse;
@@ -33,7 +34,7 @@ public interface LogFeignClient {
      * @return 是否创建成功
      */
     @PostMapping("/log/login/add")
-    BaseResponse<Boolean> addUserLoginLog(@RequestBody UserLoginLogAddRequest request);
+    BaseResponse<LogOperationResultVO> addUserLoginLog(@RequestBody UserLoginLogAddRequest request);
 
     /**
      * 创建操作日志
@@ -42,7 +43,7 @@ public interface LogFeignClient {
      * @return 是否创建成功
      */
     @PostMapping("/log/operation/add")
-    BaseResponse<Boolean> addOperationLog(@RequestBody OperationLogAddRequest request);
+    BaseResponse<LogOperationResultVO> addOperationLog(@RequestBody OperationLogAddRequest request);
 
     /**
      * 创建API访问日志
@@ -51,7 +52,7 @@ public interface LogFeignClient {
      * @return 是否创建成功
      */
     @PostMapping("/log/access/add")
-    BaseResponse<Boolean> addApiAccessLog(@RequestBody ApiAccessLogAddRequest request);
+    BaseResponse<LogOperationResultVO> addApiAccessLog(@RequestBody ApiAccessLogAddRequest request);
 
 
     /**
@@ -61,7 +62,7 @@ public interface LogFeignClient {
      * @return 是否创建成功
      */
     @PostMapping("/log/file/upload/add")
-    BaseResponse<Boolean> addFileUploadRecord(@RequestBody FileUploadRecordAddRequest request);
+    BaseResponse<LogOperationResultVO> addFileUploadRecord(@RequestBody FileUploadRecordAddRequest request);
 
     /**
      * 分页查询用户登录日志
