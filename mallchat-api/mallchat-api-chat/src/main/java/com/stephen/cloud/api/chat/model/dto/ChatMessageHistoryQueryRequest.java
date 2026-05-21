@@ -6,17 +6,24 @@ import lombok.Data;
 
 import java.io.Serializable;
 
+/**
+ * 历史消息查询请求
+ *
+ * @author StephenQiu30
+ */
 @Data
-@Schema(description = "消息已读上报请求")
-public class ChatMessageReadRequest implements Serializable {
+@Schema(description = "历史消息查询请求")
+public class ChatMessageHistoryQueryRequest implements Serializable {
 
     @Schema(description = "房间ID", requiredMode = Schema.RequiredMode.REQUIRED)
     @NotNull(message = "房间ID不能为空")
     private Long roomId;
 
-    @Schema(description = "已读到的最后一条消息ID", requiredMode = Schema.RequiredMode.REQUIRED)
-    @NotNull(message = "已读消息ID不能为空")
-    private Long lastReadMessageId;
+    @Schema(description = "上一页最后一条消息ID")
+    private Long lastMessageId;
+
+    @Schema(description = "加载消息数量")
+    private Integer limit = 20;
 
     private static final long serialVersionUID = 1L;
 }

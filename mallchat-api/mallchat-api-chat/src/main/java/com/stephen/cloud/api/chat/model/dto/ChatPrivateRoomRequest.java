@@ -1,6 +1,7 @@
 package com.stephen.cloud.api.chat.model.dto;
 
 import io.swagger.v3.oas.annotations.media.Schema;
+import jakarta.validation.constraints.NotNull;
 import lombok.Data;
 
 import java.io.Serializable;
@@ -10,6 +11,7 @@ import java.io.Serializable;
 public class ChatPrivateRoomRequest implements Serializable {
 
     @Schema(description = "对方用户ID", requiredMode = Schema.RequiredMode.REQUIRED)
+    @NotNull(message = "对方用户ID不能为空")
     private Long peerUserId;
 
     private static final long serialVersionUID = 1L;

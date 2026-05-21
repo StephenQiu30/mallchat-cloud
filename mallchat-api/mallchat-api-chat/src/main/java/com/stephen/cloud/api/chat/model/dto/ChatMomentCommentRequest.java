@@ -1,6 +1,7 @@
 package com.stephen.cloud.api.chat.model.dto;
 
 import io.swagger.v3.oas.annotations.media.Schema;
+import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import lombok.Data;
 
@@ -24,5 +25,6 @@ public class ChatMomentCommentRequest implements Serializable {
     private Long momentId;
 
     @Schema(description = "评论正文", requiredMode = Schema.RequiredMode.REQUIRED)
+    @NotBlank(message = "评论正文不能为空")
     private String content;
 }

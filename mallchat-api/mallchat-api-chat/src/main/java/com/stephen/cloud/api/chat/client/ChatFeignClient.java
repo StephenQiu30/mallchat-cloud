@@ -1,20 +1,28 @@
 package com.stephen.cloud.api.chat.client;
 
 import com.stephen.cloud.api.chat.model.dto.ChatFriendAddRequest;
+import com.stephen.cloud.api.chat.model.dto.ChatFriendDeleteRequest;
+import com.stephen.cloud.api.chat.model.dto.ChatFriendListRequest;
+import com.stephen.cloud.api.chat.model.dto.ChatFriendQueryRequest;
+import com.stephen.cloud.api.chat.model.dto.ChatMessageAfterQueryRequest;
+import com.stephen.cloud.api.chat.model.dto.ChatMessageHistoryQueryRequest;
 import com.stephen.cloud.api.chat.model.dto.ChatMessageReadRequest;
+import com.stephen.cloud.api.chat.model.dto.ChatMessageReadStatusRequest;
 import com.stephen.cloud.api.chat.model.dto.ChatMessageSendRequest;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.stephen.cloud.api.chat.model.dto.ChatPrivateRoomRequest;
 import com.stephen.cloud.api.chat.model.vo.ChatFriendUserVO;
+import com.stephen.cloud.api.chat.model.vo.ChatIdVO;
 import com.stephen.cloud.api.chat.model.vo.ChatMessageReadStatusVO;
 import com.stephen.cloud.api.chat.model.vo.ChatMessageVO;
+import com.stephen.cloud.api.chat.model.vo.ChatOperationResultVO;
 import com.stephen.cloud.api.chat.model.vo.ChatRoomVO;
 import com.stephen.cloud.common.common.BaseResponse;
 import org.springframework.cloud.openfeign.FeignClient;
+import org.springframework.cloud.openfeign.SpringQueryMap;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.DeleteMapping;
 
 import java.util.List;
@@ -50,54 +58,39 @@ public interface ChatFeignClient {
     /**
      * 获取历史消息
      *
-     * @param roomId        房间 ID
-     * @param lastMessageId 最后一条消息 ID
-     * @param limit         限制数量
+     * @param request 查询请求
      * @return 消息列表
      */
     @GetMapping("/message/list/history/vo")
-    BaseResponse<List<ChatMessageVO>> listHistoryMessages(
-            @RequestParam("roomId") Long roomId,
-            @RequestParam(value = "lastMessageId", required = false) Long lastMessageId,
-            @RequestParam(value = "limit", defaultValue = "20") Integer limit);
+    BaseResponse<List<ChatMessageVO>> listHistoryMessages(@SpringQueryMap ChatMessageHistoryQueryRequest request);
 
     /**
      * 获取接收游标后的新消息
      *
-     * @param roomId         房间 ID
-     * @param afterMessageId 客户端最后收到的消息 ID
-     * @param limit          限制数量
+     * @param request 查询请求
      * @return 消息列表
      */
     @GetMapping("/message/list/after/vo")
-    BaseResponse<List<ChatMessageVO>> listMessagesAfter(
-            @RequestParam("roomId") Long roomId,
-            @RequestParam(value = "afterMessageId", required = false) Long afterMessageId,
-            @RequestParam(value = "limit", defaultValue = "100") Integer limit);
+    BaseResponse<List<ChatMessageVO>> listMessagesAfter(@SpringQueryMap ChatMessageAfterQueryRequest request);
 
     @PostMapping("/friend/add")
-    BaseResponse<Boolean> addFriend(@RequestBody ChatFriendAddRequest request);
+    BaseResponse<ChatOperationResultVO> addFriend(@RequestBody ChatFriendAddRequest request);
 
     @DeleteMapping("/friend/delete")
-    BaseResponse<Boolean> deleteFriend(@RequestParam("friendUserId") Long friendUserId);
+    BaseResponse<ChatOperationResultVO> deleteFriend(@SpringQueryMap ChatFriendDeleteRequest request);
 
     @GetMapping("/friend/list/vo")
-    BaseResponse<List<ChatFriendUserVO>> listFriends();
+    BaseResponse<List<ChatFriendUserVO>> listFriends(@SpringQueryMap ChatFriendListRequest request);
 
     @GetMapping("/friend/search")
-    BaseResponse<Page<ChatFriendUserVO>> searchFriends(
-            @RequestParam(value = "searchText", required = false) String searchText,
-            @RequestParam(value = "current", defaultValue = "1") int current,
-            @RequestParam(value = "pageSize", defaultValue = "10") int pageSize);
+    BaseResponse<Page<ChatFriendUserVO>> searchFriends(@SpringQueryMap ChatFriendQueryRequest request);
 
     @PostMapping("/room/private")
-    BaseResponse<Long> getOrCreatePrivateRoom(@RequestBody ChatPrivateRoomRequest request);
+    BaseResponse<ChatIdVO> getOrCreatePrivateRoom(@RequestBody ChatPrivateRoomRequest request);
 
     @PostMapping("/message/read")
-    BaseResponse<Boolean> markMessageRead(@RequestBody ChatMessageReadRequest request);
+    BaseResponse<ChatOperationResultVO> markMessageRead(@RequestBody ChatMessageReadRequest request);
 
     @GetMapping("/message/read/status")
-    BaseResponse<ChatMessageReadStatusVO> getMessageReadStatus(
-            @RequestParam("roomId") Long roomId,
-            @RequestParam("messageId") Long messageId);
+    BaseResponse<ChatMessageReadStatusVO> getMessageReadStatus(@SpringQueryMap ChatMessageReadStatusRequest request);
 }

@@ -29,6 +29,7 @@
 | [A-023-m8-rich-message-forward-acceptance.md](./A-023-m8-rich-message-forward-acceptance.md) | m8 富消息与转发体验 Epic 验收 |
 | [A-024-m9-moments-discovery-governance-acceptance.md](./A-024-m9-moments-discovery-governance-acceptance.md) | m9 动态发现与内容治理 Epic 验收 |
 | [A-025-m10-admin-audit-e2e-acceptance.md](./A-025-m10-admin-audit-e2e-acceptance.md) | m10 审计检索与多端验收 Epic 验收 |
+| [A-026-m11-chat-consistency-acceptance.md](./A-026-m11-chat-consistency-acceptance.md) | m11 Chat 工程化一致性验收 |
 
 ## 不适合放入
 
