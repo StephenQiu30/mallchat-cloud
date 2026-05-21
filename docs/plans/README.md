@@ -32,3 +32,4 @@
 | [PL-006-im-p2-backend-experience-plan.md](./PL-006-im-p2-backend-experience-plan.md) | IM P2 后端体验 Issue 编排计划 |
 | [PL-007-multi-client-e2e-matrix-plan.md](./PL-007-multi-client-e2e-matrix-plan.md) | 多端 E2E 自动化矩阵计划 |
 | [PL-008-backend-engineering-consistency-plan.md](./PL-008-backend-engineering-consistency-plan.md) | 后端工程化一致性治理计划 |
+| [PL-009-backend-engineering-consistency-followup-plan.md](./PL-009-backend-engineering-consistency-followup-plan.md) | 后端工程化一致性后续批次计划 |
