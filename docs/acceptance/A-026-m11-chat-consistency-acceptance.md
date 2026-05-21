@@ -9,7 +9,7 @@ feature_area: backend-engineering-consistency
 purpose: "记录 m11 Chat 领域工程化一致性审查、Issue 消费、TDD/Code Review 验收和风险。"
 canonical_path: "docs/acceptance/A-026-m11-chat-consistency-acceptance.md"
 status: in_progress
-version: "0.1.0"
+version: "0.1.4"
 owner: "StephenQiu30"
 inputs:
   - "docs/design/D-003-backend-engineering-consistency-design.md"
@@ -18,6 +18,7 @@ inputs:
   - "GitHub Issue #53"
   - "GitHub Issue #54"
   - "GitHub Issue #55"
+  - "GitHub Issue #56"
 outputs:
   - "m11 Chat 领域工程化一致性审查清单"
   - "m11 验收证据"
@@ -34,8 +35,8 @@ downstream:
 | Issue | 标题 | 状态 | 说明 |
 | --- | --- | --- | --- |
 | [#52](https://github.com/StephenQiu30/mallchat-cloud/issues/52) | `[m11][epic][backend] 后端工程化一致性治理` | Open | m11 Epic，聚合本批治理任务 |
-| [#53](https://github.com/StephenQiu30/mallchat-cloud/issues/53) | `[m11][backend][chat] Chat 接口与模型一致性审查清单` | Open | 当前消费任务，只做事实审查和文档 |
-| [#55](https://github.com/StephenQiu30/mallchat-cloud/issues/55) | `[m11][backend][chat] Chat P0/P1 一致性最小修正` | Open | 后续按审查清单执行 TDD 修正 |
+| [#53](https://github.com/StephenQiu30/mallchat-cloud/issues/53) | `[m11][backend][chat] Chat 接口与模型一致性审查清单` | Closed | 已完成事实审查和文档沉淀 |
+| [#55](https://github.com/StephenQiu30/mallchat-cloud/issues/55) | `[m11][backend][chat] Chat P0/P1 一致性最小修正` | Closed | 已按审查清单完成 TDD 最小修正 |
 | [#56](https://github.com/StephenQiu30/mallchat-cloud/issues/56) | `[m11][backend][chat] Chat DTO/VO 接口契约收敛` | Open | 根据前端接口生成要求，独立收敛 DTO Request / VO Response 契约 |
 | [#54](https://github.com/StephenQiu30/mallchat-cloud/issues/54) | `[m11][backend][qa] 工程化一致性验收与 Code Review` | Open | 后续沉淀测试、review 和合并前证据 |
 
@@ -106,9 +107,20 @@ downstream:
 
 1. 所有面向前端或跨服务生成契约的接口，应使用业务 DTO Request / QueryRequest 表达入参，减少散落的 `@RequestParam` 和通用请求对象。
 2. 所有面向前端或跨服务生成契约的接口，应使用业务 VO 或 `Page<*VO>` 表达响应；简单成功状态也应提供可扩展 VO，避免长期暴露裸 `Boolean` / `Long`。
-3. #56 是接口契约迁移任务，必须先盘点兼容性影响，再按 TDD 改造；#55 不直接承载全量接口契约变更。
+3. 已新增 `ChatIdVO` 与 `ChatOperationResultVO`，避免每个简单操作都创建空壳响应类；业务请求仍按场景定义 `Chat*Request` / `Chat*QueryRequest`。
+4. 已将 chat Controller 和 `ChatFeignClient` 中的 `@RequestParam`、通用 `DeleteRequest`、`BaseResponse<Boolean>`、`BaseResponse<Long>` 收敛为 DTO Request / VO Response。
+5. 兼容性影响：部分响应 `data` 从裸 `true` / `123` 调整为 `{ "success": true }` / `{ "id": 123 }`；前端接口生成需要按新版 OpenAPI 契约同步。
+6. 历史 query 参数调用保持兼容：原 query/form 参数接口改为 DTO 绑定但不强制 JSON body；动态 ID 参数继续使用 `id`，消息搜索默认 `pageSize=20` 不变。
 
-## 9. 验收记录
+## 9. #56 TDD 记录
+
+| 阶段 | 命令 | 结果 | 说明 |
+| --- | --- | --- | --- |
+| RED | `mvn -B -pl mallchat-service/mallchat-chat-service -am -Dtest=ChatApiContractConsistencyTest -Dsurefire.failIfNoSpecifiedTests=false test` | 失败 | 契约护栏发现 `@RequestParam`、`DeleteRequest`、`BaseResponse<Boolean/Long>` 违例 |
+| GREEN | `mvn -B -pl mallchat-service/mallchat-chat-service -am -Dtest=ChatApiContractConsistencyTest -Dsurefire.failIfNoSpecifiedTests=false test` | 通过 | 4 tests, 0 failures, 0 errors |
+| Focused | `mvn -B -pl mallchat-service/mallchat-chat-service -am -Dsurefire.failIfNoSpecifiedTests=false test` | 通过 | 221 tests, 0 failures, 0 errors |
+
+## 10. 验收记录
 
 | 命令 | 结果 | 说明 |
 | --- | --- | --- |
@@ -117,16 +129,18 @@ downstream:
 | `bash scripts/validate-repository.sh` | 通过 | 仓库规范校验通过 |
 | `mvn -B -DskipTests compile` | 通过 | 全仓 25 个 Maven 模块编译成功 |
 
-## 10. Code Review 记录
+## 11. Code Review 记录
 
 | Reviewer | 结果 | 结论 |
 | --- | --- | --- |
-| 只读 reviewer | 通过 | 无 Critical / Important / Minor；建议可提交，确认未引入新抽象、未改变路径或字段语义 |
+| 只读 reviewer | 已处理 | 首轮发现 Feign 契约未同步、query/body 兼容性、搜索默认页大小和测试覆盖缺口；已同步 `ChatFeignClient`，保留历史 query 绑定与 `pageSize=20`，并扩展契约测试扫描 Feign |
 
-## 11. 变更记录
+## 12. 变更记录
 
 | 日期 | 作者 | 版本 | 变更说明 |
 | --- | --- | --- | --- |
 | 2026-05-21 | StephenQiu30 | 0.1.0 | 初始化 m11 Chat 工程化一致性审查清单 |
 | 2026-05-21 | StephenQiu30 | 0.1.1 | 记录 #55 TDD 修正与验证结果 |
 | 2026-05-21 | StephenQiu30 | 0.1.2 | 补充 DTO Request / VO Response 接口契约要求并拆分 #56 |
+| 2026-05-21 | StephenQiu30 | 0.1.3 | 记录 #56 DTO/VO 契约收敛、兼容性影响与 TDD 证据 |
+| 2026-05-21 | StephenQiu30 | 0.1.4 | 记录 Code Review 反馈处理和 Feign 契约同步 |

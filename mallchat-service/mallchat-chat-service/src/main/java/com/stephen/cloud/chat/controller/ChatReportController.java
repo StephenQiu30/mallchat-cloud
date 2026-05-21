@@ -1,6 +1,7 @@
 package com.stephen.cloud.chat.controller;
 
 import com.stephen.cloud.api.chat.model.dto.ChatReportSubmitRequest;
+import com.stephen.cloud.api.chat.model.vo.ChatIdVO;
 import com.stephen.cloud.chat.service.ChatReportService;
 import com.stephen.cloud.common.auth.utils.SecurityUtils;
 import com.stephen.cloud.common.common.BaseResponse;
@@ -33,8 +34,8 @@ public class ChatReportController {
     @PostMapping("/submit")
     @OperationLog(module = "举报管理", action = "提交举报")
     @Operation(summary = "提交举报", description = "举报用户、消息或动态")
-    public BaseResponse<Long> submitReport(@Validated @RequestBody ChatReportSubmitRequest request) {
+    public BaseResponse<ChatIdVO> submitReport(@Validated @RequestBody ChatReportSubmitRequest request) {
         Long userId = SecurityUtils.getLoginUserId();
-        return ResultUtils.success(chatReportService.submitReport(userId, request));
+        return ResultUtils.success(ChatIdVO.of(chatReportService.submitReport(userId, request)));
     }
 }
