@@ -120,9 +120,25 @@ downstream:
 4. 同步 `LogFeignClient` 返回类型，保持 Controller 与 Feign 契约一致。
 5. 保持 Mapper / Convert / Entity 不变，不做无收益重构。
 
-## 9. 变更记录
+## 9. #61 TDD 记录
+
+| 阶段 | 命令 | 结果 | 说明 |
+| --- | --- | --- | --- |
+| RED | `mvn -B -pl mallchat-service/mallchat-file-service -am -Dtest=FileUploadContractConsistencyTest -Dsurefire.failIfNoSpecifiedTests=false test` | 失败 | 2 个断言按预期失败：上传接口未显式声明 multipart consumes；Spring multipart 上限仍为 10MB |
+| GREEN | `mvn -B -pl mallchat-service/mallchat-file-service -am -Dtest=FileUploadContractConsistencyTest -Dsurefire.failIfNoSpecifiedTests=false test` | 通过 | 上传接口保留 `multipart/form-data`，全局上限对齐业务最大 100MB |
+| Focused | `mvn -B -pl mallchat-service/mallchat-file-service -am -Dsurefire.failIfNoSpecifiedTests=false test` | 通过 | file-service 18 tests，0 failures，0 errors |
+
+## 10. #61 修正内容
+
+1. 为 `FileController.uploadFile` 显式声明 `consumes = multipart/form-data`，与 `FileFeignClient` 保持一致。
+2. 将 file-service Spring multipart `max-file-size` / `max-request-size` 从 10MB 调整为 100MB，覆盖 `FileUploadValidator` 中 `chat_video` 的最大业务上限。
+3. 新增 `FileUploadContractConsistencyTest` 固化 multipart 边界和上传大小配置，防止后续被机械 DTO 化或配置回退。
+4. 未修改 `FileVO` 字段，也未引入上传 JSON DTO，保持现有前端和 Feign 调用方式。
+
+## 11. 变更记录
 
 | 日期 | 作者 | 版本 | 变更说明 |
 | --- | --- | --- | --- |
 | 2026-05-21 | StephenQiu30 | 0.1.0 | 初始化 m12 支撑领域工程化一致性审查清单 |
 | 2026-05-21 | StephenQiu30 | 0.1.1 | 记录 #60 log 契约 TDD 修正和 focused tests 结果 |
+| 2026-05-21 | StephenQiu30 | 0.1.2 | 记录 #61 file 上传边界 TDD 修正和 focused tests 结果 |

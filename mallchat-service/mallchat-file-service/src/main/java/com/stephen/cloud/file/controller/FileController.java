@@ -16,6 +16,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.annotation.Resource;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -43,7 +44,7 @@ public class FileController {
      * @param bizType 业务类型
      * @return 文件信息
      */
-    @PostMapping("/upload")
+    @PostMapping(value = "/upload", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     @Operation(summary = "上传文件", description = "上传文件到腾讯云 COS，支持用户头像、聊天图片、聊天文件、聊天语音、聊天视频等业务类型")
     public BaseResponse<FileVO> uploadFile(
             @Parameter(description = "上传的文件", required = true) @RequestPart("file") MultipartFile file,
