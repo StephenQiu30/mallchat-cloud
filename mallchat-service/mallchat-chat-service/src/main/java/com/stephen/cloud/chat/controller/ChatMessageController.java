@@ -10,8 +10,11 @@ import com.stephen.cloud.chat.convert.ChatMessageConvert;
 import com.stephen.cloud.chat.model.entity.ChatMessage;
 import com.stephen.cloud.chat.service.ChatMessageService;
 import com.stephen.cloud.common.auth.utils.SecurityUtils;
-import com.stephen.cloud.common.common.*;
-import com.stephen.cloud.common.exception.BusinessException;
+import com.stephen.cloud.common.common.BaseResponse;
+import com.stephen.cloud.common.common.DeleteRequest;
+import com.stephen.cloud.common.common.ErrorCode;
+import com.stephen.cloud.common.common.ResultUtils;
+import com.stephen.cloud.common.common.ThrowUtils;
 import com.stephen.cloud.common.log.annotation.OperationLog;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -19,7 +22,12 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.validation.annotation.Validated;
-import org.springframework.web.bind.annotation.*;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
 
@@ -48,13 +56,9 @@ public class ChatMessageController {
     @OperationLog(module = "消息管理", action = "发送消息")
     @Operation(summary = "发送消息", description = "向指定房间发送一条消息（支持文本、图片、文件、语音、视频、表情）")
     public BaseResponse<ChatMessageVO> sendMessage(@Validated @RequestBody ChatMessageSendRequest chatMessageSendRequest) {
-        // 请求参数非空校验
         ThrowUtils.throwIf(chatMessageSendRequest == null, ErrorCode.PARAMS_ERROR);
-        // 获取当前登录用户 ID
         Long userId = SecurityUtils.getLoginUserId();
-        // 将 DTO 转换为实体类
         ChatMessage chatMessage = ChatMessageConvert.addRequestToObj(chatMessageSendRequest);
-        // 调用 Service 执行发送逻辑
         ChatMessageVO messageVO = chatMessageService.sendMessage(chatMessage, userId);
         return ResultUtils.success(messageVO);
     }
@@ -79,17 +83,15 @@ public class ChatMessageController {
     /**
      * 标记消息已读
      *
-     * @param request        房间与已读游标
-     * @param servletRequest HTTP 请求
+     * @param request 房间与已读游标
      * @return 是否更新成功
      */
     @PostMapping("/read")
     @OperationLog(module = "消息管理", action = "消息已读")
     @Operation(summary = "上报消息已读", description = "更新当前用户在该房间的已读消息 ID")
     public BaseResponse<Boolean> markMessageRead(@Validated @RequestBody ChatMessageReadRequest request) {
-        if (request == null || request.getRoomId() == null || request.getLastReadMessageId() == null) {
-            throw new BusinessException(ErrorCode.PARAMS_ERROR);
-        }
+        ThrowUtils.throwIf(request == null || request.getRoomId() == null || request.getLastReadMessageId() == null,
+                ErrorCode.PARAMS_ERROR);
         Long userId = SecurityUtils.getLoginUserId();
         boolean ok = chatMessageService.markMessageRead(request.getRoomId(), request.getLastReadMessageId(), userId);
         return ResultUtils.success(ok);
@@ -177,11 +179,8 @@ public class ChatMessageController {
     @OperationLog(module = "消息管理", action = "撤回消息")
     @Operation(summary = "撤回消息", description = "撤回指定消息（限时 2 分钟内）")
     public BaseResponse<Boolean> recallMessage(@RequestBody DeleteRequest deleteRequest) {
-        // 参数校验
         ThrowUtils.throwIf(deleteRequest == null || deleteRequest.getId() == null, ErrorCode.PARAMS_ERROR);
-        // 获取当前用户 ID
         Long userId = SecurityUtils.getLoginUserId();
-        // 执行撤回逻辑
         boolean ok = chatMessageService.recallMessage(deleteRequest.getId(), userId);
         return ResultUtils.success(ok);
     }

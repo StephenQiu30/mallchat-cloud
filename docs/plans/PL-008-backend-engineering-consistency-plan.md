@@ -50,7 +50,7 @@ downstream:
 
 | 批次 | 范围 | 主要检查点 | 计划 PR |
 | --- | --- | --- | --- |
-| E1 | `chat` 领域 | `mallchat-api-chat` DTO/VO/Enum；`mallchat-chat-service` Controller/Service/Entity/Convert/Mapper | `m11` |
+| E1 | `chat` 领域 | `mallchat-api-chat` DTO/VO/Enum；`mallchat-chat-service` Controller/Service/Entity/Convert/Mapper；前端可生成的 DTO Request / VO Response 契约 | `m11` |
 | E2 | `log/file/notification` 支撑领域 | 查询请求、日志记录、文件上传、通知事实和返回 VO 风格 | `m12` |
 | E3 | `user/ai/gateway/common` 基础领域 | 权限、公共响应、公共工具、跨服务契约和网关边界 | `m13` |
 | E4 | 工程化守护 | 轻量脚本或测试检查目录、命名、注解和 PR 规则 | `m14` |
@@ -101,6 +101,7 @@ E1 第一阶段不直接修改代码，先输出审查清单；确认 P0/P1/P2 �
 2. P1 尽量本批修复，但不能扩大到跨领域大改。
 3. P2 只记录，不作为本批验收阻塞项。
 4. 接口路径、字段名、枚举 code 只有在确认无兼容风险或有迁移方案时才修改。
+5. 所有面向前端或跨服务生成契约的接口，都需要收敛为 DTO Request 入参和 VO Response 出参；涉及现有接口契约变化时必须单独列出兼容性影响和 TDD 验收。
 
 ### 6.4 E1 验收命令
 
@@ -123,7 +124,7 @@ bash scripts/validate-repository.sh
 ## 7. TDD 规则
 
 1. 行为变化必须先写 RED 测试。
-2. 接口契约变化必须能通过测试或编译失败证明缺口。
+2. 接口契约变化必须能通过测试或编译失败证明缺口，包括 `@RequestParam` 收敛为 DTO、裸返回值收敛为 VO、字段校验注解和 Schema 文档一致性。
 3. Convert、Enum lookup、权限、幂等、缓存、推送边界变化都属于行为变化。
 4. 纯文档和纯审查清单不强制 RED，但必须保留验证命令。
 
@@ -161,7 +162,8 @@ bash scripts/validate-repository.sh
 2. 交付粒度可控：每批对应一个 m 系列 PR，Issue 与 PR 按 Epic 关联，不按零碎文件频繁提交。
 3. TDD 约束清楚：行为变化必须 RED/GREEN；纯文档或审查清单不伪造 RED，只保留仓库校验。
 4. Code Review 约束清楚：Critical / Important 必须修复，Minor 可进入验收风险或后续批次。
-5. 过度设计已拦截：本计划不引入新框架、生成器、平台层或大规模重排目录。
+5. DTO Request / VO Response 契约需要单独审查和迁移，避免影响前端接口生成。
+6. 过度设计已拦截：本计划不引入新框架、生成器、平台层或大规模重排目录。
 
 ## 12. 变更记录
 

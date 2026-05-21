@@ -25,7 +25,12 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.validation.annotation.Validated;
-import org.springframework.web.bind.annotation.*;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
 
@@ -53,12 +58,9 @@ public class ChatRoomController {
     @OperationLog(module = "聊天室管理", action = "创建聊天室")
     @Operation(summary = "创建群聊", description = "创建一个新的群聊并初始化成员")
     public BaseResponse<Long> addChatRoom(@Validated @RequestBody ChatRoomAddRequest chatRoomAddRequest) {
-        // 请求参数非空校验
         ThrowUtils.throwIf(chatRoomAddRequest == null, ErrorCode.PARAMS_ERROR);
-        // 将 DTO 转换为实体
         ChatRoom chatRoom = ChatRoomConvert.addRequestToObj(chatRoomAddRequest);
         chatRoom.setType(ChatRoomTypeEnum.GROUP.getCode());
-        // 调用业务层执行创建逻辑
         Long userId = SecurityUtils.getLoginUserId();
         Long roomId = chatRoomService.addChatRoom(chatRoom, chatRoomAddRequest.getMemberIds(),
                 chatRoomAddRequest.getAnnouncement(), userId);
@@ -217,19 +219,15 @@ public class ChatRoomController {
     /**
      * 获取或创建与好友的私聊房间
      *
-     * @param request        请求参数
-     * @param servletRequest HTTP 请求
+     * @param request 请求参数
      * @return 房间 ID
      */
     @PostMapping("/private")
     @OperationLog(module = "聊天室管理", action = "私聊房间")
     @Operation(summary = "获取或创建私聊房间", description = "获取与指定好友的唯一私聊房间，若不存在则初始化（UnionID 级别唯一）")
     public BaseResponse<Long> getOrCreatePrivateRoom(@Validated @RequestBody ChatPrivateRoomRequest request) {
-        // 校验目标用户 ID
         ThrowUtils.throwIf(request == null || request.getPeerUserId() == null, ErrorCode.PARAMS_ERROR);
-        // 获取当前登录用户 ID
         Long userId = SecurityUtils.getLoginUserId();
-        // 执行私聊房间获取/创建逻辑 (内部包含双向同步锁)
         Long roomId = chatRoomService.getOrCreatePrivateRoom(request.getPeerUserId(), userId);
         return ResultUtils.success(roomId);
     }

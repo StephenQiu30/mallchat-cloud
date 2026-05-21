@@ -76,9 +76,11 @@ MallChat 后端已经形成 `mallchat-api-*`、`mallchat-service/*`、`mallchat-
 ### 5.1 Controller
 
 1. Controller 只做参数接收、基础空值或 ID 校验、登录态读取、Service 调用和 `ResultUtils.success` 返回。
-2. 路径按领域聚合，例如 `/chat/message/*`、`/chat/room/*`、`/chat/moment/*`。
-3. 用户侧接口、管理接口、内部接口应通过路径、权限注解和认证注解表达边界。
-4. 不在 Controller 中写复杂权限、事务、缓存回源、消息推送或实体拼装。
+2. 面向前端或跨服务生成契约的接口，入参应定义为对应 `*Request` / `*QueryRequest` DTO，不直接散落多个 `@RequestParam` 或复用通用 `DeleteRequest` 表达业务语义。
+3. 面向前端或跨服务生成契约的接口，出参应定义为对应 `*VO` 或 `Page<*VO>`；简单成功状态也应按业务场景定义可扩展 VO，避免长期暴露裸 `Boolean`、裸 `Long` 作为稳定响应契约。
+4. 路径按领域聚合，例如 `/chat/message/*`、`/chat/room/*`、`/chat/moment/*`。
+5. 用户侧接口、管理接口、内部接口应通过路径、权限注解和认证注解表达边界。
+6. 不在 Controller 中写复杂权限、事务、缓存回源、消息推送或实体拼装。
 
 ### 5.2 DTO 和 QueryRequest
 
@@ -94,6 +96,7 @@ MallChat 后端已经形成 `mallchat-api-*`、`mallchat-service/*`、`mallchat-
 2. VO 面向端侧稳定展示，不暴露 `isDelete`、内部临时状态或调试字段。
 3. 分页返回复用当前 `Page<T>` 风格，不新增自定义分页包装。
 4. VO 转换优先由 Convert 或 Service 内明确方法完成，Controller 不手写复杂拼装。
+5. 新增或调整接口时，应优先定义业务语义明确的响应 VO，例如 `ChatIdVO`、`ChatOperationResultVO`、`ChatMessageReadResultVO`；仅内部方法可继续使用裸类型。
 
 ### 5.4 Entity
 
@@ -180,7 +183,7 @@ bash scripts/validate-repository.sh
 ## 12. 设计自审结论
 
 1. 逻辑闭环：设计只定义分层、风格、TDD 和 Code Review 门禁；具体修正进入对应计划、Issue、PR 和验收文档。
-2. 风格一致性：规则基于当前 `chat-*` / `Chat*` 命名、MyBatis Plus、`ResultUtils.success`、`Page<T>` 和 Convert 工具类风格，不引入平行体系。
+2. 风格一致性：规则基于当前 `chat-*` / `Chat*` 命名、MyBatis Plus、`ResultUtils.success`、`Page<T>`、DTO Request、VO Response 和 Convert 工具类风格，不引入平行体系。
 3. 兼容性：接口路径、字段名、枚举 code、数据库字段不因风格偏好直接破坏兼容。
 4. 不过度设计：暂不引入代码生成器、复杂静态分析平台、新框架或统一平台层。
 5. 测试优先：行为变化进入实现批次时必须先 RED；纯文档阶段以 OpenSpec、仓库校验和 diff 检查作为验收。

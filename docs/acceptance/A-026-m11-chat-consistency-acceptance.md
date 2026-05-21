@@ -36,6 +36,7 @@ downstream:
 | [#52](https://github.com/StephenQiu30/mallchat-cloud/issues/52) | `[m11][epic][backend] 后端工程化一致性治理` | Open | m11 Epic，聚合本批治理任务 |
 | [#53](https://github.com/StephenQiu30/mallchat-cloud/issues/53) | `[m11][backend][chat] Chat 接口与模型一致性审查清单` | Open | 当前消费任务，只做事实审查和文档 |
 | [#55](https://github.com/StephenQiu30/mallchat-cloud/issues/55) | `[m11][backend][chat] Chat P0/P1 一致性最小修正` | Open | 后续按审查清单执行 TDD 修正 |
+| [#56](https://github.com/StephenQiu30/mallchat-cloud/issues/56) | `[m11][backend][chat] Chat DTO/VO 接口契约收敛` | Open | 根据前端接口生成要求，独立收敛 DTO Request / VO Response 契约 |
 | [#54](https://github.com/StephenQiu30/mallchat-cloud/issues/54) | `[m11][backend][qa] 工程化一致性验收与 Code Review` | Open | 后续沉淀测试、review 和合并前证据 |
 
 ## 2. 审查范围
@@ -71,6 +72,7 @@ downstream:
 | P1 | Controller | `ChatMessageController.java`、`ChatSessionController.java` | 存在 `com.stephen.cloud.common.common.*` 通配导入 | 与多数 Controller 的显式 import 风格不一致 | #55 中改为显式 import |
 | P1 | Controller | `ChatFriendController.java` | 多个接口保留未使用 `HttpServletRequest servletRequest` 参数 | 增加阅读噪声，和当前 `SecurityUtils.getLoginUserId()` 风格不一致 | #55 中删除未使用参数和对应 Javadoc |
 | P1 | Controller | `ChatRoomController.java`、`ChatMessageController.java`、`ChatFriendApplyController.java`、`ChatSessionController.java` | 存在“参数校验 / 获取用户 / 调用 Service”等显而易见注释 | 影响可读性，不影响行为 | #55 中清理显而易见注释，保留解释边界或风险的注释 |
+| P1 | API Contract | 多个 `chat` Controller | 部分接口仍使用多个 `@RequestParam`、通用 `DeleteRequest`、裸 `Boolean` 或裸 `Long` 作为面向前端的稳定契约 | 不利于前端接口生成、响应格式管控和后续字段扩展；直接全量修改存在兼容性风险 | 拆到 #56 单独按 TDD 收敛 DTO Request / VO Response，不并入 #55 小修 |
 | P2 | Convert | `ChatRoomJoinApplyConvert.java` | 方法名使用 `getVOList` / `getVOPage`，其他 Convert 多为 `getChat*VO` 或 `objToVo` | 仅风格差异，修改会触发低收益调用点变更 | 记录，不在 m11 强制修复 |
 | P2 | Convert | 多个 Convert | `objToVo`、`getChat*VO` 命名并存 | 历史风格差异，不影响行为 | 后续只在触碰对应文件时顺手收敛 |
 | P2 | Service | `ChatMomentServiceImpl.java`、`ChatRoomJoinApplyServiceImpl.java`、`ChatReportServiceImpl.java` | 存在局部状态常量，例如 `STATUS_PENDING`、`STATUS_NORMAL`、`VISIBILITY_PUBLIC` | 当前局部使用清楚，抽成共享枚举可能过度设计 | 保持现状，除非出现跨模块复用或端侧契约需求 |
@@ -80,19 +82,51 @@ downstream:
 
 1. 本轮未发现 P0 问题。
 2. P1 问题集中在请求契约自描述、Controller 导入/参数/异常风格和显而易见注释，适合进入 #55 做最小修正。
-3. P2 问题只记录，不作为 m11 阻塞项，避免为了统一而做低收益重命名或抽象。
-4. #53 不修改业务代码，不需要 RED 测试；后续 #55 如改动行为边界，必须先写 RED。
+3. DTO Request / VO Response 是前端接口生成和响应管控的关键规范，已拆为 #56 独立处理，不能在 #55 中无迁移说明地直接全量改接口。
+4. P2 问题只记录，不作为 m11 阻塞项，避免为了统一而做低收益重命名或抽象。
+5. #53 不修改业务代码，不需要 RED 测试；后续 #55/#56 如改动行为边界，必须先写 RED。
 
-## 6. 验收记录
+## 6. #55 TDD 记录
+
+| 阶段 | 命令 | 结果 | 说明 |
+| --- | --- | --- | --- |
+| RED | `mvn -B -pl mallchat-service/mallchat-chat-service -am -Dtest=ChatApiContractConsistencyTest -Dsurefire.failIfNoSpecifiedTests=false test` | 失败 | 2 个断言按预期失败：缺少 Bean Validation 注解；`ChatFriendQueryRequest` Schema 描述仍为英文 |
+| GREEN | `mvn -B -pl mallchat-service/mallchat-chat-service -am -Dtest=ChatApiContractConsistencyTest -Dsurefire.failIfNoSpecifiedTests=false test` | 通过 | 新增契约一致性测试 2/2 通过 |
+| Focused | `mvn -B -pl mallchat-service/mallchat-chat-service -am -Dsurefire.failIfNoSpecifiedTests=false test` | 通过 | 219 tests, 0 failures, 0 errors |
+
+## 7. #55 修正内容
+
+1. 为 `ChatPrivateRoomRequest.peerUserId`、`ChatMessageReadRequest.roomId`、`ChatMessageReadRequest.lastReadMessageId`、`ChatMomentCommentRequest.content` 补齐 Bean Validation 注解。
+2. 将 `ChatFriendQueryRequest` 的 Schema 描述改为中文，保持 API 文档风格一致。
+3. 将 `ChatMessageController.markMessageRead` 参数错误处理收敛为 `ThrowUtils.throwIf`。
+4. 清理 chat Controller 的通配导入、未使用 `HttpServletRequest` 参数和显而易见注释。
+5. 保持 P2 项不改，未进行 Convert 重命名、共享枚举抽象或目录重排。
+
+## 8. #56 DTO/VO 契约补充
+
+1. 所有面向前端或跨服务生成契约的接口，应使用业务 DTO Request / QueryRequest 表达入参，减少散落的 `@RequestParam` 和通用请求对象。
+2. 所有面向前端或跨服务生成契约的接口，应使用业务 VO 或 `Page<*VO>` 表达响应；简单成功状态也应提供可扩展 VO，避免长期暴露裸 `Boolean` / `Long`。
+3. #56 是接口契约迁移任务，必须先盘点兼容性影响，再按 TDD 改造；#55 不直接承载全量接口契约变更。
+
+## 9. 验收记录
 
 | 命令 | 结果 | 说明 |
 | --- | --- | --- |
 | `openspec validate --all --strict` | 通过 | 21 passed, 0 failed |
 | `git diff --check` | 通过 | 无空白或补丁格式问题 |
 | `bash scripts/validate-repository.sh` | 通过 | 仓库规范校验通过 |
+| `mvn -B -DskipTests compile` | 通过 | 全仓 25 个 Maven 模块编译成功 |
 
-## 7. 变更记录
+## 10. Code Review 记录
+
+| Reviewer | 结果 | 结论 |
+| --- | --- | --- |
+| 只读 reviewer | 通过 | 无 Critical / Important / Minor；建议可提交，确认未引入新抽象、未改变路径或字段语义 |
+
+## 11. 变更记录
 
 | 日期 | 作者 | 版本 | 变更说明 |
 | --- | --- | --- | --- |
 | 2026-05-21 | StephenQiu30 | 0.1.0 | 初始化 m11 Chat 工程化一致性审查清单 |
+| 2026-05-21 | StephenQiu30 | 0.1.1 | 记录 #55 TDD 修正与验证结果 |
+| 2026-05-21 | StephenQiu30 | 0.1.2 | 补充 DTO Request / VO Response 接口契约要求并拆分 #56 |

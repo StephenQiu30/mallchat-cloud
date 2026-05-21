@@ -4,14 +4,23 @@ import com.stephen.cloud.api.chat.model.dto.ChatSessionMuteRequest;
 import com.stephen.cloud.api.chat.model.vo.ChatSessionVO;
 import com.stephen.cloud.chat.service.ChatSessionService;
 import com.stephen.cloud.common.auth.utils.SecurityUtils;
-import com.stephen.cloud.common.common.*;
+import com.stephen.cloud.common.common.BaseResponse;
+import com.stephen.cloud.common.common.DeleteRequest;
+import com.stephen.cloud.common.common.ErrorCode;
+import com.stephen.cloud.common.common.ResultUtils;
+import com.stephen.cloud.common.common.ThrowUtils;
 import com.stephen.cloud.common.log.annotation.OperationLog;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.web.bind.annotation.*;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
 
@@ -37,9 +46,7 @@ public class ChatSessionController {
     @GetMapping("/list/vo")
     @Operation(summary = "用户消息列表", description = "获取当前登录用户的所有消息会话列表（包含未读数、最后一条消息概览）")
     public BaseResponse<List<ChatSessionVO>> listMySessions() {
-        // 获取当前用户 ID
         Long userId = SecurityUtils.getLoginUserId();
-        // 查询该用户的全量会话记录，并进行排序处理 (置顶优先，时间倒序)
         List<ChatSessionVO> list = chatSessionService.listMySessions(userId);
         return ResultUtils.success(list);
     }
@@ -56,11 +63,8 @@ public class ChatSessionController {
     @Operation(summary = "置顶会话", description = "修改会话置顶状态")
     public BaseResponse<Boolean> topSession(@Parameter(description = "房间ID", required = true) @RequestParam Long roomId,
                                             @Parameter(description = "置顶状态：0-取消置顶, 1-置顶", required = true) @RequestParam Integer status) {
-        // 参数非空校验
         ThrowUtils.throwIf(roomId == null || status == null, ErrorCode.PARAMS_ERROR);
-        // 获取当前用户 ID
         Long userId = SecurityUtils.getLoginUserId();
-        // 执行置顶状态更新
         boolean result = chatSessionService.topSession(roomId, userId, status);
         return ResultUtils.success(result);
     }

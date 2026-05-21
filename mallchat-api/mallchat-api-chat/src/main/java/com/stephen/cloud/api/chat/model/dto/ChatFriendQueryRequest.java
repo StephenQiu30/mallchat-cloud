@@ -20,19 +20,19 @@ public class ChatFriendQueryRequest extends PageRequest implements Serializable 
     /**
      * 关键词（用户昵称）
      */
-    @Schema(description = "Keywords (user nickname)")
+    @Schema(description = "关键词（用户昵称）")
     private String searchText;
 
     /**
      * 用户 ID
      */
-    @Schema(description = "User ID")
+    @Schema(description = "用户ID")
     private Long userId;
 
     /**
      * 好友用户 ID
      */
-    @Schema(description = "Friend User ID")
+    @Schema(description = "好友用户ID")
     private Long friendUserId;
 
     private static final long serialVersionUID = 1L;
