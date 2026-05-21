@@ -16,9 +16,9 @@ inputs:
   - "GitHub Issue #43"
   - "GitHub Issue #44"
   - "GitHub Issue #45"
-  - "openspec/changes/add-public-moments-square"
-  - "openspec/changes/add-moments-light-ranking"
-  - "openspec/changes/design-content-moderation-ai-boundary"
+  - "openspec/changes/archive/2026-05-21-add-public-moments-square"
+  - "openspec/changes/archive/2026-05-21-add-moments-light-ranking"
+  - "openspec/changes/archive/2026-05-21-design-content-moderation-ai-boundary"
 outputs:
   - "m9-backend-moments-discovery-epic"
   - "动态公开广场 MVP"
@@ -80,13 +80,13 @@ chat-service 相关模块测试通过 217 个测试；CI focused tests 本地通
 
 ## 7. OpenSpec 状态
 
-m9 当前包含 3 个 active changes：
+m9 OpenSpec change 已归档：
 
-1. `add-public-moments-square`
-2. `add-moments-light-ranking`
-3. `design-content-moderation-ai-boundary`
+1. `openspec/changes/archive/2026-05-21-add-public-moments-square`
+2. `openspec/changes/archive/2026-05-21-add-moments-light-ranking`
+3. `openspec/changes/archive/2026-05-21-design-content-moderation-ai-boundary`
 
-PR 合并前需全部通过 strict 校验；合并后再归档。
+归档后 `openspec list` 无 active changes，`openspec validate --all --strict` 仍通过。
 
 ## 8. 残余风险
 
@@ -99,3 +99,4 @@ PR 合并前需全部通过 strict 校验；合并后再归档。
 | 日期 | 作者 | 版本 | 变更说明 |
 | --- | --- | --- | --- |
 | 2026-05-21 | StephenQiu30 | 0.1.0 | 初始化 m9 动态发现与内容治理验收 |
+| 2026-05-21 | StephenQiu30 | 0.1.1 | 补充 OpenSpec 归档状态 |
