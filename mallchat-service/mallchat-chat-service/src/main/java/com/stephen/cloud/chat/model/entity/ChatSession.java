@@ -52,6 +52,11 @@ public class ChatSession implements Serializable {
     private Integer topStatus;
 
     /**
+     * 免打扰状态：0-否，1-是
+     */
+    private Integer muteStatus;
+
+    /**
      * 最后活跃时间
      */
     private Date activeTime;

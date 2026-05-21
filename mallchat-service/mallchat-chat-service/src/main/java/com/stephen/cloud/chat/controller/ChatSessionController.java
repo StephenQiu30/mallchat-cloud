@@ -1,5 +1,6 @@
 package com.stephen.cloud.chat.controller;
 
+import com.stephen.cloud.api.chat.model.dto.ChatSessionMuteRequest;
 import com.stephen.cloud.api.chat.model.vo.ChatSessionVO;
 import com.stephen.cloud.chat.service.ChatSessionService;
 import com.stephen.cloud.common.auth.utils.SecurityUtils;
@@ -62,6 +63,19 @@ public class ChatSessionController {
         // 执行置顶状态更新
         boolean result = chatSessionService.topSession(roomId, userId, status);
         return ResultUtils.success(result);
+    }
+
+    /**
+     * 开启/关闭会话免打扰
+     */
+    @PostMapping("/mute")
+    @OperationLog(module = "会话管理", action = "会话免打扰")
+    @Operation(summary = "会话免打扰", description = "修改指定会话的免打扰状态")
+    public BaseResponse<Boolean> muteSession(@RequestBody ChatSessionMuteRequest request) {
+        ThrowUtils.throwIf(request == null || request.getRoomId() == null || request.getMuteStatus() == null,
+                ErrorCode.PARAMS_ERROR);
+        Long userId = SecurityUtils.getLoginUserId();
+        return ResultUtils.success(chatSessionService.muteSession(request.getRoomId(), userId, request.getMuteStatus()));
     }
 
     /**

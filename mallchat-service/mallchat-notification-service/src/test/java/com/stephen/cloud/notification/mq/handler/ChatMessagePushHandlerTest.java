@@ -105,9 +105,9 @@ class ChatMessagePushHandlerTest {
     }
 
     @Test
-    void shouldPreferRoomMemberCacheWhenSnapshotAlsoExists() throws Exception {
+    void shouldRespectMessageUserIdsAsAllowlistWhenRoomMemberCacheAlsoExists() throws Exception {
         Long roomId = 100L;
-        cacheUtils.roomMembers.put(ChatCacheConstant.getRoomMemberKey(roomId), Set.of("3"));
+        cacheUtils.roomMembers.put(ChatCacheConstant.getRoomMemberKey(roomId), Set.of("1", "2", "3"));
 
         WebSocketMessage wsMessage = WebSocketMessage.builder()
                 .roomId(roomId)
@@ -118,9 +118,9 @@ class ChatMessagePushHandlerTest {
 
         handler.onMessage(wsMessage, RabbitMessage.builder().msgId("msg-1").build());
 
-        Assertions.assertNull(channelManager.writeCountByUser.get("1"));
-        Assertions.assertNull(channelManager.writeCountByUser.get("2"));
-        Assertions.assertEquals(1, channelManager.writeCountByUser.get("3"));
+        Assertions.assertEquals(1, channelManager.writeCountByUser.get("1"));
+        Assertions.assertEquals(1, channelManager.writeCountByUser.get("2"));
+        Assertions.assertNull(channelManager.writeCountByUser.get("3"));
     }
 
     @Test

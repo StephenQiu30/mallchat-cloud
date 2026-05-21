@@ -67,6 +67,7 @@ class ChatRoomServiceImplTest {
     private List<NotificationCreateRequest> notifications;
     private boolean notificationFails;
     private int notificationAttempts;
+    private ChatRoomMember updatedRoomMember;
 
     @BeforeEach
     void setUp() {
@@ -466,6 +467,56 @@ class ChatRoomServiceImplTest {
     }
 
     @Test
+    void shouldGrantAdminForOwnerAndMemberTarget() {
+        chatRoomService.stubRoom = buildGroupRoom();
+        currentUserIsOwner = true;
+        targetMember = buildMember(90L, 2L, ChatRoomRoleEnum.MEMBER.getCode());
+
+        chatRoomService.grantAdmin(90L, 2L, 1L);
+
+        Assertions.assertNotNull(updatedRoomMember);
+        Assertions.assertEquals(ChatRoomRoleEnum.ADMIN.getCode(), updatedRoomMember.getRole());
+    }
+
+    @Test
+    void shouldRevokeAdminForOwnerAndAdminTarget() {
+        chatRoomService.stubRoom = buildGroupRoom();
+        currentUserIsOwner = true;
+        targetMember = buildMember(90L, 2L, ChatRoomRoleEnum.ADMIN.getCode());
+
+        chatRoomService.revokeAdmin(90L, 2L, 1L);
+
+        Assertions.assertNotNull(updatedRoomMember);
+        Assertions.assertEquals(ChatRoomRoleEnum.MEMBER.getCode(), updatedRoomMember.getRole());
+    }
+
+    @Test
+    void shouldRejectAdminRoleChangeForNonOwner() {
+        chatRoomService.stubRoom = buildGroupRoom();
+        currentUserIsOwner = false;
+        targetMember = buildMember(90L, 2L, ChatRoomRoleEnum.MEMBER.getCode());
+
+        BusinessException exception = Assertions.assertThrows(BusinessException.class,
+                () -> chatRoomService.grantAdmin(90L, 2L, 3L));
+
+        Assertions.assertEquals(ErrorCode.NO_AUTH_ERROR.getCode(), exception.getCode());
+        Assertions.assertNull(updatedRoomMember);
+    }
+
+    @Test
+    void shouldRejectAdminRoleChangeForOwnerTarget() {
+        chatRoomService.stubRoom = buildGroupRoom();
+        currentUserIsOwner = true;
+        targetMember = buildMember(90L, 2L, ChatRoomRoleEnum.OWNER.getCode());
+
+        BusinessException exception = Assertions.assertThrows(BusinessException.class,
+                () -> chatRoomService.grantAdmin(90L, 2L, 1L));
+
+        Assertions.assertEquals(ErrorCode.OPERATION_ERROR.getCode(), exception.getCode());
+        Assertions.assertNull(updatedRoomMember);
+    }
+
+    @Test
     void shouldNotFailMemberRemovalWhenSessionDeletePushThrows() {
         chatRoomService.stubRoom = buildGroupRoom();
         currentUserIsOwner = true;
@@ -596,6 +647,10 @@ class ChatRoomServiceImplTest {
                         leftUserId = (Long) args[1];
                         leftUsers.add((Long) args[1]);
                         return null;
+                    }
+                    if ("updateById".equals(method.getName())) {
+                        updatedRoomMember = (ChatRoomMember) args[0];
+                        return true;
                     }
                     return defaultValue(method.getReturnType());
                 }

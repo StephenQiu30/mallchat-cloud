@@ -24,6 +24,7 @@
 | [A-018-m4-ops-observability-acceptance.md](./A-018-m4-ops-observability-acceptance.md) | m4 可观测性与运维门禁 Epic 验收 |
 | [A-019-m5-data-recovery-acceptance.md](./A-019-m5-data-recovery-acceptance.md) | m5 数据安全与备份恢复 Epic 验收 |
 | [A-020-m6-user-governance-acceptance.md](./A-020-m6-user-governance-acceptance.md) | m6 用户安全与关系治理 Epic 验收 |
+| [A-021-m7-room-message-experience-acceptance.md](./A-021-m7-room-message-experience-acceptance.md) | m7 群聊治理与消息体验 Epic 验收 |
 
 ## 不适合放入
 

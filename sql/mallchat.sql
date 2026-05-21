@@ -236,6 +236,7 @@ DROP TABLE IF EXISTS `chat_moment_comment`;
 DROP TABLE IF EXISTS `chat_moment_like`;
 DROP TABLE IF EXISTS `chat_moment_media`;
 DROP TABLE IF EXISTS `chat_moment`;
+DROP TABLE IF EXISTS `chat_room_join_apply`;
 DROP TABLE IF EXISTS `chat_room_member`;
 DROP TABLE IF EXISTS `chat_private_room`;
 DROP TABLE IF EXISTS `chat_room`;
@@ -331,6 +332,28 @@ CREATE TABLE `chat_room_member`
 ) ENGINE = InnoDB
   DEFAULT CHARSET = utf8mb4
   COLLATE = utf8mb4_unicode_ci COMMENT = '聊天室成员表';
+
+CREATE TABLE `chat_room_join_apply`
+(
+    `id`          bigint       NOT NULL AUTO_INCREMENT COMMENT '申请ID',
+    `room_id`     bigint       NOT NULL COMMENT '房间ID',
+    `user_id`     bigint       NOT NULL COMMENT '申请用户ID',
+    `reviewer_id` bigint                DEFAULT NULL COMMENT '审核用户ID',
+    `msg`         varchar(256) NOT NULL DEFAULT '' COMMENT '申请留言',
+    `review_msg`  varchar(256)          DEFAULT NULL COMMENT '审核留言',
+    `status`      tinyint      NOT NULL DEFAULT 1 COMMENT '状态：1-待处理，2-已同意，3-已拒绝',
+    `active_key`  varchar(64)           DEFAULT NULL COMMENT '待处理幂等键：roomId:userId',
+    `create_time` datetime     NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '申请时间',
+    `update_time` datetime     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+    `is_delete`   tinyint      NOT NULL DEFAULT 0 COMMENT '是否删除',
+    PRIMARY KEY (`id`),
+    UNIQUE KEY `uk_active_key` (`active_key`),
+    KEY `idx_room_status_time` (`room_id`, `status`, `create_time`),
+    KEY `idx_user_time` (`user_id`, `create_time`),
+    KEY `idx_reviewer_id` (`reviewer_id`)
+) ENGINE = InnoDB
+  DEFAULT CHARSET = utf8mb4
+  COLLATE = utf8mb4_unicode_ci COMMENT = '入群申请表';
 
 CREATE TABLE `chat_message`
 (
@@ -473,6 +496,7 @@ CREATE TABLE `chat_session`
     `last_read_message_id` bigint            DEFAULT NULL COMMENT '最后一条已读消息ID',
     `unread_count`         int      NOT NULL DEFAULT 0 COMMENT '未读数',
     `top_status`           tinyint  NOT NULL DEFAULT 0 COMMENT '置顶状态：0-否，1-是',
+    `mute_status`          tinyint  NOT NULL DEFAULT 0 COMMENT '免打扰状态：0-否，1-是',
     `active_time`          datetime NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '最后活跃时间（消息发送/变更时间）',
     `create_time`          datetime NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
     `update_time`          datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',

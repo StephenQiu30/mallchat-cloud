@@ -1,6 +1,7 @@
 package com.stephen.cloud.chat.controller;
 
 import com.stephen.cloud.api.chat.model.dto.ChatPrivateRoomRequest;
+import com.stephen.cloud.api.chat.model.dto.ChatRoomAdminRoleRequest;
 import com.stephen.cloud.api.chat.model.dto.ChatRoomMemberRemoveRequest;
 import com.stephen.cloud.api.chat.model.dto.ChatRoomUpdateRequest;
 import com.stephen.cloud.api.chat.model.dto.ChatRoomAddRequest;
@@ -142,6 +143,34 @@ public class ChatRoomController {
                 ErrorCode.PARAMS_ERROR);
         Long userId = SecurityUtils.getLoginUserId();
         chatRoomService.removeMember(request.getRoomId(), request.getMemberId(), userId);
+        return ResultUtils.success(true);
+    }
+
+    /**
+     * 任命群管理员
+     */
+    @PostMapping("/member/admin/grant")
+    @OperationLog(module = "聊天室管理", action = "任命群管理员")
+    @Operation(summary = "任命群管理员", description = "群主任命普通成员为管理员")
+    public BaseResponse<Boolean> grantAdmin(@Validated @RequestBody ChatRoomAdminRoleRequest request) {
+        ThrowUtils.throwIf(request == null || request.getRoomId() == null || request.getMemberId() == null,
+                ErrorCode.PARAMS_ERROR);
+        Long userId = SecurityUtils.getLoginUserId();
+        chatRoomService.grantAdmin(request.getRoomId(), request.getMemberId(), userId);
+        return ResultUtils.success(true);
+    }
+
+    /**
+     * 取消群管理员
+     */
+    @PostMapping("/member/admin/revoke")
+    @OperationLog(module = "聊天室管理", action = "取消群管理员")
+    @Operation(summary = "取消群管理员", description = "群主取消管理员角色")
+    public BaseResponse<Boolean> revokeAdmin(@Validated @RequestBody ChatRoomAdminRoleRequest request) {
+        ThrowUtils.throwIf(request == null || request.getRoomId() == null || request.getMemberId() == null,
+                ErrorCode.PARAMS_ERROR);
+        Long userId = SecurityUtils.getLoginUserId();
+        chatRoomService.revokeAdmin(request.getRoomId(), request.getMemberId(), userId);
         return ResultUtils.success(true);
     }
 

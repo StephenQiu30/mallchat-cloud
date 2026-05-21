@@ -326,6 +326,18 @@ public class ChatRoomServiceImpl extends ServiceImpl<ChatRoomMapper, ChatRoom>
 
     @Override
     @Transactional(rollbackFor = Exception.class)
+    public void grantAdmin(Long roomId, Long memberId, Long userId) {
+        updateAdminRole(roomId, memberId, userId, ChatRoomRoleEnum.ADMIN.getCode());
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void revokeAdmin(Long roomId, Long memberId, Long userId) {
+        updateAdminRole(roomId, memberId, userId, ChatRoomRoleEnum.MEMBER.getCode());
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
     public void quitRoom(Long roomId, Long userId) {
         ChatRoom room = getAccessibleRoom(roomId, userId);
         ThrowUtils.throwIf(!ChatRoomTypeEnum.GROUP.getCode().equals(room.getType()), ErrorCode.PARAMS_ERROR, "仅群聊支持退群");
@@ -372,6 +384,25 @@ public class ChatRoomServiceImpl extends ServiceImpl<ChatRoomMapper, ChatRoom>
         ThrowUtils.throwIf(room == null, ErrorCode.NOT_FOUND_ERROR, "聊天室不存在");
         ThrowUtils.throwIf(!chatRoomMemberService.isMember(roomId, userId), ErrorCode.NO_AUTH_ERROR, "您不在此聊天室中");
         return room;
+    }
+
+    private void updateAdminRole(Long roomId, Long memberId, Long userId, Integer targetRole) {
+        ThrowUtils.throwIf(roomId == null || memberId == null || userId == null, ErrorCode.PARAMS_ERROR);
+        ChatRoom room = this.getById(roomId);
+        ThrowUtils.throwIf(room == null, ErrorCode.NOT_FOUND_ERROR, "聊天室不存在");
+        ThrowUtils.throwIf(!ChatRoomTypeEnum.GROUP.getCode().equals(room.getType()), ErrorCode.PARAMS_ERROR, "仅群聊支持管理员任免");
+        ThrowUtils.throwIf(!chatRoomMemberService.isOwner(roomId, userId), ErrorCode.NO_AUTH_ERROR, "仅群主可任免管理员");
+
+        ChatRoomMember targetMember = chatRoomMemberService.getMember(roomId, memberId);
+        ThrowUtils.throwIf(targetMember == null, ErrorCode.NOT_FOUND_ERROR, "成员不在此群聊中");
+        ThrowUtils.throwIf(ChatRoomRoleEnum.OWNER.getCode().equals(targetMember.getRole()),
+                ErrorCode.OPERATION_ERROR, "不能任免群主为管理员");
+        if (Objects.equals(targetMember.getRole(), targetRole)) {
+            return;
+        }
+        targetMember.setRole(targetRole);
+        boolean updated = chatRoomMemberService.updateById(targetMember);
+        ThrowUtils.throwIf(!updated, ErrorCode.OPERATION_ERROR, "更新群成员角色失败");
     }
 
     private List<Long> sanitizeInviteMembers(List<Long> memberIds, Long currentUserId) {

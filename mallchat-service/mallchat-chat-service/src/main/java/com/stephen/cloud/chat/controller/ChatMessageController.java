@@ -1,5 +1,6 @@
 package com.stephen.cloud.chat.controller;
 
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.stephen.cloud.api.chat.model.dto.ChatMessageReadRequest;
 import com.stephen.cloud.api.chat.model.dto.ChatMessageSendRequest;
 import com.stephen.cloud.api.chat.model.vo.ChatMessageReadStatusVO;
@@ -132,6 +133,20 @@ public class ChatMessageController {
         Long userId = SecurityUtils.getLoginUserId();
         List<ChatMessageVO> messages = chatMessageService.listMessagesAfter(roomId, afterMessageId, limit, userId);
         return ResultUtils.success(messages);
+    }
+
+    /**
+     * 搜索文本消息
+     */
+    @GetMapping("/search/vo")
+    @Operation(summary = "搜索文本消息", description = "在指定房间内按关键词搜索文本消息")
+    public BaseResponse<Page<ChatMessageVO>> searchMessages(
+            @Parameter(description = "房间ID", required = true) @RequestParam Long roomId,
+            @Parameter(description = "关键词", required = true) @RequestParam String keyword,
+            @Parameter(description = "当前页", example = "1") @RequestParam(defaultValue = "1") Long current,
+            @Parameter(description = "每页数量", example = "20") @RequestParam(defaultValue = "20") Long pageSize) {
+        Long userId = SecurityUtils.getLoginUserId();
+        return ResultUtils.success(chatMessageService.searchMessages(roomId, keyword, current, pageSize, userId));
     }
 
     /**

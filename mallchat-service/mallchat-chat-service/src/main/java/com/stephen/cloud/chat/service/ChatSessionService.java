@@ -60,6 +60,16 @@ public interface ChatSessionService extends IService<ChatSession> {
     boolean topSession(Long roomId, Long userId, Integer topStatus);
 
     /**
+     * 修改会话免打扰状态
+     *
+     * @param roomId     房间ID
+     * @param userId     当前用户ID
+     * @param muteStatus 免打扰状态：0-关闭，1-开启
+     * @return 是否成功
+     */
+    boolean muteSession(Long roomId, Long userId, Integer muteStatus);
+
+    /**
      * 删除会话
      *
      * @param roomId 房间ID
@@ -87,4 +97,14 @@ public interface ChatSessionService extends IService<ChatSession> {
      * @param senderId      发送者ID（发送者不增加未读数）
      */
     void updateSessionBatch(List<Long> userIds, Long roomId, Long lastMessageId, Long senderId);
+
+    /**
+     * 过滤实时聊天消息推送目标，免打扰接收者不接收 CHAT_MESSAGE 推送
+     *
+     * @param roomId   房间ID
+     * @param userIds  候选用户列表
+     * @param senderId 发送者ID
+     * @return 实际推送用户列表
+     */
+    List<Long> filterPushUserIds(Long roomId, List<Long> userIds, Long senderId);
 }
