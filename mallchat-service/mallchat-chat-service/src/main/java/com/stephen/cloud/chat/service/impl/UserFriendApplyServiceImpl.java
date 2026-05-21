@@ -9,6 +9,7 @@ import com.stephen.cloud.api.chat.model.vo.ChatFriendApplyVO;
 import com.stephen.cloud.api.notification.client.NotificationFeignClient;
 import com.stephen.cloud.api.notification.model.dto.NotificationCreateRequest;
 import com.stephen.cloud.api.notification.model.enums.NotificationTypeEnum;
+import com.stephen.cloud.api.notification.model.vo.NotificationIdVO;
 import com.stephen.cloud.api.user.client.UserFeignClient;
 import com.stephen.cloud.api.user.model.vo.UserVO;
 import com.stephen.cloud.chat.convert.ChatFriendApplyConvert;
@@ -291,7 +292,7 @@ public class UserFriendApplyServiceImpl extends ServiceImpl<UserFriendApplyMappe
         request.setRelatedType(RELATED_TYPE_USER_FRIEND_APPLY);
         request.setContentUrl("/chat/friend/apply?id=" + applyId);
         request.setBizId(bizId);
-        BaseResponse<Long> response = notificationFeignClient.addBusinessNotification(request);
+        BaseResponse<NotificationIdVO> response = notificationFeignClient.addBusinessNotification(request);
         ThrowUtils.throwIf(response == null || response.getData() == null,
                 ErrorCode.OPERATION_ERROR, "创建好友通知失败");
     }

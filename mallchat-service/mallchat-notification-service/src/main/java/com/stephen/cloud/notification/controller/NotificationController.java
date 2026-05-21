@@ -4,7 +4,7 @@ import cn.dev33.satoken.annotation.SaCheckRole;
 import cn.hutool.core.collection.CollUtil;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.stephen.cloud.api.notification.model.dto.*;
-import com.stephen.cloud.api.notification.model.vo.NotificationVO;
+import com.stephen.cloud.api.notification.model.vo.*;
 import com.stephen.cloud.common.auth.utils.SecurityUtils;
 import com.stephen.cloud.common.common.*;
 import com.stephen.cloud.common.constants.UserConstant;
@@ -16,6 +16,7 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -54,11 +55,12 @@ public class NotificationController {
     @OperationLog(module = "通知管理", action = "智能创建通知")
     @SaCheckRole(UserConstant.ADMIN_ROLE)
     @Operation(summary = "批量发布通知", description = "管理员向全员、特定角色或指定用户组批量下发实时通知")
-    public BaseResponse<List<Long>> addNotification(@RequestBody NotificationAddRequest notificationAddRequest) {
+    public BaseResponse<NotificationIdListVO> addNotification(
+            @RequestBody NotificationAddRequest notificationAddRequest) {
         ThrowUtils.throwIf(notificationAddRequest == null, ErrorCode.PARAMS_ERROR);
         // 执行分发逻辑，内部包含事务处理与异步推送
         List<Long> ids = notificationService.addNotification(notificationAddRequest);
-        return ResultUtils.success(ids);
+        return ResultUtils.success(NotificationIdListVO.of(ids));
     }
 
     /**
@@ -69,7 +71,8 @@ public class NotificationController {
      */
     @PostMapping("/internal/add")
     @Operation(summary = "创建业务通知", description = "供内部业务服务创建点赞、评论等业务通知")
-    public BaseResponse<Long> addBusinessNotification(@RequestBody NotificationCreateRequest request) {
+    public BaseResponse<NotificationIdVO> addBusinessNotification(
+            @Validated @RequestBody NotificationCreateRequest request) {
         ThrowUtils.throwIf(request == null, ErrorCode.PARAMS_ERROR);
         Notification notification = new Notification();
         notification.setTitle(request.getTitle());
@@ -82,22 +85,24 @@ public class NotificationController {
         notification.setContentUrl(request.getContentUrl());
         notification.setStatus(0);
         notification.setIsDelete(0);
-        return ResultUtils.success(notificationService.addNotification(notification));
+        return ResultUtils.success(NotificationIdVO.of(notificationService.addNotification(notification)));
     }
 
     /**
      * 删除通知
      *
-     * @param deleteRequest 删除请求
+     * @param request 删除请求
      * @return 是否删除成功
      */
     @PostMapping("/delete")
     @OperationLog(module = "通知管理", action = "删除通知")
     @Operation(summary = "删除通知", description = "删除指定通知，仅本人或管理员可操作")
-    public BaseResponse<Boolean> deleteNotification(@RequestBody DeleteRequest deleteRequest) {
-        ThrowUtils.throwIf(deleteRequest == null || deleteRequest.getId() <= 0, ErrorCode.PARAMS_ERROR);
+    public BaseResponse<NotificationOperationResultVO> deleteNotification(
+            @Validated @RequestBody NotificationIdRequest request) {
+        ThrowUtils.throwIf(request == null || request.getId() == null || request.getId() <= 0,
+                ErrorCode.PARAMS_ERROR);
         Long userId = SecurityUtils.getLoginUserId();
-        long id = deleteRequest.getId();
+        long id = request.getId();
         // 判断是否存在
         Notification notification = notificationService.getById(id);
         ThrowUtils.throwIf(notification == null, ErrorCode.NOT_FOUND_ERROR);
@@ -105,7 +110,7 @@ public class NotificationController {
         ThrowUtils.throwIf(!notification.getUserId().equals(userId) && !SecurityUtils.isAdmin(),
                 ErrorCode.NO_AUTH_ERROR);
         boolean result = notificationService.removeById(id);
-        return ResultUtils.success(result);
+        return ResultUtils.success(NotificationOperationResultVO.of(result));
     }
 
     /**
@@ -118,7 +123,8 @@ public class NotificationController {
     @OperationLog(module = "通知管理", action = "更新通知")
     @SaCheckRole(UserConstant.ADMIN_ROLE)
     @Operation(summary = "更新通知", description = "更新指定通知，仅管理员可用")
-    public BaseResponse<Boolean> updateNotification(@RequestBody NotificationUpdateRequest notificationUpdateRequest) {
+    public BaseResponse<NotificationOperationResultVO> updateNotification(
+            @RequestBody NotificationUpdateRequest notificationUpdateRequest) {
         ThrowUtils.throwIf(notificationUpdateRequest == null || notificationUpdateRequest.getId() == null,
                 ErrorCode.PARAMS_ERROR);
         long id = notificationUpdateRequest.getId();
@@ -133,20 +139,21 @@ public class NotificationController {
         boolean result = notificationService.updateById(notification);
         ThrowUtils.throwIf(!result, ErrorCode.OPERATION_ERROR);
 
-        return ResultUtils.success(result);
+        return ResultUtils.success(NotificationOperationResultVO.of(result));
     }
 
     /**
      * 根据 ID 获取通知（视图对象）
      *
-     * @param id 通知 ID
+     * @param request 通知 ID 请求
      * @return 通知信息
      */
     @GetMapping("/get/vo")
     @Operation(summary = "获取通知详情", description = "根据 ID 获取通知脱敏后的视图对象")
-    public BaseResponse<NotificationVO> getNotificationVOById(
-            @io.swagger.v3.oas.annotations.Parameter(description = "通知ID", required = true, example = "1") @RequestParam("id") long id) {
-        ThrowUtils.throwIf(id <= 0, ErrorCode.PARAMS_ERROR);
+    public BaseResponse<NotificationVO> getNotificationVOById(@Validated NotificationIdRequest request) {
+        ThrowUtils.throwIf(request == null || request.getId() == null || request.getId() <= 0,
+                ErrorCode.PARAMS_ERROR);
+        Long id = request.getId();
         Notification notification = notificationService.getById(id);
         ThrowUtils.throwIf(notification == null, ErrorCode.NOT_FOUND_ERROR);
         // 仅本人或管理员可查看
@@ -165,7 +172,7 @@ public class NotificationController {
     @PostMapping("/list/page")
     @SaCheckRole(UserConstant.ADMIN_ROLE)
     @Operation(summary = "分页获取通知列表（用于同步）", description = "获取系统通知的完整记录分页列表，仅限管理员权限。")
-    public BaseResponse<Page<Notification>> listNotificationByPage(
+    public BaseResponse<Page<NotificationVO>> listNotificationByPage(
             @RequestBody NotificationQueryRequest notificationQueryRequest) {
         ThrowUtils.throwIf(notificationQueryRequest == null, ErrorCode.PARAMS_ERROR);
         long current = notificationQueryRequest.getCurrent();
@@ -174,7 +181,7 @@ public class NotificationController {
         ThrowUtils.throwIf(size > 20, ErrorCode.PARAMS_ERROR);
         Page<Notification> notificationPage = notificationService.page(new Page<>(current, size),
                 notificationService.getQueryWrapper(notificationQueryRequest));
-        return ResultUtils.success(notificationPage);
+        return ResultUtils.success(notificationService.getNotificationVOPage(notificationPage));
     }
 
     /**
@@ -234,12 +241,13 @@ public class NotificationController {
     @PostMapping("/read")
     @OperationLog(module = "通知管理", action = "标记已读")
     @Operation(summary = "标记已读", description = "将指定通知标记为已读状态")
-    public BaseResponse<Boolean> markNotificationRead(@RequestBody NotificationReadRequest notificationReadRequest) {
+    public BaseResponse<NotificationOperationResultVO> markNotificationRead(
+            @RequestBody NotificationReadRequest notificationReadRequest) {
         ThrowUtils.throwIf(notificationReadRequest == null || notificationReadRequest.getId() == null
                 || notificationReadRequest.getId() <= 0, ErrorCode.PARAMS_ERROR);
         boolean result = notificationService.markRead(notificationReadRequest.getId(), SecurityUtils.getLoginUserId(),
                 SecurityUtils.isAdmin());
-        return ResultUtils.success(result);
+        return ResultUtils.success(NotificationOperationResultVO.of(result));
     }
 
     /**
@@ -250,10 +258,10 @@ public class NotificationController {
     @PostMapping("/read/all")
     @OperationLog(module = "通知管理", action = "全部标记已读")
     @Operation(summary = "全量已读", description = "一键将当前用户名下的所有未读状态通知更新为已读状态")
-    public BaseResponse<Boolean> markAllNotificationRead() {
+    public BaseResponse<NotificationOperationResultVO> markAllNotificationRead() {
         // 获取当前用户 ID 并执行全量更新操作
         boolean result = notificationService.markAllRead(SecurityUtils.getLoginUserId());
-        return ResultUtils.success(result);
+        return ResultUtils.success(NotificationOperationResultVO.of(result));
     }
 
     /**
@@ -263,9 +271,9 @@ public class NotificationController {
      */
     @GetMapping("/unread/count")
     @Operation(summary = "获取未读通知数", description = "获取当前用户未读通知的总数")
-    public BaseResponse<Long> getNotificationUnreadCount() {
+    public BaseResponse<NotificationUnreadCountVO> getNotificationUnreadCount() {
         long count = notificationService.getUnreadCount(SecurityUtils.getLoginUserId());
-        return ResultUtils.success(count);
+        return ResultUtils.success(NotificationUnreadCountVO.of(count));
     }
 
     /**
@@ -277,13 +285,13 @@ public class NotificationController {
     @PostMapping("/batch/delete")
     @OperationLog(module = "通知管理", action = "批量删除通知")
     @Operation(summary = "批量删除通知", description = "批量删除选中的通知")
-    public BaseResponse<Integer> batchDeleteNotification(
+    public BaseResponse<NotificationBatchOperationResultVO> batchDeleteNotification(
             @RequestBody NotificationBatchDeleteRequest batchDeleteRequest) {
         ThrowUtils.throwIf(batchDeleteRequest == null || CollUtil.isEmpty(batchDeleteRequest.getIds()),
                 ErrorCode.PARAMS_ERROR);
         int count = notificationService.batchDeleteNotification(batchDeleteRequest.getIds(),
                 SecurityUtils.getLoginUserId(), SecurityUtils.isAdmin());
-        return ResultUtils.success(count);
+        return ResultUtils.success(NotificationBatchOperationResultVO.of(batchDeleteRequest.getIds().size(), count));
     }
 
     /**
@@ -295,11 +303,12 @@ public class NotificationController {
     @PostMapping("/batch/read")
     @OperationLog(module = "通知管理", action = "批量标记已读")
     @Operation(summary = "批量标记已读", description = "批量将选中通知标记为已读")
-    public BaseResponse<Integer> batchMarkNotificationRead(@RequestBody NotificationBatchReadRequest batchReadRequest) {
+    public BaseResponse<NotificationBatchOperationResultVO> batchMarkNotificationRead(
+            @RequestBody NotificationBatchReadRequest batchReadRequest) {
         ThrowUtils.throwIf(batchReadRequest == null || CollUtil.isEmpty(batchReadRequest.getIds()),
                 ErrorCode.PARAMS_ERROR);
         int count = notificationService.batchMarkRead(batchReadRequest.getIds(), SecurityUtils.getLoginUserId(),
                 SecurityUtils.isAdmin());
-        return ResultUtils.success(count);
+        return ResultUtils.success(NotificationBatchOperationResultVO.of(batchReadRequest.getIds().size(), count));
     }
 }

@@ -74,9 +74,10 @@ public class NotificationServiceImpl extends ServiceImpl<NotificationMapper, Not
         }
         String title = notification.getTitle();
         String content = notification.getContent();
+        String type = notification.getType();
         if (add) {
-            if (StringUtils.isAnyBlank(title, content)) {
-                throw new BusinessException(ErrorCode.PARAMS_ERROR, "标题或内容不能为空");
+            if (StringUtils.isAnyBlank(title, content, type) || notification.getUserId() == null) {
+                throw new BusinessException(ErrorCode.PARAMS_ERROR, "通知必填字段不能为空");
             }
         }
         if (StringUtils.isNotBlank(title) && title.length() > 256) {
@@ -127,7 +128,7 @@ public class NotificationServiceImpl extends ServiceImpl<NotificationMapper, Not
 
         // 排序逻辑
         queryWrapper.orderBy(SqlUtils.validSortField(sortField),
-                sortOrder.equals(CommonConstant.SORT_ORDER_ASC),
+                CommonConstant.SORT_ORDER_ASC.equals(sortOrder),
                 Notification::getCreateTime);
 
         return queryWrapper;

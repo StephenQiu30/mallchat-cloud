@@ -18,7 +18,7 @@ inputs:
   - "GitHub Issue #59"
 outputs:
   - "m12 支撑领域工程化一致性审查清单"
-  - "m12 后续 #60/#61/#62 TDD 修正输入"
+  - "m12 #60/#61/#62 TDD 修正与 #63 验收输入"
 triggers:
   - "消费 m12 Issue #59"
 downstream:
@@ -135,10 +135,31 @@ downstream:
 3. 新增 `FileUploadContractConsistencyTest` 固化 multipart 边界和上传大小配置，防止后续被机械 DTO 化或配置回退。
 4. 未修改 `FileVO` 字段，也未引入上传 JSON DTO，保持现有前端和 Feign 调用方式。
 
-## 11. 变更记录
+## 11. #62 TDD 记录
+
+| 阶段 | 命令 | 结果 | 说明 |
+| --- | --- | --- | --- |
+| RED | `mvn -B -pl mallchat-service/mallchat-notification-service -am -Dtest=NotificationApiContractConsistencyTest -Dsurefire.failIfNoSpecifiedTests=false test` | 失败 | 契约护栏发现 14 个接口违例：裸 `Long/Boolean/Integer/List<Long>` 响应、通用 `DeleteRequest`、`@RequestParam` 和 `NotificationCreateRequest` 必填注解缺口 |
+| GREEN | `mvn -B -pl mallchat-service/mallchat-notification-service -am -Dtest=NotificationApiContractConsistencyTest -Dsurefire.failIfNoSpecifiedTests=false test` | 通过 | 新增通知 DTO/VO 薄封装后，契约护栏 3/3 通过 |
+| Focused | `mvn -B -pl mallchat-service/mallchat-notification-service -am -Dsurefire.failIfNoSpecifiedTests=false test` | 通过 | notification-service 18 tests，0 failures，0 errors |
+| Compile | `mvn -B -pl mallchat-service/mallchat-chat-service -am -DskipTests compile` | 通过 | chat-service 编译通过，验证 `NotificationFeignClient` 返回类型变化未破坏调用方 |
+
+## 12. #62 修正内容
+
+1. 新增 `NotificationIdRequest`，替代通知详情和删除接口中的裸 ID / 通用 `DeleteRequest`。
+2. 新增 `NotificationIdVO`、`NotificationIdListVO`、`NotificationOperationResultVO`、`NotificationUnreadCountVO`、`NotificationBatchOperationResultVO`，替代裸 ID、裸布尔值、裸数量和 `List<Long>` 响应。
+3. 为 `NotificationCreateRequest` 的 `userId/title/content/type` 补充 Bean Validation 必填注解，业务通知调用边界更明确。
+4. `NotificationController` 的管理分页返回 `Page<NotificationVO>`，不再直接暴露 `Notification` 实体。
+5. `NotificationFeignClient` 对齐 Controller 契约：详情查询使用 `NotificationIdRequest`，业务通知返回 `NotificationIdVO`。
+6. 同步 chat 侧 4 个业务通知调用的返回类型，保持跨服务调用可编译。
+7. 修正通知查询 `sortOrder` 为空时的 NPE 风险，并用契约测试固化。
+8. 未扩展 read/unread/batch 的 Feign 能力，不为了接口对称增加未使用 RPC。
+
+## 13. 变更记录
 
 | 日期 | 作者 | 版本 | 变更说明 |
 | --- | --- | --- | --- |
 | 2026-05-21 | StephenQiu30 | 0.1.0 | 初始化 m12 支撑领域工程化一致性审查清单 |
 | 2026-05-21 | StephenQiu30 | 0.1.1 | 记录 #60 log 契约 TDD 修正和 focused tests 结果 |
 | 2026-05-21 | StephenQiu30 | 0.1.2 | 记录 #61 file 上传边界 TDD 修正和 focused tests 结果 |
+| 2026-05-21 | StephenQiu30 | 0.1.3 | 记录 #62 notification 契约 TDD 修正、focused tests 和 chat 侧编译验证结果 |
