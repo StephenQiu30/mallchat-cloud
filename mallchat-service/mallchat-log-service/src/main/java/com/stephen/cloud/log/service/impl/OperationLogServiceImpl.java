@@ -15,6 +15,8 @@ import org.apache.commons.lang3.StringUtils;
 import org.springframework.beans.BeanUtils;
 import org.springframework.stereotype.Service;
 
+import java.util.Date;
+
 /**
  * 操作日志服务实现
  *
@@ -47,21 +49,27 @@ public class OperationLogServiceImpl extends ServiceImpl<OperationLogMapper, Ope
         }
         Long id = queryRequest.getId();
         Long operatorId = queryRequest.getOperatorId();
+        String operatorName = queryRequest.getOperatorName();
         String module = queryRequest.getModule();
         String action = queryRequest.getAction();
         String bizId = queryRequest.getBizId();
         Integer success = queryRequest.getSuccess();
         String clientIp = queryRequest.getClientIp();
+        Date startTime = queryRequest.getStartTime();
+        Date endTime = queryRequest.getEndTime();
         String sortField = queryRequest.getSortField();
         String sortOrder = queryRequest.getSortOrder();
 
         queryWrapper.eq(ObjectUtil.isNotNull(id), OperationLog::getId, id);
         queryWrapper.eq(ObjectUtil.isNotNull(operatorId), OperationLog::getOperatorId, operatorId);
+        queryWrapper.like(StringUtils.isNotBlank(operatorName), OperationLog::getOperatorName, operatorName);
         queryWrapper.eq(StringUtils.isNotBlank(module), OperationLog::getModule, module);
         queryWrapper.like(StringUtils.isNotBlank(action), OperationLog::getAction, action);
         queryWrapper.eq(StringUtils.isNotBlank(bizId), OperationLog::getBizId, bizId);
         queryWrapper.eq(ObjectUtil.isNotNull(success), OperationLog::getSuccess, success);
         queryWrapper.eq(StringUtils.isNotBlank(clientIp), OperationLog::getClientIp, clientIp);
+        queryWrapper.ge(ObjectUtil.isNotNull(startTime), OperationLog::getCreateTime, startTime);
+        queryWrapper.le(ObjectUtil.isNotNull(endTime), OperationLog::getCreateTime, endTime);
 
         if (SqlUtils.validSortField(sortField)) {
             boolean isAsc = CommonConstant.SORT_ORDER_ASC.equalsIgnoreCase(sortOrder);
