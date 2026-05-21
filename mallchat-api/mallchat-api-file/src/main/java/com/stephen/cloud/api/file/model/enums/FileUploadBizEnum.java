@@ -25,7 +25,17 @@ public enum FileUploadBizEnum {
     /**
      * 聊天文件
      */
-    CHAT_FILE("chat_file", "聊天文件");
+    CHAT_FILE("chat_file", "聊天文件"),
+
+    /**
+     * 聊天语音
+     */
+    CHAT_VOICE("chat_voice", "聊天语音"),
+
+    /**
+     * 聊天视频
+     */
+    CHAT_VIDEO("chat_video", "聊天视频");
 
     private final String code;
     private final String desc;

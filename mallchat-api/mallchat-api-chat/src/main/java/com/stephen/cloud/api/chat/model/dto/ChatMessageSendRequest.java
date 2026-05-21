@@ -36,9 +36,9 @@ public class ChatMessageSendRequest implements Serializable {
     private String content;
 
     /**
-     * 消息类型：1-文本，2-图片，3-文件
+     * 消息类型：1-文本，2-图片，3-文件，4-语音，5-视频，6-表情
      */
-    @Schema(description = "消息类型：1-文本，2-图片，3-文件", example = "1")
+    @Schema(description = "消息类型：1-文本，2-图片，3-文件，4-语音，5-视频，6-表情", example = "1")
     @NotNull(message = "消息类型不能为空")
     private Integer type;
 

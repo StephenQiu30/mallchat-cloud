@@ -126,3 +126,54 @@ The system SHALL keep message-flow business facts successful even when session r
 - **AND** the persisted message and session facts remain updated
 - **AND** the system continues attempting session refresh pushes for remaining members
 
+### Requirement: 会话应支持免打扰状态
+The system SHALL allow a room member to update a session-level mute status and SHALL expose that status in session list data.
+
+#### Scenario: 开启或关闭会话免打扰
+- **WHEN** a room member updates `muteStatus` to `0` or `1`
+- **THEN** the system persists the status on the user's chat session
+- **AND** returns the status in `ChatSessionVO`
+
+#### Scenario: 免打扰更新推送失败降级
+- **WHEN** the mute status is persisted successfully
+- **AND** the session update realtime push fails
+- **THEN** the persisted mute status remains successful
+- **AND** the failure is degraded
+
+#### Scenario: 非成员不可设置免打扰
+- **WHEN** a user who is not a room member updates mute status for that room
+- **THEN** the system rejects the request
+
+#### Scenario: 免打扰不影响未读事实
+- **WHEN** a muted receiver receives a new room message
+- **THEN** the receiver session unread count still increases according to the normal message lifecycle
+
+### Requirement: Session unread updates are idempotent for duplicate message events
+The system SHALL NOT increment session unread counts more than once for the same persisted message id.
+
+#### Scenario: Duplicate message event is applied to existing sessions
+- **WHEN** session batch update receives a message id that is equal to or older than a session's current `lastMessageId`
+- **THEN** the system SHALL keep that session's `lastMessageId`
+- **AND** the system SHALL NOT increment that session's unread count again
+
+### Requirement: 语音消息会话预览应稳定展示
+The system SHALL show a stable placeholder preview for voice messages in session lists.
+
+#### Scenario: 语音消息进入会话列表
+- **WHEN** a session's latest normal message is a voice message
+- **THEN** the session preview is `[语音]`
+
+### Requirement: 视频消息会话预览应稳定展示
+The system SHALL show a stable placeholder preview for video messages in session lists.
+
+#### Scenario: 视频消息进入会话列表
+- **WHEN** a session's latest normal message is a video message
+- **THEN** the session preview is `[视频]`
+
+### Requirement: 表情贴纸消息会话预览应稳定展示
+The system SHALL show a stable placeholder preview for sticker messages in session lists.
+
+#### Scenario: 表情贴纸消息进入会话列表
+- **WHEN** a session's latest normal message is a sticker message
+- **THEN** the session preview is `[表情]`
+

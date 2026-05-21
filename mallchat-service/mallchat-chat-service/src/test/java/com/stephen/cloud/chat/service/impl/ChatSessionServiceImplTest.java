@@ -86,22 +86,32 @@ class ChatSessionServiceImplTest {
     }
 
     @Test
-    void shouldBuildImageAndFileSessionPreviewPlaceholders() {
+    void shouldBuildRichMessageSessionPreviewPlaceholders() {
         ChatSession imageSession = createSession(1L, 10L, 0, 0);
         ChatSession fileSession = createSession(2L, 11L, 0, 0);
-        chatSessionService.listResult = List.of(imageSession, fileSession);
+        ChatSession voiceSession = createSession(3L, 12L, 0, 0);
+        ChatSession videoSession = createSession(4L, 13L, 0, 0);
+        ChatSession stickerSession = createSession(5L, 14L, 0, 0);
+        chatSessionService.listResult = List.of(imageSession, fileSession, voiceSession, videoSession, stickerSession);
         rooms = List.of(
                 createRoom(1L, ChatRoomTypeEnum.GROUP.getCode(), "group-1"),
-                createRoom(2L, ChatRoomTypeEnum.GROUP.getCode(), "group-2")
+                createRoom(2L, ChatRoomTypeEnum.GROUP.getCode(), "group-2"),
+                createRoom(3L, ChatRoomTypeEnum.GROUP.getCode(), "group-3"),
+                createRoom(4L, ChatRoomTypeEnum.GROUP.getCode(), "group-4"),
+                createRoom(5L, ChatRoomTypeEnum.GROUP.getCode(), "group-5")
         );
         messages = List.of(
                 createMessage(10L, 1L, "", ChatMessageTypeEnum.IMAGE),
-                createMessage(11L, 2L, "", ChatMessageTypeEnum.FILE)
+                createMessage(11L, 2L, "", ChatMessageTypeEnum.FILE),
+                createMessage(12L, 3L, "", ChatMessageTypeEnum.VOICE),
+                createMessage(13L, 4L, "", ChatMessageTypeEnum.VIDEO),
+                createMessage(14L, 5L, "", ChatMessageTypeEnum.STICKER)
         );
 
         List<ChatSessionVO> sessions = chatSessionService.listMySessions(1L);
 
-        Assertions.assertEquals(List.of("[图片]", "[文件]"), sessions.stream().map(ChatSessionVO::getLastMessage).toList());
+        Assertions.assertEquals(List.of("[图片]", "[文件]", "[语音]", "[视频]", "[表情]"),
+                sessions.stream().map(ChatSessionVO::getLastMessage).toList());
     }
 
     @Test

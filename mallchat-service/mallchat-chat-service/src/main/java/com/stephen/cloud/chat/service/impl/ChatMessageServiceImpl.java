@@ -215,6 +215,29 @@ public class ChatMessageServiceImpl extends ServiceImpl<ChatMessageMapper, ChatM
     }
 
     @Override
+    @Transactional(rollbackFor = Exception.class)
+    public ChatMessageVO forwardMessage(Long sourceMessageId, Long targetRoomId, String clientMsgId, Long userId) {
+        ThrowUtils.throwIf(sourceMessageId == null || sourceMessageId <= 0
+                || targetRoomId == null || targetRoomId <= 0 || userId == null, ErrorCode.PARAMS_ERROR);
+        ThrowUtils.throwIf(StringUtils.isBlank(clientMsgId), ErrorCode.PARAMS_ERROR, "客户端消息ID不能为空");
+
+        ChatMessage source = this.getById(sourceMessageId);
+        ThrowUtils.throwIf(source == null, ErrorCode.NOT_FOUND_ERROR, "消息不存在");
+        ThrowUtils.throwIf(!Objects.equals(source.getStatus(), MessageStatusEnum.NORMAL.getCode()),
+                ErrorCode.PARAMS_ERROR, "消息不可转发");
+        ThrowUtils.throwIf(!chatRoomMemberService.isMember(source.getRoomId(), userId),
+                ErrorCode.NO_AUTH_ERROR, "您不在此聊天室中");
+
+        ChatMessage target = new ChatMessage();
+        target.setRoomId(targetRoomId);
+        target.setClientMsgId(clientMsgId);
+        target.setType(source.getType());
+        target.setContent(source.getContent());
+        target.setExtra(source.getExtra());
+        return sendMessage(target, userId);
+    }
+
+    @Override
     public List<ChatMessageVO> listHistoryMessages(Long roomId, Long lastMessageId, Integer limit, Long userId) {
         ThrowUtils.throwIf(roomId == null || userId == null, ErrorCode.PARAMS_ERROR);
         ThrowUtils.throwIf(!chatRoomMemberService.isMember(roomId, userId), ErrorCode.NO_AUTH_ERROR, "您不在此聊天室中");
@@ -453,6 +476,8 @@ public class ChatMessageServiceImpl extends ServiceImpl<ChatMessageMapper, ChatM
                     .eq(ChatPrivateRoom::getRoomId, roomId)
                     .last("LIMIT 1"));
             ThrowUtils.throwIf(privateRoom == null, ErrorCode.SYSTEM_ERROR, "私聊房间映射不存在");
+            ThrowUtils.throwIf(!Objects.equals(userId, privateRoom.getUserLow())
+                    && !Objects.equals(userId, privateRoom.getUserHigh()), ErrorCode.NO_AUTH_ERROR, "您不在此聊天室中");
 
             Long peerUserId = Objects.equals(userId, privateRoom.getUserLow()) ? privateRoom.getUserHigh() : privateRoom.getUserLow();
             ThrowUtils.throwIf(userFriendService.isBlockedBetween(userId, peerUserId), ErrorCode.NO_AUTH_ERROR, "双方存在拉黑关系");

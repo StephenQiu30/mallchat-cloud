@@ -69,6 +69,63 @@ class ChatMessageHelperTest {
     }
 
     @Test
+    void shouldAcceptVoiceMessageWithRequiredExtraFields() {
+        ChatMessage chatMessage = createMessage(ChatMessageTypeEnum.VOICE,
+                "{\"url\":\"https://example.com/a.m4a\",\"duration\":12,\"size\":2048,\"format\":\"m4a\"}");
+
+        Assertions.assertDoesNotThrow(() -> ChatMessageHelper.validate(chatMessage));
+    }
+
+    @Test
+    void shouldRejectVoiceMessageWithoutCompleteExtra() {
+        ChatMessage missingFormat = createMessage(ChatMessageTypeEnum.VOICE,
+                "{\"url\":\"https://example.com/a.m4a\",\"duration\":12,\"size\":2048}");
+        ChatMessage invalidDuration = createMessage(ChatMessageTypeEnum.VOICE,
+                "{\"url\":\"https://example.com/a.m4a\",\"duration\":0,\"size\":2048,\"format\":\"m4a\"}");
+
+        Assertions.assertThrows(BusinessException.class, () -> ChatMessageHelper.validate(missingFormat));
+        Assertions.assertThrows(BusinessException.class, () -> ChatMessageHelper.validate(invalidDuration));
+    }
+
+    @Test
+    void shouldAcceptVideoMessageWithRequiredExtraFields() {
+        ChatMessage chatMessage = createMessage(ChatMessageTypeEnum.VIDEO,
+                "{\"url\":\"https://example.com/a.mp4\",\"duration\":30,\"size\":4096,\"format\":\"mp4\",\"width\":720,\"height\":1280}");
+
+        Assertions.assertDoesNotThrow(() -> ChatMessageHelper.validate(chatMessage));
+    }
+
+    @Test
+    void shouldRejectVideoMessageWithoutCompleteExtra() {
+        ChatMessage missingHeight = createMessage(ChatMessageTypeEnum.VIDEO,
+                "{\"url\":\"https://example.com/a.mp4\",\"duration\":30,\"size\":4096,\"format\":\"mp4\",\"width\":720}");
+        ChatMessage invalidSize = createMessage(ChatMessageTypeEnum.VIDEO,
+                "{\"url\":\"https://example.com/a.mp4\",\"duration\":30,\"size\":\"bad\",\"format\":\"mp4\",\"width\":720,\"height\":1280}");
+
+        Assertions.assertThrows(BusinessException.class, () -> ChatMessageHelper.validate(missingHeight));
+        Assertions.assertThrows(BusinessException.class, () -> ChatMessageHelper.validate(invalidSize));
+    }
+
+    @Test
+    void shouldAcceptStickerMessageWithRequiredExtraFields() {
+        ChatMessage chatMessage = createMessage(ChatMessageTypeEnum.STICKER,
+                "{\"stickerId\":\"smile-1\",\"name\":\"微笑\",\"url\":\"https://example.com/sticker.png\"}");
+
+        Assertions.assertDoesNotThrow(() -> ChatMessageHelper.validate(chatMessage));
+    }
+
+    @Test
+    void shouldRejectStickerMessageWithoutRequiredFields() {
+        ChatMessage missingStickerId = createMessage(ChatMessageTypeEnum.STICKER,
+                "{\"name\":\"微笑\",\"url\":\"https://example.com/sticker.png\"}");
+        ChatMessage blankUrl = createMessage(ChatMessageTypeEnum.STICKER,
+                "{\"stickerId\":\"smile-1\",\"name\":\"微笑\",\"url\":\" \"}");
+
+        Assertions.assertThrows(BusinessException.class, () -> ChatMessageHelper.validate(missingStickerId));
+        Assertions.assertThrows(BusinessException.class, () -> ChatMessageHelper.validate(blankUrl));
+    }
+
+    @Test
     void shouldAcceptFileMessageWithNumericStringSize() {
         ChatMessage chatMessage = createMessage(ChatMessageTypeEnum.FILE,
                 "{\"url\":\"https://example.com/a.zip\",\"name\":\"a.zip\",\"size\":\"1024\",\"ext\":\"zip\"}");
@@ -131,6 +188,13 @@ class ChatMessageHelperTest {
         String normalized = ChatMessageHelper.normalizeStoredContent(ChatMessageTypeEnum.IMAGE.getCode(), null);
 
         Assertions.assertEquals("[图片]", normalized);
+    }
+
+    @Test
+    void shouldNormalizeRichMessageContentToPreviewPlaceholders() {
+        Assertions.assertEquals("[语音]", ChatMessageHelper.normalizeStoredContent(ChatMessageTypeEnum.VOICE.getCode(), null));
+        Assertions.assertEquals("[视频]", ChatMessageHelper.normalizeStoredContent(ChatMessageTypeEnum.VIDEO.getCode(), null));
+        Assertions.assertEquals("[表情]", ChatMessageHelper.normalizeStoredContent(ChatMessageTypeEnum.STICKER.getCode(), null));
     }
 
     private ChatMessage createMessage(ChatMessageTypeEnum type, String extra) {

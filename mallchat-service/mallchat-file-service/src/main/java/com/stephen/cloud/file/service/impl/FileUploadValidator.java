@@ -35,10 +35,22 @@ public class FileUploadValidator {
             "application/vnd.ms-powerpoint",
             "application/vnd.openxmlformats-officedocument.presentationml.presentation",
             "application/zip");
+    private static final Set<String> VOICE_SUFFIXES = Set.of("mp3", "m4a", "aac", "amr", "ogg");
+    private static final Set<String> VOICE_CONTENT_TYPES = Set.of(
+            "audio/mpeg",
+            "audio/mp4",
+            "audio/aac",
+            "audio/amr",
+            "audio/ogg",
+            "application/ogg");
+    private static final Set<String> VIDEO_SUFFIXES = Set.of("mp4", "webm", "mov");
+    private static final Set<String> VIDEO_CONTENT_TYPES = Set.of("video/mp4", "video/webm", "video/quicktime");
     private static final Map<FileUploadBizEnum, Long> MAX_SIZE_MAP = Map.of(
             FileUploadBizEnum.USER_AVATAR, 5 * MB,
             FileUploadBizEnum.CHAT_IMAGE, 10 * MB,
-            FileUploadBizEnum.CHAT_FILE, 10 * MB);
+            FileUploadBizEnum.CHAT_FILE, 10 * MB,
+            FileUploadBizEnum.CHAT_VOICE, 20 * MB,
+            FileUploadBizEnum.CHAT_VIDEO, 100 * MB);
 
     public ValidatedFile validate(MultipartFile file, FileUploadBizEnum bizTypeEnum) {
         if (file == null || bizTypeEnum == null) {
@@ -79,6 +91,24 @@ public class FileUploadValidator {
             }
             if (!hasChatFileMagic(file, suffix)) {
                 throw new BusinessException(ErrorCode.PARAMS_ERROR, "文件内容不合法");
+            }
+            return;
+        }
+        if (FileUploadBizEnum.CHAT_VOICE.equals(bizTypeEnum)) {
+            if (!VOICE_SUFFIXES.contains(suffix) || !VOICE_CONTENT_TYPES.contains(contentType)) {
+                throw new BusinessException(ErrorCode.PARAMS_ERROR, "语音类型不支持");
+            }
+            if (!hasVoiceMagic(file, suffix)) {
+                throw new BusinessException(ErrorCode.PARAMS_ERROR, "语音内容不合法");
+            }
+            return;
+        }
+        if (FileUploadBizEnum.CHAT_VIDEO.equals(bizTypeEnum)) {
+            if (!VIDEO_SUFFIXES.contains(suffix) || !VIDEO_CONTENT_TYPES.contains(contentType)) {
+                throw new BusinessException(ErrorCode.PARAMS_ERROR, "视频类型不支持");
+            }
+            if (!hasVideoMagic(file, suffix)) {
+                throw new BusinessException(ErrorCode.PARAMS_ERROR, "视频内容不合法");
             }
             return;
         }
@@ -146,6 +176,56 @@ public class FileUploadValidator {
             case "doc", "xls", "ppt" -> office;
             default -> false;
         };
+    }
+
+    private boolean hasVoiceMagic(MultipartFile file, String suffix) {
+        byte[] header = readHeader(file, 12);
+        if (header.length < 4) {
+            return false;
+        }
+        return switch (suffix) {
+            case "mp3" -> (header[0] == 'I' && header[1] == 'D' && header[2] == '3')
+                    || ((header[0] & 0xFF) == 0xFF && (header[1] & 0xE0) == 0xE0);
+            case "m4a" -> hasIsoBaseMediaMagic(header);
+            case "aac" -> (header[0] & 0xFF) == 0xFF && ((header[1] & 0xF6) == 0xF0);
+            case "amr" -> header[0] == '#' && header[1] == '!' && header[2] == 'A' && header[3] == 'M';
+            case "ogg" -> header[0] == 'O' && header[1] == 'g' && header[2] == 'g' && header[3] == 'S';
+            default -> false;
+        };
+    }
+
+    private boolean hasVideoMagic(MultipartFile file, String suffix) {
+        byte[] header = readHeader(file, 12);
+        if (header.length < 4) {
+            return false;
+        }
+        return switch (suffix) {
+            case "mp4", "mov" -> hasIsoBaseMediaMagic(header);
+            case "webm" -> (header[0] & 0xFF) == 0x1A && header[1] == 0x45 && (header[2] & 0xFF) == 0xDF
+                    && (header[3] & 0xFF) == 0xA3;
+            default -> false;
+        };
+    }
+
+    private byte[] readHeader(MultipartFile file, int length) {
+        byte[] header = new byte[length];
+        int read;
+        try (InputStream inputStream = file.getInputStream()) {
+            read = inputStream.read(header);
+        } catch (IOException e) {
+            throw new BusinessException(ErrorCode.PARAMS_ERROR, "读取文件失败");
+        }
+        if (read <= 0) {
+            return new byte[0];
+        }
+        if (read == header.length) {
+            return header;
+        }
+        return java.util.Arrays.copyOf(header, read);
+    }
+
+    private boolean hasIsoBaseMediaMagic(byte[] header) {
+        return header.length >= 8 && header[4] == 'f' && header[5] == 't' && header[6] == 'y' && header[7] == 'p';
     }
 
     private String normalize(String value) {

@@ -1,6 +1,7 @@
 package com.stephen.cloud.chat.controller;
 
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import com.stephen.cloud.api.chat.model.dto.ChatMessageForwardRequest;
 import com.stephen.cloud.api.chat.model.dto.ChatMessageReadRequest;
 import com.stephen.cloud.api.chat.model.dto.ChatMessageSendRequest;
 import com.stephen.cloud.api.chat.model.vo.ChatMessageReadStatusVO;
@@ -45,7 +46,7 @@ public class ChatMessageController {
      */
     @PostMapping("/send")
     @OperationLog(module = "消息管理", action = "发送消息")
-    @Operation(summary = "发送消息", description = "向指定房间发送一条消息（支持文本、图片、文件）")
+    @Operation(summary = "发送消息", description = "向指定房间发送一条消息（支持文本、图片、文件、语音、视频、表情）")
     public BaseResponse<ChatMessageVO> sendMessage(@Validated @RequestBody ChatMessageSendRequest chatMessageSendRequest) {
         // 请求参数非空校验
         ThrowUtils.throwIf(chatMessageSendRequest == null, ErrorCode.PARAMS_ERROR);
@@ -55,6 +56,23 @@ public class ChatMessageController {
         ChatMessage chatMessage = ChatMessageConvert.addRequestToObj(chatMessageSendRequest);
         // 调用 Service 执行发送逻辑
         ChatMessageVO messageVO = chatMessageService.sendMessage(chatMessage, userId);
+        return ResultUtils.success(messageVO);
+    }
+
+    /**
+     * 单条消息转发
+     *
+     * @param request 转发请求
+     * @return 消息视图
+     */
+    @PostMapping("/forward")
+    @OperationLog(module = "消息管理", action = "转发消息")
+    @Operation(summary = "转发单条消息", description = "将当前用户可见的单条正常消息转发到目标房间")
+    public BaseResponse<ChatMessageVO> forwardMessage(@Validated @RequestBody ChatMessageForwardRequest request) {
+        ThrowUtils.throwIf(request == null, ErrorCode.PARAMS_ERROR);
+        Long userId = SecurityUtils.getLoginUserId();
+        ChatMessageVO messageVO = chatMessageService.forwardMessage(
+                request.getSourceMessageId(), request.getTargetRoomId(), request.getClientMsgId(), userId);
         return ResultUtils.success(messageVO);
     }
 

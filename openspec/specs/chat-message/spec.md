@@ -193,3 +193,147 @@ The system SHALL keep persisted message-flow facts successful even when realtime
 - **AND** the persisted recall status remains updated
 - **AND** the push failure is degraded instead of rolling back the recall fact
 
+### Requirement: 房间成员可以搜索文本消息
+The system SHALL allow an authenticated room member to search normal text messages in a room they can access using bounded pagination.
+
+#### Scenario: 成员搜索房间文本消息
+- **WHEN** a room member searches messages with a non-blank keyword
+- **THEN** the system returns matching normal text messages from that room
+- **AND** the results are ordered by message id descending
+
+#### Scenario: 非成员不可搜索房间消息
+- **WHEN** a user who is not a room member searches messages in that room
+- **THEN** the system rejects the request
+- **AND** no room messages are returned
+
+#### Scenario: 空关键词被拒绝
+- **WHEN** a room member searches with a blank keyword
+- **THEN** the system rejects the request as invalid
+
+#### Scenario: 撤回删除和非文本消息不进入搜索结果
+- **WHEN** a room contains recalled, deleted, image, or file messages
+- **THEN** the search result contains only normal text messages matching the keyword
+
+### Requirement: 免打扰不影响消息事实和重连补偿
+The system SHALL keep message persistence, session updates, and reconnect compensation independent from session mute status.
+
+#### Scenario: 免打扰成员仍可通过历史消息获取消息
+- **WHEN** a muted room member queries history or reconnect compensation
+- **THEN** the system authorizes through room membership
+- **AND** returns persisted messages normally
+
+#### Scenario: 群消息推送过滤免打扰接收者
+- **WHEN** a group member sends a message
+- **AND** another receiver has muted the session
+- **THEN** the realtime `CHAT_MESSAGE` push target list excludes the muted receiver
+- **AND** the sent message remains persisted successfully
+
+### Requirement: 拉黑关系阻断私聊发送
+The system SHALL reject private chat message sends when the sender and peer have an active block relation in either direction.
+
+#### Scenario: 私聊发送前发现拉黑关系
+- **WHEN** 用户在私聊房间发送消息
+- **AND** 私聊双方任一方向存在拉黑关系
+- **THEN** 系统拒绝发送
+- **AND** 不创建消息记录
+- **AND** 不推送实时消息事件
+
+### Requirement: Message client idempotency survives duplicate delivery races
+The system SHALL keep a single message fact for repeated sends with the same sender and client message id.
+
+#### Scenario: Duplicate client message id is already persisted
+- **WHEN** a user sends a message with a `clientMsgId` that already exists for that sender
+- **THEN** the system SHALL return the existing message view
+- **AND** the system SHALL NOT persist or push a second message fact
+
+#### Scenario: Duplicate client message id wins the database race
+- **WHEN** two requests with the same sender and `clientMsgId` pass the pre-insert lookup concurrently
+- **AND** the database unique key rejects one insert
+- **THEN** the rejected request SHALL reload and return the existing message view
+- **AND** the rejected request SHALL NOT push another realtime message event
+
+### Requirement: 语音消息应使用稳定 extra 契约
+The system SHALL allow room members to send voice messages with bounded structured metadata.
+
+#### Scenario: 语音消息 extra 合法
+- **WHEN** a room member sends a voice message
+- **AND** `extra.url` and `extra.format` are not blank
+- **AND** `extra.duration` and `extra.size` are positive numbers
+- **THEN** the system accepts the message
+- **AND** the stored message content can use the `[语音]` preview placeholder
+
+#### Scenario: 语音消息 extra 非法
+- **WHEN** a room member sends a voice message
+- **AND** `extra.url` or `extra.format` is blank, or `extra.duration` or `extra.size` is missing, non-numeric, zero, or negative
+- **THEN** the system rejects the message
+- **AND** no message is persisted or pushed
+
+### Requirement: 视频消息应使用稳定 extra 契约
+The system SHALL allow room members to send video messages with bounded structured metadata.
+
+#### Scenario: 视频消息 extra 合法
+- **WHEN** a room member sends a video message
+- **AND** `extra.url` and `extra.format` are not blank
+- **AND** `extra.duration`, `extra.size`, `extra.width`, and `extra.height` are positive numbers
+- **THEN** the system accepts the message
+- **AND** the stored message content can use the `[视频]` preview placeholder
+
+#### Scenario: 视频消息 extra 非法
+- **WHEN** a room member sends a video message
+- **AND** required text or numeric metadata is blank, missing, non-numeric, zero, or negative
+- **THEN** the system rejects the message
+- **AND** no message is persisted or pushed
+
+### Requirement: 表情贴纸消息应使用稳定 extra 契约
+The system SHALL allow room members to send sticker messages using lightweight structured metadata.
+
+#### Scenario: 表情贴纸消息 extra 合法
+- **WHEN** a room member sends a sticker message
+- **AND** `extra.stickerId`, `extra.name`, and `extra.url` are not blank
+- **THEN** the system accepts the message
+- **AND** the stored message content can use the `[表情]` preview placeholder
+
+#### Scenario: 表情贴纸消息 extra 非法
+- **WHEN** a room member sends a sticker message
+- **AND** `extra.stickerId`, `extra.name`, or `extra.url` is blank or missing
+- **THEN** the system rejects the message
+- **AND** no message is persisted or pushed
+
+### Requirement: 房间成员可以单条转发可见消息
+The system SHALL allow a user to forward one visible normal message to a target room through the existing send-message flow.
+
+#### Scenario: 单条消息转发成功
+- **WHEN** a user forwards a normal message they can access
+- **AND** the user can send messages to the target room
+- **THEN** the system persists a new message in the target room
+- **AND** the new message copies source `type`, `content`, and `extra`
+- **AND** realtime push and session update behavior reuse the normal send-message path
+
+#### Scenario: 来源房间无权限不可转发
+- **WHEN** a user forwards a message from a room they cannot access
+- **THEN** the system rejects the request
+- **AND** no new target-room message is persisted or pushed
+
+#### Scenario: 目标房间无发送权限不可转发
+- **WHEN** a user forwards a visible message to a room they cannot send to
+- **THEN** the system rejects the request
+- **AND** no new target-room message is persisted or pushed
+
+#### Scenario: 非私聊参与者不可转发到私聊房间
+- **WHEN** a user forwards a visible message to a private room where they are not `userLow` or `userHigh`
+- **THEN** the system rejects the request
+- **AND** no new target-room message is persisted or pushed
+
+#### Scenario: 已撤回或删除消息不可转发
+- **WHEN** a user forwards a recalled or deleted message
+- **THEN** the system rejects the request
+- **AND** no new target-room message is persisted or pushed
+
+### Requirement: 合并转发应先保留后端骨架设计
+The system SHALL document a minimal backend contract before implementing merged-forward messages.
+
+#### Scenario: m8 只交付设计骨架
+- **WHEN** the m8 rich-message Epic is delivered
+- **THEN** merged-forward messages remain design-only
+- **AND** the production implementation is deferred to a later change
+

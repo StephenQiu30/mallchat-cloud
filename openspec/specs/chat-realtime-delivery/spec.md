@@ -4,12 +4,19 @@
 Define reliable room realtime delivery behavior when Redis room member cache is cold, missing, or empty.
 ## Requirements
 ### Requirement: Room realtime delivery survives room member cache miss
-The system SHALL NOT skip a room realtime event solely because the Redis room member cache is empty or missing.
+The system SHALL NOT skip a room realtime event solely because the Redis room member cache is empty or missing, and SHALL respect a non-empty `userIds` allowlist when the event carries one.
 
 #### Scenario: Redis room member cache is present
 - **WHEN** notification-service handles a room realtime event
 - **AND** the Redis room member set for the room is non-empty
+- **AND** the event does not carry a `userIds` allowlist
 - **THEN** the system SHALL push the event to the cached room members
+
+#### Scenario: Redis room member cache is present and event carries an allowlist
+- **WHEN** notification-service handles a room realtime event
+- **AND** the Redis room member set for the room is non-empty
+- **AND** the WebSocket message carries a non-empty `userIds` allowlist
+- **THEN** the system SHALL push only to cached room members that also appear in the allowlist
 
 #### Scenario: Redis room member cache is missing but the event carries a member snapshot
 - **WHEN** notification-service handles a room realtime event
@@ -36,7 +43,7 @@ The system SHALL reuse existing RabbitMQ and WebSocket message models for the ro
 - **AND** the event SHALL NOT introduce a parallel MQ type or custom WebSocket envelope
 
 ### Requirement: Reconnecting room members can compensate missed messages
-The system SHALL allow a current room member to query messages created after the client's last received message id for reconnect compensation.
+The system SHALL allow a current room member to query messages created after the client's last received message id for reconnect compensation, using persisted message facts rather than realtime connection state.
 
 #### Scenario: Query missed messages after a received cursor
 - **WHEN** an authenticated room member requests messages for a room with an `afterMessageId`
@@ -51,3 +58,8 @@ The system SHALL allow a current room member to query messages created after the
 - **WHEN** a room member requests reconnect compensation
 - **THEN** the system authorizes through the room membership fact source
 - **AND** the system SHALL NOT require Redis online state or Redis room member cache to return persisted messages
+
+#### Scenario: Missing cursor falls back to bounded latest messages
+- **WHEN** a room member requests reconnect compensation without a valid receive cursor
+- **THEN** the system returns a bounded latest message window
+- **AND** the returned messages are still ordered by ascending message id

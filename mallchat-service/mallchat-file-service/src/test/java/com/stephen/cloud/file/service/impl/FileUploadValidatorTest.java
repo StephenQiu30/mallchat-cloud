@@ -70,4 +70,58 @@ class FileUploadValidatorTest {
         Assertions.assertEquals("pdf", result.suffix());
         Assertions.assertEquals("application/pdf", result.contentType());
     }
+
+    @Test
+    void shouldAcceptValidChatVoice() {
+        MockMultipartFile file = new MockMultipartFile("file", "voice.mp3", "audio/mpeg",
+                new byte[]{'I', 'D', '3', 0x04, 0x00});
+
+        FileUploadValidator.ValidatedFile result = validator.validate(file, FileUploadBizEnum.CHAT_VOICE);
+
+        Assertions.assertEquals("mp3", result.suffix());
+        Assertions.assertEquals("audio/mpeg", result.contentType());
+    }
+
+    @Test
+    void shouldRejectForgedChatVoiceBytes() {
+        MockMultipartFile file = new MockMultipartFile("file", "voice.mp3", "audio/mpeg",
+                "not-audio".getBytes());
+
+        Assertions.assertThrows(BusinessException.class, () -> validator.validate(file, FileUploadBizEnum.CHAT_VOICE));
+    }
+
+    @Test
+    void shouldRejectUnsupportedChatVoiceType() {
+        MockMultipartFile file = new MockMultipartFile("file", "voice.exe", "application/octet-stream",
+                new byte[]{1, 2, 3, 4});
+
+        Assertions.assertThrows(BusinessException.class, () -> validator.validate(file, FileUploadBizEnum.CHAT_VOICE));
+    }
+
+    @Test
+    void shouldAcceptValidChatVideo() {
+        MockMultipartFile file = new MockMultipartFile("file", "video.mp4", "video/mp4",
+                new byte[]{0x00, 0x00, 0x00, 0x18, 'f', 't', 'y', 'p', 'm', 'p', '4', '2'});
+
+        FileUploadValidator.ValidatedFile result = validator.validate(file, FileUploadBizEnum.CHAT_VIDEO);
+
+        Assertions.assertEquals("mp4", result.suffix());
+        Assertions.assertEquals("video/mp4", result.contentType());
+    }
+
+    @Test
+    void shouldRejectForgedChatVideoBytes() {
+        MockMultipartFile file = new MockMultipartFile("file", "video.mp4", "video/mp4",
+                "not-video".getBytes());
+
+        Assertions.assertThrows(BusinessException.class, () -> validator.validate(file, FileUploadBizEnum.CHAT_VIDEO));
+    }
+
+    @Test
+    void shouldRejectUnsupportedChatVideoType() {
+        MockMultipartFile file = new MockMultipartFile("file", "video.exe", "application/octet-stream",
+                new byte[]{1, 2, 3, 4});
+
+        Assertions.assertThrows(BusinessException.class, () -> validator.validate(file, FileUploadBizEnum.CHAT_VIDEO));
+    }
 }

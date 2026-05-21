@@ -44,10 +44,10 @@ public class FileController {
      * @return 文件信息
      */
     @PostMapping("/upload")
-    @Operation(summary = "上传文件", description = "上传文件到腾讯云 COS，支持用户头像、聊天图片、聊天文件等业务类型")
+    @Operation(summary = "上传文件", description = "上传文件到腾讯云 COS，支持用户头像、聊天图片、聊天文件、聊天语音、聊天视频等业务类型")
     public BaseResponse<FileVO> uploadFile(
             @Parameter(description = "上传的文件", required = true) @RequestPart("file") MultipartFile file,
-            @Parameter(description = "业务类型：user_avatar(用户头像)、chat_image(聊天图片)、chat_file(聊天文件)", required = true, example = "user_avatar") @RequestParam("bizType") String bizType,
+            @Parameter(description = "业务类型：user_avatar(用户头像)、chat_image(聊天图片)、chat_file(聊天文件)、chat_voice(聊天语音)、chat_video(聊天视频)", required = true, example = "user_avatar") @RequestParam("bizType") String bizType,
             HttpServletRequest request) {
         FileUploadBizEnum bizTypeEnum = FileUploadBizEnum.getEnumByCode(bizType);
         ThrowUtils.throwIf(bizTypeEnum == null, ErrorCode.PARAMS_ERROR, "业务类型错误");
