@@ -54,6 +54,9 @@ public class ChatSessionServiceImpl extends ServiceImpl<ChatSessionMapper, ChatS
     private ChatOnlineStatusService chatOnlineStatusService;
 
     @Resource
+    private ChatRoomMemberService chatRoomMemberService;
+
+    @Resource
     private ChatMqProducer chatMqProducer;
 
     @Override
@@ -236,6 +239,41 @@ public class ChatSessionServiceImpl extends ServiceImpl<ChatSessionMapper, ChatS
     }
 
     @Override
+    public boolean muteSession(Long roomId, Long userId, Integer muteStatus) {
+        ThrowUtils.throwIf(roomId == null || userId == null || muteStatus == null, ErrorCode.PARAMS_ERROR);
+        ThrowUtils.throwIf(muteStatus != 0 && muteStatus != 1, ErrorCode.PARAMS_ERROR, "免打扰状态非法");
+        ThrowUtils.throwIf(!chatRoomMemberService.isMember(roomId, userId), ErrorCode.NO_AUTH_ERROR, "您不在此聊天室中");
+
+        ChatSession session = this.getOne(new LambdaQueryWrapper<ChatSession>()
+                .eq(ChatSession::getUserId, userId)
+                .eq(ChatSession::getRoomId, roomId));
+        if (session == null) {
+            session = new ChatSession();
+            session.setUserId(userId);
+            session.setRoomId(roomId);
+            session.setUnreadCount(0);
+            session.setTopStatus(0);
+            session.setMuteStatus(0);
+        }
+        session.setMuteStatus(muteStatus);
+        session.setActiveTime(new Date());
+        boolean updated = this.saveOrUpdate(session);
+        if (updated) {
+            ChatSessionVO sessionVO = getSessionVO(roomId, userId);
+            if (sessionVO != null) {
+                try {
+                    chatMqProducer.sendSessionUpdate(userId, roomId, sessionVO,
+                            "session_mute:" + roomId + ":" + userId + ":" + muteStatus);
+                } catch (Exception e) {
+                    log.warn("[ChatSessionServiceImpl] 推送会话免打扰刷新失败, roomId={}, userId={}, reason={}",
+                            roomId, userId, e.toString());
+                }
+            }
+        }
+        return updated;
+    }
+
+    @Override
     public boolean deleteSession(Long roomId, Long userId) {
         LambdaQueryWrapper<ChatSession> queryWrapper = new LambdaQueryWrapper<>();
         queryWrapper.eq(ChatSession::getRoomId, roomId).eq(ChatSession::getUserId, userId);
@@ -265,6 +303,7 @@ public class ChatSessionServiceImpl extends ServiceImpl<ChatSessionMapper, ChatS
             session.setRoomId(roomId);
             session.setUnreadCount(0);
             session.setTopStatus(0);
+            session.setMuteStatus(0);
         }
         if (isDuplicateOrStaleMessage(session, lastMessageId)) {
             return;
@@ -304,6 +343,7 @@ public class ChatSessionServiceImpl extends ServiceImpl<ChatSessionMapper, ChatS
                 session.setRoomId(roomId);
                 session.setUnreadCount(0);
                 session.setTopStatus(0);
+                session.setMuteStatus(0);
             }
             if (!isDuplicateOrStaleMessage(session, lastMessageId)) {
                 session.setLastMessageId(lastMessageId);
@@ -319,6 +359,30 @@ public class ChatSessionServiceImpl extends ServiceImpl<ChatSessionMapper, ChatS
 
         // 3. 批量保存或更新
         this.saveOrUpdateBatch(toUpdate);
+    }
+
+    @Override
+    public List<Long> filterPushUserIds(Long roomId, List<Long> userIds, Long senderId) {
+        if (roomId == null || CollUtil.isEmpty(userIds)) {
+            return Collections.emptyList();
+        }
+        List<Long> normalizedUserIds = userIds.stream()
+                .filter(Objects::nonNull)
+                .distinct()
+                .toList();
+        if (normalizedUserIds.isEmpty()) {
+            return Collections.emptyList();
+        }
+        List<ChatSession> sessions = this.list(new LambdaQueryWrapper<ChatSession>()
+                .eq(ChatSession::getRoomId, roomId)
+                .in(ChatSession::getUserId, normalizedUserIds));
+        Set<Long> mutedUserIds = sessions.stream()
+                .filter(session -> Objects.equals(session.getMuteStatus(), 1))
+                .map(ChatSession::getUserId)
+                .collect(Collectors.toSet());
+        return normalizedUserIds.stream()
+                .filter(userId -> Objects.equals(userId, senderId) || !mutedUserIds.contains(userId))
+                .toList();
     }
 
     private boolean isDuplicateOrStaleMessage(ChatSession session, Long lastMessageId) {

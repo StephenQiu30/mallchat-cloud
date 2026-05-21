@@ -8,7 +8,7 @@
 
 | 数据库名       | 核心表                                                                                                                                 |
 |:-----------|:------------------------------------------------------------------------------------------------------------------------------------|
-| `mallchat` | `user`, `notification`, `ai_chat_record`, `api_access_log`, `operation_log`, `user_login_log`, `email_record`, `file_upload_record`, `user_friend`, `user_friend_block`, `chat_report`, `chat_room`, `chat_room_member`, `chat_message`, `chat_private_room`, `user_friend_apply`, `chat_session`, `chat_group_info` |
+| `mallchat` | `user`, `notification`, `ai_chat_record`, `api_access_log`, `operation_log`, `user_login_log`, `email_record`, `file_upload_record`, `user_friend`, `user_friend_block`, `chat_report`, `chat_room`, `chat_room_member`, `chat_room_join_apply`, `chat_message`, `chat_private_room`, `user_friend_apply`, `chat_session`, `chat_group_info` |
 
 ## 🛠️ 初始化步骤
 
@@ -25,6 +25,16 @@ mysql -u root -p < mallchat.sql
 1. 如果不存在则创建 `mallchat` 数据库。
 2. 切换到 `mallchat` 数据库。
 3. 按顺序创建所有必要的业务表。
+
+### 2. 已有环境增量升级
+
+已有数据库不要直接重放 `mallchat.sql`。按版本执行 `migrations/` 目录下的增量脚本，例如 m7：
+
+```bash
+mysql -u root -p mallchat < migrations/20260521_m7_room_message_experience.sql
+```
+
+增量脚本只补齐本次版本需要的表或字段；执行前仍需先备份生产数据。
 
 ## 📝 表设计规范
 

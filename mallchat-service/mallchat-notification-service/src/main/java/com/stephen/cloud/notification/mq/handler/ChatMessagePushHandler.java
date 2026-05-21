@@ -138,15 +138,25 @@ public class ChatMessagePushHandler implements RabbitMqHandler<WebSocketMessage>
 
         String key = ChatCacheConstant.getRoomMemberKey(roomId);
         Set<String> memberIds = cacheUtils.sMembers(key);
+        Set<String> snapshotMemberIds = resolveSnapshotMemberIds(wsMessage);
 
         if (memberIds == null || memberIds.isEmpty()) {
-            memberIds = resolveSnapshotMemberIds(wsMessage);
+            memberIds = snapshotMemberIds;
             if (memberIds.isEmpty()) {
                 log.warn("[ChatMessagePushHandler] 房间 {} 缓存和消息成员快照均为空，跳过推送", roomId);
                 metricsRecorder.record(getBizType(), resolveEventType(wsMessage), "skipped");
                 return;
             }
             log.warn("[ChatMessagePushHandler] 房间 {} 缓存中没有成员，使用消息成员快照兜底推送", roomId);
+        } else if (!snapshotMemberIds.isEmpty()) {
+            memberIds = memberIds.stream()
+                    .filter(snapshotMemberIds::contains)
+                    .collect(Collectors.toCollection(LinkedHashSet::new));
+            if (memberIds.isEmpty()) {
+                log.warn("[ChatMessagePushHandler] 房间 {} 成员缓存与消息成员快照无交集，跳过推送", roomId);
+                metricsRecorder.record(getBizType(), resolveEventType(wsMessage), "skipped");
+                return;
+            }
         }
 
         int successCount = 0;

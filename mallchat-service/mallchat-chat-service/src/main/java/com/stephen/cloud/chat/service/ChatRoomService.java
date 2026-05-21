@@ -139,6 +139,24 @@ public interface ChatRoomService extends IService<ChatRoom> {
     void removeMember(Long roomId, Long memberId, Long userId);
 
     /**
+     * 任命群管理员
+     *
+     * @param roomId   房间 ID
+     * @param memberId 成员 ID
+     * @param userId   当前用户
+     */
+    void grantAdmin(Long roomId, Long memberId, Long userId);
+
+    /**
+     * 取消群管理员
+     *
+     * @param roomId   房间 ID
+     * @param memberId 成员 ID
+     * @param userId   当前用户
+     */
+    void revokeAdmin(Long roomId, Long memberId, Long userId);
+
+    /**
      * 退出群聊
      *
      * @param roomId 房间 ID

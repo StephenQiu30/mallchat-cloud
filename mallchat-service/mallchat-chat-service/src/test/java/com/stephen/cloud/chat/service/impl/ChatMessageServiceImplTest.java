@@ -1,7 +1,11 @@
 package com.stephen.cloud.chat.service.impl;
 
+import com.baomidou.mybatisplus.core.MybatisConfiguration;
 import com.baomidou.mybatisplus.core.conditions.Wrapper;
 import com.baomidou.mybatisplus.core.conditions.update.UpdateWrapper;
+import com.baomidou.mybatisplus.core.metadata.IPage;
+import com.baomidou.mybatisplus.core.metadata.TableInfoHelper;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.stephen.cloud.api.chat.model.enums.ChatMessageTypeEnum;
 import com.stephen.cloud.api.chat.model.enums.ChatRoomTypeEnum;
 import com.stephen.cloud.api.chat.model.enums.MessageStatusEnum;
@@ -25,6 +29,7 @@ import com.stephen.cloud.common.common.ErrorCode;
 import com.stephen.cloud.common.common.ResultUtils;
 import com.stephen.cloud.common.exception.BusinessException;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
+import org.apache.ibatis.builder.MapperBuilderAssistant;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -52,12 +57,14 @@ class ChatMessageServiceImplTest {
     private List<ChatRoomMember> roomMembers;
     private ChatSessionVO sessionVO;
     private long unreadCountAfterBoundary;
+    private List<Long> pushUserIds;
     private Map<Long, ChatMessage> replyMessagesById;
     private Map<Long, UserVO> usersById;
     private SimpleMeterRegistry meterRegistry;
 
     @BeforeEach
     void setUp() {
+        TableInfoHelper.initTableInfo(new MapperBuilderAssistant(new MybatisConfiguration(), ""), ChatMessage.class);
         chatMessageService = new TestableChatMessageServiceImpl();
         chatMqProducer = new FakeChatMqProducer();
         room = new ChatRoom();
@@ -77,6 +84,7 @@ class ChatMessageServiceImplTest {
         sessionVO.setRoomId(1L);
         sessionVO.setUnreadCount(0);
         unreadCountAfterBoundary = 0L;
+        pushUserIds = new ArrayList<>();
         replyMessagesById = new HashMap<>();
         usersById = new HashMap<>();
         meterRegistry = new SimpleMeterRegistry();
@@ -372,6 +380,7 @@ class ChatMessageServiceImplTest {
         peerMember.setRoomId(1L);
         peerMember.setUserId(2L);
         roomMembers = List.of(roomMember, peerMember);
+        pushUserIds = List.of(1L, 2L);
 
         ChatMessageVO result = chatMessageService.sendMessage(createTextMessage(1L, "c1", "hello"), 1L);
 
@@ -379,6 +388,58 @@ class ChatMessageServiceImplTest {
         Assertions.assertEquals(1L, chatMqProducer.lastGroupPushRoomId);
         Assertions.assertEquals(List.of(1L, 2L), chatMqProducer.lastGroupPushUserIds);
         Assertions.assertEquals(1.0, businessCounter("message_send", "success"));
+    }
+
+    @Test
+    void shouldFilterMutedUsersWhenGroupMessageIsCreated() {
+        room.setType(ChatRoomTypeEnum.GROUP.getCode());
+        ChatRoomMember peerMember = new ChatRoomMember();
+        peerMember.setRoomId(1L);
+        peerMember.setUserId(2L);
+        roomMembers = List.of(roomMember, peerMember);
+        pushUserIds = List.of(1L);
+
+        ChatMessageVO result = chatMessageService.sendMessage(createTextMessage(1L, "mute-1", "hello"), 1L);
+
+        Assertions.assertEquals(100L, result.getId());
+        Assertions.assertEquals(List.of(1L), chatMqProducer.lastGroupPushUserIds);
+    }
+
+    @Test
+    void shouldSearchTextMessagesForRoomMember() {
+        ChatMessage first = createStoredMessage(10L, 1L);
+        first.setContent("hello keyword");
+        ChatMessage second = createStoredMessage(9L, 1L);
+        second.setContent("another keyword");
+        chatMessageService.searchPageResult = new Page<>(1, 20, 2);
+        chatMessageService.searchPageResult.setRecords(List.of(first, second));
+
+        Page<ChatMessageVO> result = chatMessageService.searchMessages(1L, "keyword", 1, 20, 1L);
+
+        Assertions.assertEquals(2, result.getTotal());
+        Assertions.assertEquals(List.of(10L, 9L), result.getRecords().stream().map(ChatMessageVO::getId).toList());
+        Assertions.assertTrue(chatMessageService.searchSqlSegment.contains("room_id"));
+        Assertions.assertTrue(chatMessageService.searchSqlSegment.contains("type"));
+        Assertions.assertTrue(chatMessageService.searchSqlSegment.contains("status"));
+        Assertions.assertTrue(chatMessageService.searchSqlSegment.contains("content"));
+    }
+
+    @Test
+    void shouldRejectMessageSearchForNonMember() {
+        member = false;
+
+        BusinessException exception = Assertions.assertThrows(BusinessException.class,
+                () -> chatMessageService.searchMessages(1L, "keyword", 1, 20, 1L));
+
+        Assertions.assertEquals(ErrorCode.NO_AUTH_ERROR.getCode(), exception.getCode());
+    }
+
+    @Test
+    void shouldRejectMessageSearchWithBlankKeyword() {
+        BusinessException exception = Assertions.assertThrows(BusinessException.class,
+                () -> chatMessageService.searchMessages(1L, " ", 1, 20, 1L));
+
+        Assertions.assertEquals(ErrorCode.PARAMS_ERROR.getCode(), exception.getCode());
     }
 
     @Test
@@ -694,6 +755,7 @@ class ChatMessageServiceImplTest {
                 (proxy, method, args) -> {
                     return switch (method.getName()) {
                         case "getSessionVO" -> sessionVO;
+                        case "filterPushUserIds" -> pushUserIds;
                         case "update" -> {
                             chatMessageService.sessionUpdateInvoked = true;
                             UpdateWrapper<?> wrapper = (UpdateWrapper<?>) args[0];
@@ -759,6 +821,8 @@ class ChatMessageServiceImplTest {
         private boolean sessionUpdateInvoked;
         private int updatedUnreadCount = -1;
         private Long updatedLastReadMessageId;
+        private Page<ChatMessage> searchPageResult = new Page<>(1, 20, 0);
+        private String searchSqlSegment;
 
         @Override
         public ChatMessage getOne(Wrapper<ChatMessage> queryWrapper) {
@@ -796,6 +860,14 @@ class ChatMessageServiceImplTest {
         @Override
         public List<ChatMessage> list(Wrapper<ChatMessage> queryWrapper) {
             return new ArrayList<>(listResult);
+        }
+
+        @Override
+        public <E extends IPage<ChatMessage>> E page(E page, Wrapper<ChatMessage> queryWrapper) {
+            searchSqlSegment = queryWrapper.getSqlSegment();
+            @SuppressWarnings("unchecked")
+            E result = (E) searchPageResult;
+            return result;
         }
 
         @Override

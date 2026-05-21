@@ -85,6 +85,18 @@ public interface ChatMessageService extends IService<ChatMessage> {
     List<ChatMessageVO> listMessagesAfter(Long roomId, Long afterMessageId, Integer limit, Long userId);
 
     /**
+     * 搜索当前用户可访问房间内的文本消息
+     *
+     * @param roomId   房间 ID
+     * @param keyword  搜索关键词
+     * @param current  当前页
+     * @param pageSize 每页数量
+     * @param userId   当前用户 ID
+     * @return 消息分页
+     */
+    Page<ChatMessageVO> searchMessages(Long roomId, String keyword, long current, long pageSize, Long userId);
+
+    /**
      * 上报已读游标
      *
      * @param roomId            房间 ID

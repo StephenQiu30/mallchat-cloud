@@ -36,6 +36,7 @@ import com.stephen.cloud.common.exception.BusinessException;
 import jakarta.annotation.Resource;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.lang3.StringUtils;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.dao.DuplicateKeyException;
@@ -62,6 +63,7 @@ public class ChatMessageServiceImpl extends ServiceImpl<ChatMessageMapper, ChatM
 
     private static final int DEFAULT_RECONNECT_COMPENSATION_LIMIT = 100;
     private static final int MAX_RECONNECT_COMPENSATION_LIMIT = 200;
+    private static final int MAX_SEARCH_PAGE_SIZE = 50;
 
     @Resource
     private ChatRoomMemberService chatRoomMemberService;
@@ -199,7 +201,11 @@ public class ChatMessageServiceImpl extends ServiceImpl<ChatMessageMapper, ChatM
         ChatMessageVO messageVO = getChatMessageVO(chatMessage, null);
         businessMetricsRecorder.record("message_send", "success");
         try {
-            chatMqProducer.sendChatMessageGroupPush(roomId, messageVO, listRoomMemberUserIds(roomId));
+            List<Long> memberUserIds = listRoomMemberUserIds(roomId);
+            List<Long> pushUserIds = ChatRoomTypeEnum.GROUP.getCode().equals(chatRoom.getType())
+                    ? chatSessionService.filterPushUserIds(roomId, memberUserIds, userId)
+                    : memberUserIds;
+            chatMqProducer.sendChatMessageGroupPush(roomId, messageVO, pushUserIds);
         } catch (Exception e) {
             log.warn("[ChatMessageServiceImpl] 推送聊天消息失败, roomId={}, messageId={}, reason={}",
                     roomId, chatMessage.getId(), e.toString());
@@ -225,6 +231,24 @@ public class ChatMessageServiceImpl extends ServiceImpl<ChatMessageMapper, ChatM
         List<ChatMessage> messages = this.list(queryWrapper.orderByDesc(ChatMessage::getId).last("limit " + limit));
         Collections.reverse(messages);
         return getChatMessageVO(messages, null);
+    }
+
+    @Override
+    public Page<ChatMessageVO> searchMessages(Long roomId, String keyword, long current, long pageSize, Long userId) {
+        ThrowUtils.throwIf(roomId == null || userId == null, ErrorCode.PARAMS_ERROR);
+        ThrowUtils.throwIf(StringUtils.isBlank(keyword), ErrorCode.PARAMS_ERROR, "搜索关键词不能为空");
+        ThrowUtils.throwIf(current <= 0 || pageSize <= 0 || pageSize > MAX_SEARCH_PAGE_SIZE,
+                ErrorCode.PARAMS_ERROR, "分页参数非法");
+        ThrowUtils.throwIf(!chatRoomMemberService.isMember(roomId, userId), ErrorCode.NO_AUTH_ERROR, "您不在此聊天室中");
+
+        Page<ChatMessage> page = this.page(new Page<>(current, pageSize),
+                new LambdaQueryWrapper<ChatMessage>()
+                        .eq(ChatMessage::getRoomId, roomId)
+                        .eq(ChatMessage::getType, ChatMessageTypeEnum.TEXT.getCode())
+                        .eq(ChatMessage::getStatus, MessageStatusEnum.NORMAL.getCode())
+                        .like(ChatMessage::getContent, keyword.trim())
+                        .orderByDesc(ChatMessage::getId));
+        return getChatMessageVOPage(page, null);
     }
 
     @Override

@@ -40,6 +40,7 @@ class ChatSessionServiceImplTest {
     private List<ChatPrivateRoom> privateRooms;
     private List<UserVO> users;
     private Map<Long, Integer> onlineStatusMap;
+    private boolean member;
 
     @BeforeEach
     void setUp() {
@@ -51,6 +52,7 @@ class ChatSessionServiceImplTest {
         privateRooms = new ArrayList<>();
         users = new ArrayList<>();
         onlineStatusMap = Map.of();
+        member = true;
 
         ReflectionTestUtils.setField(chatSessionService, "chatRoomService", createChatRoomService());
         ReflectionTestUtils.setField(chatSessionService, "chatMessageService", createChatMessageService());
@@ -58,6 +60,7 @@ class ChatSessionServiceImplTest {
         ReflectionTestUtils.setField(chatSessionService, "chatGroupInfoService", createChatGroupInfoService());
         ReflectionTestUtils.setField(chatSessionService, "chatPrivateRoomService", createChatPrivateRoomService());
         ReflectionTestUtils.setField(chatSessionService, "chatOnlineStatusService", createChatOnlineStatusService());
+        ReflectionTestUtils.setField(chatSessionService, "chatRoomMemberService", createChatRoomMemberService());
         ReflectionTestUtils.setField(chatSessionService, "chatMqProducer", chatMqProducer);
     }
 
@@ -219,6 +222,62 @@ class ChatSessionServiceImplTest {
         Assertions.assertEquals(11L, receiverSession.getLastMessageId());
     }
 
+    @Test
+    void shouldUpdateSessionMuteStatusAndPushRefresh() {
+        chatSessionService.getOneResult = createSession(1L, 10L, 1, 0);
+        rooms = List.of(createRoom(1L, ChatRoomTypeEnum.GROUP.getCode(), "group"));
+
+        boolean result = chatSessionService.muteSession(1L, 1L, 1);
+
+        Assertions.assertTrue(result);
+        Assertions.assertEquals(1, chatSessionService.getOneResult.getMuteStatus());
+        Assertions.assertEquals(1L, chatMqProducer.lastSessionUpdateUserId);
+        Assertions.assertTrue(chatMqProducer.lastSessionUpdatePayload instanceof ChatSessionVO);
+        ChatSessionVO vo = (ChatSessionVO) chatMqProducer.lastSessionUpdatePayload;
+        Assertions.assertEquals(1, vo.getMuteStatus());
+    }
+
+    @Test
+    void shouldKeepMuteStatusWhenSessionUpdatePushThrows() {
+        chatSessionService.getOneResult = createSession(1L, 10L, 1, 0);
+        rooms = List.of(createRoom(1L, ChatRoomTypeEnum.GROUP.getCode(), "group"));
+        chatMqProducer.sessionUpdateThrows = true;
+
+        boolean result = Assertions.assertDoesNotThrow(() -> chatSessionService.muteSession(1L, 1L, 1));
+
+        Assertions.assertTrue(result);
+        Assertions.assertEquals(1, chatSessionService.getOneResult.getMuteStatus());
+    }
+
+    @Test
+    void shouldRejectMuteStatusForNonMember() {
+        member = false;
+
+        com.stephen.cloud.common.exception.BusinessException exception = Assertions.assertThrows(
+                com.stephen.cloud.common.exception.BusinessException.class,
+                () -> chatSessionService.muteSession(1L, 1L, 1));
+
+        Assertions.assertEquals(com.stephen.cloud.common.common.ErrorCode.NO_AUTH_ERROR.getCode(), exception.getCode());
+    }
+
+    @Test
+    void shouldFilterMutedPushUsersButKeepSender() {
+        ChatSession sender = createSession(1L, 10L, 0, 0);
+        sender.setUserId(1L);
+        sender.setMuteStatus(1);
+        ChatSession mutedReceiver = createSession(1L, 10L, 0, 0);
+        mutedReceiver.setUserId(2L);
+        mutedReceiver.setMuteStatus(1);
+        ChatSession normalReceiver = createSession(1L, 10L, 0, 0);
+        normalReceiver.setUserId(3L);
+        normalReceiver.setMuteStatus(0);
+        chatSessionService.listResult = List.of(sender, mutedReceiver, normalReceiver);
+
+        List<Long> result = chatSessionService.filterPushUserIds(1L, List.of(1L, 2L, 3L), 1L);
+
+        Assertions.assertEquals(List.of(1L, 3L), result);
+    }
+
     private ChatSession createSession(Long roomId, Long lastMessageId, Integer unreadCount, Integer topStatus) {
         ChatSession session = new ChatSession();
         session.setRoomId(roomId);
@@ -342,6 +401,19 @@ class ChatSessionServiceImplTest {
                 (proxy, method, args) -> {
                     if ("getOnlineStatusMap".equals(method.getName())) {
                         return onlineStatusMap;
+                    }
+                    return defaultValue(method.getReturnType());
+                }
+        );
+    }
+
+    private com.stephen.cloud.chat.service.ChatRoomMemberService createChatRoomMemberService() {
+        return (com.stephen.cloud.chat.service.ChatRoomMemberService) Proxy.newProxyInstance(
+                com.stephen.cloud.chat.service.ChatRoomMemberService.class.getClassLoader(),
+                new Class[]{com.stephen.cloud.chat.service.ChatRoomMemberService.class},
+                (proxy, method, args) -> {
+                    if ("isMember".equals(method.getName())) {
+                        return member;
                     }
                     return defaultValue(method.getReturnType());
                 }

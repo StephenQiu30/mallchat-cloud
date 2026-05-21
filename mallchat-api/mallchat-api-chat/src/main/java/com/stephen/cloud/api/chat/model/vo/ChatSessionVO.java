@@ -70,6 +70,12 @@ public class ChatSessionVO implements Serializable {
     private Integer topStatus;
 
     /**
+     * 免打扰状态：0-否，1-是
+     */
+    @Schema(description = "免打扰状态：0-否，1-是", example = "0")
+    private Integer muteStatus;
+
+    /**
      * 最后活跃时间
      */
     @Schema(description = "最后活跃时间")
