@@ -4,7 +4,7 @@
 TBD - created by archiving change add-moments-feed-mvp. Update Purpose after archive.
 ## Requirements
 ### Requirement: 系统应支持发布文字或图片动态
-The system SHALL allow an authenticated user to publish a moment with text content, image media, or both.
+The system SHALL allow an authenticated user to publish a moment with text content, image media, or both, and MAY mark the moment as friend-visible or public.
 
 #### Scenario: 发布文字动态
 - **WHEN** 用户以 `POST /chat/moment/publish` 提交合法正文
@@ -13,74 +13,21 @@ The system SHALL allow an authenticated user to publish a moment with text conte
 - **AND** 不创建 `chat_message`
 - **AND** 不更新 `chat_session` 未读数
 
-#### Scenario: 发布图片动态
-- **WHEN** 用户提交包含图片 URL 的动态
-- **THEN** 系统保存动态主体
-- **AND** 系统按提交顺序保存 `chat_moment_media`
+#### Scenario: 发布公开动态
+- **WHEN** 用户以 `visibility=1` 发布合法动态
+- **THEN** 系统保存该动态为公开可见
+- **AND** 审核状态默认为通过
 
-#### Scenario: 空动态被拒绝
-- **WHEN** 用户提交空正文且无媒体的动态
+#### Scenario: 非法可见范围被拒绝
+- **WHEN** 用户提交非 0 或 1 的 `visibility`
 - **THEN** 系统返回参数错误
-
-#### Scenario: 超长正文被拒绝
-- **WHEN** 用户提交 trim 后超过 1000 个字符的正文
-- **THEN** 系统返回参数错误
-
-#### Scenario: 非法媒体被拒绝
-- **WHEN** 用户提交空 URL、超过 1024 个字符 URL、或超过 9 张图片的媒体列表
-- **THEN** 系统返回参数错误
-
-#### Scenario: 媒体保存失败回滚主体
-- **WHEN** 动态主体保存成功但媒体保存失败
-- **THEN** 系统回滚本次发布
-- **AND** 不保留只有主体没有媒体的脏数据
 
 ### Requirement: 系统应支持好友可见动态流
-The system SHALL return a paginated moments timeline that includes the viewer's own moments and mutual friends' moments only, excluding blocked friend relationships.
+The system SHALL return a paginated moments timeline that includes the viewer's own moments and mutual friends' moments only, excluding blocked friend relationships and audit-failed moments.
 
-#### Scenario: 动态列表先按可见作者集合分页
-- **WHEN** 用户查看动态流
-- **THEN** 系统先确定可见作者集合
-- **AND** 再按可见作者集合、未删除状态和发布时间倒序分页
-- **AND** 分页总数不应包含不可见动态
-
-#### Scenario: 作者查看自己的动态
-- **WHEN** 用户查看动态流
-- **THEN** 系统返回该用户自己的未删除动态
-
-#### Scenario: 好友查看动态
-- **WHEN** 用户 A 与用户 B 互为好友
-- **AND** 用户 A 与用户 B 不存在任一方向拉黑关系
-- **THEN** 用户 A 的动态流可以返回用户 B 的未删除动态
-
-#### Scenario: 非好友不可见
-- **WHEN** 用户 A 与用户 C 不是好友
-- **THEN** 用户 A 的动态流不能返回用户 C 的动态
-
-#### Scenario: 已拉黑好友不可见
-- **WHEN** 用户 A 与用户 B 互为好友
-- **AND** 用户 A 与用户 B 任一方向存在拉黑关系
-- **THEN** 用户 A 的动态流不能返回用户 B 的动态
-
-#### Scenario: 已删除动态不可见
-- **WHEN** 一条动态已经被删除
-- **THEN** 动态流不返回该动态
-
-#### Scenario: 不可见动态不能互动
-- **WHEN** 用户尝试点赞或评论非本人且非互为好友作者的动态
-- **THEN** 系统返回无权限错误
-- **AND** 不创建点赞、评论或通知事实
-
-#### Scenario: 不可见动态不能查询评论
-- **WHEN** 用户尝试查询非本人且非互为好友作者的动态评论列表
-- **THEN** 系统返回无权限错误
-- **AND** 不返回评论内容
-
-#### Scenario: 不存在或已删除动态不能互动
-- **WHEN** 用户尝试点赞、评论或查询一条不存在或已删除的动态
-- **THEN** 系统返回错误
-- **AND** 不创建互动事实
-- **AND** 不创建通知
+#### Scenario: 审核未通过动态不可进入好友动态流
+- **WHEN** 一条动态审核状态不是通过
+- **THEN** 好友动态流不返回该动态
 
 ### Requirement: 系统应支持作者删除自己的动态
 The system SHALL allow a moment author to delete their own moment and reject deletion attempts from other users.
@@ -190,3 +137,59 @@ The system SHALL create notification records for moment authors when other users
 - **WHEN** 点赞或评论事实与计数更新成功
 - **THEN** 系统尝试创建互动通知
 - **AND** 通知创建失败不应回滚点赞或评论事实
+
+### Requirement: 系统应支持动态公开广场 MVP
+The system SHALL provide a public moments list that returns public, active, audit-passed moments.
+
+#### Scenario: 查询公开动态广场
+- **WHEN** 登录用户查询 `GET /chat/moment/public/list`
+- **THEN** 系统返回公开、正常、审核通过且未删除的动态
+- **AND** 不要求动态作者与查看者互为好友
+
+#### Scenario: 好友可见动态不进入公开广场
+- **WHEN** 一条动态为好友可见
+- **THEN** 公开广场不返回该动态
+
+#### Scenario: 审核未通过动态不进入公开广场
+- **WHEN** 一条公开动态审核状态不是通过
+- **THEN** 公开广场不返回该动态
+
+#### Scenario: 公开动态允许非好友互动
+- **WHEN** 用户点赞或评论一条公开、正常、审核通过的动态
+- **AND** 用户与作者不是好友
+- **THEN** 系统按可见动态处理本次互动
+
+#### Scenario: 拉黑关系下公开动态不可见
+- **WHEN** 用户与公开动态作者存在任一方向拉黑
+- **THEN** 公开广场不返回该动态
+- **AND** 用户不能点赞或评论该动态
+
+### Requirement: 系统应支持公开动态轻量排序
+The system SHALL order public moments by a simple, stable ranking that favors interaction and recent content after applying visibility and audit filters.
+
+#### Scenario: 公开广场按轻量排序返回
+- **WHEN** 用户查询公开动态广场
+- **THEN** 系统先过滤公开、正常、审核通过且未删除的动态
+- **AND** 再按点赞数、评论数、创建时间和 ID 倒序稳定排序
+
+#### Scenario: 排序不绕过权限过滤
+- **WHEN** 好友可见、已删除或审核未通过动态互动量更高
+- **THEN** 公开广场仍不返回这些动态
+
+### Requirement: 系统应提供动态内容审核状态边界
+The system SHALL store a minimal audit status for moments so public discovery can exclude audit-failed content without depending on an external AI provider.
+
+#### Scenario: 发布动态默认审核通过
+- **WHEN** 用户发布合法动态
+- **THEN** 系统保存动态审核状态为通过
+- **AND** 不调用外部 AI 服务作为同步依赖
+
+#### Scenario: 审核未通过动态不可公开发现或互动
+- **WHEN** 一条动态审核状态不是通过
+- **THEN** 公开广场不返回该动态
+- **AND** 用户不能点赞或评论该动态
+
+#### Scenario: 审核状态不复用生命周期状态
+- **WHEN** 系统判断动态是否删除
+- **THEN** 仍使用 `status` 与 `is_delete`
+- **AND** 审核状态只用于内容治理和展示过滤

@@ -32,6 +32,10 @@ public class ChatMoment implements Serializable {
 
     private Integer commentCount;
 
+    private Integer visibility;
+
+    private Integer auditStatus;
+
     private Integer status;
 
     private Date createTime;

@@ -34,6 +34,9 @@ public class ChatMomentVO implements Serializable {
     @Schema(description = "评论数")
     private Integer commentCount;
 
+    @Schema(description = "可见范围：0-好友可见，1-公开")
+    private Integer visibility;
+
     @Schema(description = "媒体列表")
     private List<ChatMomentMediaVO> mediaList;
 

@@ -56,6 +56,15 @@ public class ChatMomentController {
         return ResultUtils.success(chatMomentService.listVisibleMoments(userId, current, pageSize));
     }
 
+    @GetMapping("/public/list")
+    @Operation(summary = "公开动态广场", description = "分页查询公开且审核通过的动态")
+    public BaseResponse<Page<ChatMomentVO>> listPublicMoments(
+            @Parameter(description = "页码") @RequestParam(defaultValue = "1") Integer current,
+            @Parameter(description = "每页数量") @RequestParam(defaultValue = "10") Integer pageSize) {
+        Long userId = SecurityUtils.getLoginUserId();
+        return ResultUtils.success(chatMomentService.listPublicMoments(userId, current, pageSize));
+    }
+
     @DeleteMapping("/delete")
     @OperationLog(module = "动态管理", action = "删除动态")
     @Operation(summary = "删除动态", description = "删除自己的动态")

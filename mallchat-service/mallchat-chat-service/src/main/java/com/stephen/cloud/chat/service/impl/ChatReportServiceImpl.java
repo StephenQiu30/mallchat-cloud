@@ -34,6 +34,9 @@ public class ChatReportServiceImpl extends ServiceImpl<ChatReportMapper, ChatRep
         implements ChatReportService {
 
     private static final int STATUS_PENDING = 0;
+    private static final int MOMENT_STATUS_NORMAL = 0;
+    private static final int MOMENT_VISIBILITY_PUBLIC = 1;
+    private static final int MOMENT_AUDIT_STATUS_PASS = 1;
     private static final int MAX_REASON_TYPE_LENGTH = 64;
     private static final int MAX_REASON_LENGTH = 500;
 
@@ -98,11 +101,16 @@ public class ChatReportServiceImpl extends ServiceImpl<ChatReportMapper, ChatRep
             return message.getFromUserId();
         }
         ChatMoment moment = getMomentById(targetId);
-        ThrowUtils.throwIf(moment == null || Objects.equals(moment.getStatus(), 1)
+        ThrowUtils.throwIf(moment == null || !Objects.equals(moment.getStatus(), MOMENT_STATUS_NORMAL)
                 || Objects.equals(moment.getIsDelete(), 1), ErrorCode.NOT_FOUND_ERROR, "动态不存在");
         if (!Objects.equals(moment.getUserId(), reporterUserId)) {
-            ThrowUtils.throwIf(userFriendService == null
-                            || !userFriendService.listMutualFriendIds(reporterUserId).contains(moment.getUserId()),
+            ThrowUtils.throwIf(userFriendService == null, ErrorCode.NO_AUTH_ERROR, "无权举报该动态");
+            ThrowUtils.throwIf(userFriendService.isBlockedBetween(reporterUserId, moment.getUserId()),
+                    ErrorCode.NO_AUTH_ERROR, "无权举报该动态");
+            boolean publicVisible = Objects.equals(moment.getVisibility(), MOMENT_VISIBILITY_PUBLIC)
+                    && Objects.equals(moment.getAuditStatus(), MOMENT_AUDIT_STATUS_PASS);
+            ThrowUtils.throwIf(!publicVisible
+                            && !userFriendService.listMutualFriendIds(reporterUserId).contains(moment.getUserId()),
                     ErrorCode.NO_AUTH_ERROR, "无权举报该动态");
         }
         return moment.getUserId();

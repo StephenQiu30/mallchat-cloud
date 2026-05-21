@@ -60,6 +60,9 @@ public class ChatMomentServiceImpl extends ServiceImpl<ChatMomentMapper, ChatMom
     private static final int MAX_MEDIA_URL_LENGTH = 1024;
     private static final int DEFAULT_PAGE_SIZE = 10;
     private static final int MAX_PAGE_SIZE = 20;
+    private static final int VISIBILITY_FRIEND = 0;
+    private static final int VISIBILITY_PUBLIC = 1;
+    private static final int AUDIT_STATUS_PASS = 1;
     private static final int STATUS_NORMAL = 0;
     private static final int STATUS_DELETED = 1;
     private static final String RELATED_TYPE_CHAT_MOMENT = "chat_moment";
@@ -88,6 +91,7 @@ public class ChatMomentServiceImpl extends ServiceImpl<ChatMomentMapper, ChatMom
         ThrowUtils.throwIf(userId == null || request == null, ErrorCode.PARAMS_ERROR);
         String content = normalizeContent(request.getContent());
         List<ChatMomentMediaRequest> mediaList = normalizeMediaList(request.getMediaList());
+        int visibility = normalizeVisibility(request.getVisibility());
         ThrowUtils.throwIf(StrUtil.isBlank(content) && CollUtil.isEmpty(mediaList), ErrorCode.PARAMS_ERROR, "动态内容不能为空");
 
         ChatMoment moment = new ChatMoment();
@@ -96,6 +100,8 @@ public class ChatMomentServiceImpl extends ServiceImpl<ChatMomentMapper, ChatMom
         moment.setMediaCount(mediaList.size());
         moment.setLikeCount(0);
         moment.setCommentCount(0);
+        moment.setVisibility(visibility);
+        moment.setAuditStatus(AUDIT_STATUS_PASS);
         moment.setStatus(STATUS_NORMAL);
         moment.setIsDelete(0);
         boolean saved = saveMoment(moment);
@@ -125,6 +131,29 @@ public class ChatMomentServiceImpl extends ServiceImpl<ChatMomentMapper, ChatMom
         List<Long> momentIds = momentPage.getRecords().stream().map(ChatMoment::getId).toList();
         Map<Long, List<ChatMomentMediaVO>> mediaMap = listMomentMediaMap(momentIds);
         voPage.setRecords(momentPage.getRecords().stream()
+                .map(moment -> toVO(moment, mediaMap.getOrDefault(moment.getId(), Collections.emptyList())))
+                .toList());
+        return voPage;
+    }
+
+    @Override
+    public Page<ChatMomentVO> listPublicMoments(Long userId, int current, int pageSize) {
+        ThrowUtils.throwIf(userId == null, ErrorCode.PARAMS_ERROR);
+        int normalizedCurrent = current <= 0 ? 1 : current;
+        int normalizedPageSize = normalizePageSize(pageSize);
+
+        Page<ChatMoment> momentPage = pagePublicMoments(normalizedCurrent, normalizedPageSize);
+        List<ChatMoment> visibleRecords = momentPage.getRecords() == null ? Collections.emptyList()
+                : momentPage.getRecords().stream()
+                .filter(moment -> !isBlockedBetween(userId, moment.getUserId()))
+                .toList();
+        Page<ChatMomentVO> voPage = new Page<>(momentPage.getCurrent(), momentPage.getSize(), visibleRecords.size());
+        if (CollUtil.isEmpty(visibleRecords)) {
+            return voPage;
+        }
+        List<Long> momentIds = visibleRecords.stream().map(ChatMoment::getId).toList();
+        Map<Long, List<ChatMomentMediaVO>> mediaMap = listMomentMediaMap(momentIds);
+        voPage.setRecords(visibleRecords.stream()
                 .map(moment -> toVO(moment, mediaMap.getOrDefault(moment.getId(), Collections.emptyList())))
                 .toList());
         return voPage;
@@ -255,8 +284,25 @@ public class ChatMomentServiceImpl extends ServiceImpl<ChatMomentMapper, ChatMom
                 new LambdaQueryWrapper<ChatMoment>()
                         .in(ChatMoment::getUserId, visibleAuthorIds)
                         .eq(ChatMoment::getStatus, STATUS_NORMAL)
+                        .eq(ChatMoment::getAuditStatus, AUDIT_STATUS_PASS)
                         .orderByDesc(ChatMoment::getCreateTime)
                         .orderByDesc(ChatMoment::getId));
+    }
+
+    protected Page<ChatMoment> pagePublicMoments(int current, int pageSize) {
+        return this.page(new Page<>(current, pageSize),
+                new LambdaQueryWrapper<ChatMoment>()
+                        .eq(ChatMoment::getVisibility, VISIBILITY_PUBLIC)
+                        .eq(ChatMoment::getAuditStatus, AUDIT_STATUS_PASS)
+                        .eq(ChatMoment::getStatus, STATUS_NORMAL)
+                        .orderByDesc(ChatMoment::getLikeCount)
+                        .orderByDesc(ChatMoment::getCommentCount)
+                        .orderByDesc(ChatMoment::getCreateTime)
+                        .orderByDesc(ChatMoment::getId));
+    }
+
+    protected boolean isBlockedBetween(Long userId, Long targetUserId) {
+        return userFriendService != null && userFriendService.isBlockedBetween(userId, targetUserId);
     }
 
     protected ChatMoment getMomentIncludingDeleted(Long momentId) {
@@ -401,12 +447,28 @@ public class ChatMomentServiceImpl extends ServiceImpl<ChatMomentMapper, ChatMom
         return Math.min(pageSize, MAX_PAGE_SIZE);
     }
 
+    private int normalizeVisibility(Integer visibility) {
+        if (visibility == null) {
+            return VISIBILITY_FRIEND;
+        }
+        ThrowUtils.throwIf(!Objects.equals(visibility, VISIBILITY_FRIEND)
+                && !Objects.equals(visibility, VISIBILITY_PUBLIC), ErrorCode.PARAMS_ERROR, "动态可见范围不合法");
+        return visibility;
+    }
+
     private ChatMoment getVisibleActiveMoment(Long userId, Long momentId) {
         ThrowUtils.throwIf(userId == null || momentId == null || momentId <= 0, ErrorCode.PARAMS_ERROR);
         ChatMoment moment = getMomentIncludingDeleted(momentId);
         ThrowUtils.throwIf(moment == null || Objects.equals(moment.getStatus(), STATUS_DELETED)
                 || Objects.equals(moment.getIsDelete(), 1), ErrorCode.NOT_FOUND_ERROR, "动态不存在");
+        ThrowUtils.throwIf(!Objects.equals(moment.getAuditStatus(), AUDIT_STATUS_PASS),
+                ErrorCode.NO_AUTH_ERROR, "无权操作该动态");
         if (Objects.equals(userId, moment.getUserId())) {
+            return moment;
+        }
+        ThrowUtils.throwIf(isBlockedBetween(userId, moment.getUserId()),
+                ErrorCode.NO_AUTH_ERROR, "无权操作该动态");
+        if (Objects.equals(moment.getVisibility(), VISIBILITY_PUBLIC)) {
             return moment;
         }
         Set<Long> friendIds = listMutualFriendIds(userId);
@@ -435,6 +497,7 @@ public class ChatMomentServiceImpl extends ServiceImpl<ChatMomentMapper, ChatMom
         vo.setMediaCount(moment.getMediaCount());
         vo.setLikeCount(moment.getLikeCount());
         vo.setCommentCount(moment.getCommentCount());
+        vo.setVisibility(moment.getVisibility());
         vo.setMediaList(mediaList);
         vo.setCreateTime(moment.getCreateTime());
         return vo;

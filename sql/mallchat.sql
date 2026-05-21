@@ -386,13 +386,16 @@ CREATE TABLE `chat_moment`
     `media_count`   int           NOT NULL DEFAULT 0 COMMENT '媒体数量',
     `like_count`    int           NOT NULL DEFAULT 0 COMMENT '点赞数',
     `comment_count` int           NOT NULL DEFAULT 0 COMMENT '评论数',
+    `visibility`    tinyint       NOT NULL DEFAULT 0 COMMENT '可见范围：0-好友可见，1-公开',
+    `audit_status`  tinyint       NOT NULL DEFAULT 1 COMMENT '审核状态：0-待审，1-通过，2-拒绝',
     `status`        tinyint       NOT NULL DEFAULT 0 COMMENT '状态：0-正常，1-已删除',
     `create_time`   datetime      NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
     `update_time`   datetime      NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
     `is_delete`     tinyint       NOT NULL DEFAULT 0 COMMENT '是否删除',
     PRIMARY KEY (`id`),
     KEY `idx_user_time` (`user_id`, `create_time` DESC),
-    KEY `idx_status_time` (`status`, `create_time` DESC)
+    KEY `idx_status_time` (`status`, `create_time` DESC),
+    KEY `idx_public_rank` (`visibility`, `audit_status`, `status`, `like_count`, `comment_count`, `create_time` DESC, `id` DESC)
 ) ENGINE = InnoDB
   DEFAULT CHARSET = utf8mb4
   COLLATE = utf8mb4_unicode_ci COMMENT = '动态主体表';

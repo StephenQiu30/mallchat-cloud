@@ -1,8 +1,5 @@
-# chat-report Specification
+## MODIFIED Requirements
 
-## Purpose
-TBD - created by archiving change add-chat-report-mvp. Update Purpose after archive.
-## Requirements
 ### Requirement: 用户可以提交最小举报
 The system SHALL allow authenticated users to submit reports for users, messages, and visible moments.
 
@@ -21,4 +18,3 @@ The system SHALL allow authenticated users to submit reports for users, messages
 - **WHEN** 用户与公开动态作者存在任一方向拉黑
 - **THEN** 系统返回无权限错误
 - **AND** 不创建举报记录
-
