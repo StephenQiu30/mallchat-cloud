@@ -36,7 +36,7 @@ The system SHALL allow an authenticated user to publish a moment with text conte
 - **AND** 不保留只有主体没有媒体的脏数据
 
 ### Requirement: 系统应支持好友可见动态流
-The system SHALL return a paginated moments timeline that includes the viewer's own moments and mutual friends' moments only.
+The system SHALL return a paginated moments timeline that includes the viewer's own moments and mutual friends' moments only, excluding blocked friend relationships.
 
 #### Scenario: 动态列表先按可见作者集合分页
 - **WHEN** 用户查看动态流
@@ -50,11 +50,17 @@ The system SHALL return a paginated moments timeline that includes the viewer's 
 
 #### Scenario: 好友查看动态
 - **WHEN** 用户 A 与用户 B 互为好友
+- **AND** 用户 A 与用户 B 不存在任一方向拉黑关系
 - **THEN** 用户 A 的动态流可以返回用户 B 的未删除动态
 
 #### Scenario: 非好友不可见
 - **WHEN** 用户 A 与用户 C 不是好友
 - **THEN** 用户 A 的动态流不能返回用户 C 的动态
+
+#### Scenario: 已拉黑好友不可见
+- **WHEN** 用户 A 与用户 B 互为好友
+- **AND** 用户 A 与用户 B 任一方向存在拉黑关系
+- **THEN** 用户 A 的动态流不能返回用户 B 的动态
 
 #### Scenario: 已删除动态不可见
 - **WHEN** 一条动态已经被删除

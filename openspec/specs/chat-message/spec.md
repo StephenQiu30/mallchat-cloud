@@ -193,3 +193,62 @@ The system SHALL keep persisted message-flow facts successful even when realtime
 - **AND** the persisted recall status remains updated
 - **AND** the push failure is degraded instead of rolling back the recall fact
 
+### Requirement: 房间成员可以搜索文本消息
+The system SHALL allow an authenticated room member to search normal text messages in a room they can access using bounded pagination.
+
+#### Scenario: 成员搜索房间文本消息
+- **WHEN** a room member searches messages with a non-blank keyword
+- **THEN** the system returns matching normal text messages from that room
+- **AND** the results are ordered by message id descending
+
+#### Scenario: 非成员不可搜索房间消息
+- **WHEN** a user who is not a room member searches messages in that room
+- **THEN** the system rejects the request
+- **AND** no room messages are returned
+
+#### Scenario: 空关键词被拒绝
+- **WHEN** a room member searches with a blank keyword
+- **THEN** the system rejects the request as invalid
+
+#### Scenario: 撤回删除和非文本消息不进入搜索结果
+- **WHEN** a room contains recalled, deleted, image, or file messages
+- **THEN** the search result contains only normal text messages matching the keyword
+
+### Requirement: 免打扰不影响消息事实和重连补偿
+The system SHALL keep message persistence, session updates, and reconnect compensation independent from session mute status.
+
+#### Scenario: 免打扰成员仍可通过历史消息获取消息
+- **WHEN** a muted room member queries history or reconnect compensation
+- **THEN** the system authorizes through room membership
+- **AND** returns persisted messages normally
+
+#### Scenario: 群消息推送过滤免打扰接收者
+- **WHEN** a group member sends a message
+- **AND** another receiver has muted the session
+- **THEN** the realtime `CHAT_MESSAGE` push target list excludes the muted receiver
+- **AND** the sent message remains persisted successfully
+
+### Requirement: 拉黑关系阻断私聊发送
+The system SHALL reject private chat message sends when the sender and peer have an active block relation in either direction.
+
+#### Scenario: 私聊发送前发现拉黑关系
+- **WHEN** 用户在私聊房间发送消息
+- **AND** 私聊双方任一方向存在拉黑关系
+- **THEN** 系统拒绝发送
+- **AND** 不创建消息记录
+- **AND** 不推送实时消息事件
+
+### Requirement: Message client idempotency survives duplicate delivery races
+The system SHALL keep a single message fact for repeated sends with the same sender and client message id.
+
+#### Scenario: Duplicate client message id is already persisted
+- **WHEN** a user sends a message with a `clientMsgId` that already exists for that sender
+- **THEN** the system SHALL return the existing message view
+- **AND** the system SHALL NOT persist or push a second message fact
+
+#### Scenario: Duplicate client message id wins the database race
+- **WHEN** two requests with the same sender and `clientMsgId` pass the pre-insert lookup concurrently
+- **AND** the database unique key rejects one insert
+- **THEN** the rejected request SHALL reload and return the existing message view
+- **AND** the rejected request SHALL NOT push another realtime message event
+
