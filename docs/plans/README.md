@@ -30,3 +30,4 @@
 | [PL-004-im-production-readiness-issue-plan.md](./PL-004-im-production-readiness-issue-plan.md) | IM 生产可用 P0 Issue 编排计划 |
 | [PL-005-im-p1-backend-governance-plan.md](./PL-005-im-p1-backend-governance-plan.md) | IM P1 后端治理 Issue 编排计划 |
 | [PL-006-im-p2-backend-experience-plan.md](./PL-006-im-p2-backend-experience-plan.md) | IM P2 后端体验 Issue 编排计划 |
+| [PL-007-multi-client-e2e-matrix-plan.md](./PL-007-multi-client-e2e-matrix-plan.md) | 多端 E2E 自动化矩阵计划 |
