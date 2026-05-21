@@ -53,6 +53,22 @@
 6. 不为单个功能引入新的 JSON 结构、事件格式或 MQ 包装格式；实时事件应优先复用 `ImWebSocketEvent`、`WebSocketMessage` 和现有 RabbitMQ 分发模型。
 7. 文件超过可维护范围时按职责拆分，拆分必须服务于可读性和测试，不为抽象而抽象。
 
+## 接口契约一致性规范
+
+1. 面向前端或跨服务生成的接口应使用业务 DTO Request / VO Response，避免长期暴露散落的 `@RequestParam`、通用 `DeleteRequest`、裸 `Boolean`、裸 `Long` 或实体对象。
+2. multipart 上传、WebFlux Gateway、健康检查和内部框架回调可以保留框架原生参数，但 PR 必须说明原因、兼容性影响和后续是否需要端侧同步。
+3. Feign 与 Controller 的请求/响应契约必须同步，新增 DTO/VO 应放在对应 `mallchat-api-*` 模块，不能只改服务实现。
+4. 简单操作可以按领域复用清晰的 `IdVO`、`OperationResultVO` 或统计 VO；不要为了单个字段创建过度细碎的响应模型。
+5. 涉及接口契约变化时，PR 必须写清楚 DTO Request / VO Response 影响、前端接口生成影响和兼容性风险。
+
+## 工程化守护门禁
+
+1. 已沉淀为 `*ApiContractConsistencyTest`、`*ContractConsistencyTest`、Gateway 配置测试或公共组件测试的规则，应接入 CI 的快速 focused tests，避免后续回归。
+2. `scripts/validate-repository.sh` 只检查长期稳定、低噪声、可解释的规则，不把一次性过程记录或历史低收益差异变成阻塞。
+3. CI 主路径优先运行仓库结构检查、OpenSpec 严格校验、工程化契约守护、核心 focused tests、编译和 Docker Compose 配置校验。
+4. 新增守护规则前必须能说明来源于已完成 issue 或验收文档；不能先写复杂工具再倒逼业务代码适配。
+5. 守护失败信息必须能指向具体文件、规则和修复方向，避免只输出笼统失败。
+
 ## 接口高可用测试规范
 
 1. 新增或修改后端接口前必须先写失败测试；测试至少覆盖成功路径、参数错误、未登录或无权限、目标不存在、重复/幂等、并发或缓存退化中的关键场景。
@@ -190,7 +206,7 @@
 6. 多个 PR 需要合并时，应按用户指定顺序逐个合并；每合并一个 PR 后都要重新检查后续 PR 的冲突、CI 和合并状态。
 7. PR 合并后应同步本地分支状态，并执行必要的仓库健康检查，确认没有合并后遗留的工作区污染或格式问题。
 8. 功能 PR 描述必须包含 Test-first Evidence、Tests added、Commands run、Result、Agent Usage 和 Reviewer Checklist；Reviewer 应先审 `test:` commit，再审 `impl:` commit。
-9. CI 必须包含完整测试入口，至少运行仓库结构检查、Markdown 空白检查和 `npm test`；项目增加真实单元、集成、UI、快照或性能测试后，应把对应命令接入 `npm test` 或 CI 明确步骤。
+9. CI 必须包含清晰的后端质量入口，至少运行 `bash scripts/validate-repository.sh`、`openspec validate --all --strict`、工程化契约守护测试、核心 Maven focused tests、`mvn -B -DskipTests compile` 和必要的配置校验；新增稳定单元、集成、UI、快照或性能测试后，应接入对应 focused tests 或 CI 明确步骤。
 
 ## PR 模板要求
 

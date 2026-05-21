@@ -1,5 +1,10 @@
 # PR Summary
 
+## Linked Issues
+
+- Closes #
+- OpenSpec change:
+
 ## Test-first Evidence
 
 - Failing test commit:
@@ -22,10 +27,28 @@
 # test command
 ```
 
+## Focused contract tests
+
+- Contract guard command:
+
+## Contract / Compatibility
+
+- DTO Request / VO Response impact:
+- API client generation impact:
+- Compatibility:
+- Compatibility exceptions:
+
 ## Result
 
 - Failed before implementation
 - Passed after implementation
+
+## Code Review
+
+- Reviewer:
+- Findings (Critical / Important / Minor):
+- Follow-up issues:
+- Readonly review result:
 
 ## Agent Usage
 
@@ -47,4 +70,6 @@ Agent-generated:
 - [ ] Implementation is minimal
 - [ ] No unrelated changes
 - [ ] Agent code reviewed
+- [ ] DTO Request / VO Response impact reviewed
+- [ ] Compatibility impact documented
 - [ ] CI passed

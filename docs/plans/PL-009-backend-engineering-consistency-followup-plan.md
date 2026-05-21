@@ -182,6 +182,14 @@ E4 只沉淀已经在 E1-E3 验证有效的规则，不提前写复杂平台。�
 
 ```bash
 bash scripts/validate-repository.sh
+mvn -B -pl mallchat-service/mallchat-chat-service -am -Dtest=ChatApiContractConsistencyTest -Dsurefire.failIfNoSpecifiedTests=false test
+mvn -B -pl mallchat-service/mallchat-log-service -am -Dtest=LogApiContractConsistencyTest -Dsurefire.failIfNoSpecifiedTests=false test
+mvn -B -pl mallchat-service/mallchat-file-service -am -Dtest=FileUploadContractConsistencyTest -Dsurefire.failIfNoSpecifiedTests=false test
+mvn -B -pl mallchat-service/mallchat-notification-service -am -Dtest=NotificationApiContractConsistencyTest -Dsurefire.failIfNoSpecifiedTests=false test
+mvn -B -pl mallchat-service/mallchat-user-service -am -Dtest=UserApiContractConsistencyTest -Dsurefire.failIfNoSpecifiedTests=false test
+mvn -B -pl mallchat-service/mallchat-ai-service -am -Dtest=AiApiContractConsistencyTest -Dsurefire.failIfNoSpecifiedTests=false test
+mvn -B -pl mallchat-gateway -am -Dtest=GatewayAuthWhitelistConfigTest,RateLimitConfigTest -Dsurefire.failIfNoSpecifiedTests=false test
+mvn -B -pl mallchat-common/mallchat-common-rabbitmq -am -Dtest=RabbitMqSenderTest -Dsurefire.failIfNoSpecifiedTests=false test
 mvn -B -DskipTests compile
 openspec validate --all --strict
 git diff --check
