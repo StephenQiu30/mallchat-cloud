@@ -32,7 +32,7 @@
 
 ## IM 生产化 Issue 消费规范
 
-1. 生产化任务先进入 `docs/superpowers/specs/` 和 `docs/plans/`，再创建 GitHub Issue；不得先写代码后补规格。
+1. 生产化任务先进入 OpenSpec proposal/design/tasks 或长期 PRD/Design 文档，再创建 GitHub Issue；不得先写代码后补规格，不为一次性执行过程新增 `docs/superpowers/` 或 `docs/plans/` 中间产物。
 2. 首批 GitHub Issue 只创建 P0，范围限定为安全、消息可靠性、可观测性和数据恢复；P1/P2 只作为候选池。
 3. 后端功能必须遵循 TDD：先写失败测试并确认失败，再写最小实现，再回归相关模块测试和 `openspec validate --all --strict`。
 4. 每个子 Issue 必须声明 Parent Epic、建议 OpenSpec change id、文件所有权、TDD 验收、生产验收和完成标准。
@@ -49,7 +49,7 @@
 2. API 契约继续放在 `mallchat-api-*`，业务实现继续放在 `mallchat-service/*`，公共能力继续放在 `mallchat-common/*`，不得把跨服务 DTO 临时塞进 service 模块。
 3. IM 能力命名继续沿用 `chat-*` / `Chat*`，动态 feed 可建立独立领域命名，但不得把动态、通知、消息三类概念混用。
 4. 新增枚举、DTO、VO、Convert、Service 方法时，应跟随同目录既有命名、注解、Swagger 描述、异常处理和 `BaseResponse` 返回风格。
-5. 新增 SQL 表和索引应与 `sql/mallchat.sql` 当前命名、字段、逻辑删除、时间字段、唯一键和查询索引风格一致。
+5. 新增 SQL 表和索引应与 `sql/mallchat.sql` 当前命名、字段、逻辑删除、时间字段、唯一键和查询索引风格一致；数据库结构事实源只维护 `sql/mallchat.sql`，不提交分散的中间迁移脚本。
 6. 不为单个功能引入新的 JSON 结构、事件格式或 MQ 包装格式；实时事件应优先复用 `ImWebSocketEvent`、`WebSocketMessage` 和现有 RabbitMQ 分发模型。
 7. 文件超过可维护范围时按职责拆分，拆分必须服务于可读性和测试，不为抽象而抽象。
 

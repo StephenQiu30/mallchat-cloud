@@ -1,20 +1,16 @@
-# SQL 数据库初始化脚本
+# SQL 数据库脚本
 
-本目录包含 `mallchat-cloud` 全系统所需的数据库定义（DDL）。为了简化部署，系统采用统一数据库设计。
+本目录只维护一个完整数据库脚本：`mallchat.sql`。后续表结构调整直接同步到该文件，不再提交分散的中间迁移脚本。
 
-## 🗄️ 数据库说明
+## 数据库说明
 
 目前全系统共用一个数据库：`mallchat`。
 
-| 数据库名       | 核心表                                                                                                                                 |
-|:-----------|:------------------------------------------------------------------------------------------------------------------------------------|
-| `mallchat` | `user`, `notification`, `ai_chat_record`, `api_access_log`, `operation_log`, `user_login_log`, `email_record`, `file_upload_record`, `user_friend`, `user_friend_block`, `chat_report`, `chat_room`, `chat_room_member`, `chat_room_join_apply`, `chat_message`, `chat_private_room`, `user_friend_apply`, `chat_session`, `chat_group_info` |
+核心表包括用户、通知、AI 对话记录、日志、文件上传、好友关系、群聊、消息、会话、动态和举报相关表。
 
-## 🛠️ 初始化步骤
+## 初始化步骤
 
-### 1. 执行脚本
-
-使用 MySQL 命令行或其他数据库管理工具（如 Navicat, DataGrip）执行 `mallchat.sql` 脚本：
+使用 MySQL 命令行或数据库管理工具执行 `mallchat.sql`：
 
 ```bash
 mysql -u root -p < mallchat.sql
@@ -26,28 +22,15 @@ mysql -u root -p < mallchat.sql
 2. 切换到 `mallchat` 数据库。
 3. 按顺序创建所有必要的业务表。
 
-### 2. 已有环境增量升级
+## 维护规则
 
-已有数据库不要直接重放 `mallchat.sql`。按版本执行 `migrations/` 目录下的增量脚本，例如 m7：
+1. SQL 事实源只看 `sql/mallchat.sql`。
+2. 不提交 `sql/migrations/`、一次性升级脚本或过程性 SQL 片段。
+3. 新增表、字段和索引应保持 `utf8mb4`、`create_time`、`update_time`、`is_delete`、唯一键和索引命名风格一致。
+4. 生产环境执行前必须先备份数据；已有库升级时由发布人员基于 `mallchat.sql` 提取必要变更执行，不在仓库中长期维护分散脚本。
 
-```bash
-mysql -u root -p mallchat < migrations/20260521_m7_room_message_experience.sql
-```
+## 注意事项
 
-增量脚本只补齐本次版本需要的表或字段；执行前仍需先备份生产数据。
-
-## 📝 表设计规范
-
-- **字符集**: 统一使用 `utf8mb4`，支持 Emoji 存储。
-- **公共字段**:
-    - `id`: 雪花算法 ID 或自增 ID。
-    - `create_time`: 创建时间，由数据库自动维护。
-    - `update_time`: 修改时间，由数据库自动维护。
-    - `is_delete`: 逻辑删除位（0-正常，1-删除）。
-- **SQL 标准**: 包含 `DROP TABLE IF EXISTS`，支持重复执行（幂等性）。
-
-## ⚠️ 注意事项
-
-1. **环境差异**: 开发环境与生产环境共用此表结构定义。
-2. **敏感信息**: 数据库连接信息（如密码）应在 Nacos 配置中心中安全管理，不要提交到代码库。
-3. **备份**: 在生产环境执行脚本前，请务必先备份现有数据。
+1. 开发环境与生产环境共用此表结构定义。
+2. 数据库连接信息应在 Nacos 配置中心中安全管理，不要提交到代码库。
+3. 生产环境执行脚本前，请务必先备份现有数据。

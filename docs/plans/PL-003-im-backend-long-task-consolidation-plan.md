@@ -28,7 +28,8 @@ triggers:
   - "检查 IM 后端 MVP 当前完成度"
   - "继续拆分后续 OpenSpec change"
 downstream:
-  - "../acceptance/A-015-im-backend-long-task-acceptance-summary.md"
+  - "openspec/changes/archive/*"
+  - "GitHub Issues / PRs"
 ---
 
 # IM 后端长任务阶段收口计划
@@ -57,14 +58,14 @@ downstream:
 | --- | --- | --- | --- |
 | Phase 1-5 | 调研、PRD、规范 | 已完成后端项目调研、PRD 拆分、计划漏洞复审和 TDD/高可用规范固化 | `docs/prd/`、`AGENTS.md` |
 | Phase 6-8 | WebSocket 与实时可靠性 | 已完成 WebSocket 运行契约、房间成员缓存缺失兜底、重连消息补偿游标 | `openspec/specs/websocket-runtime-contract`、`chat-realtime-delivery` |
-| Phase 9 | 好友发现与关系 | 已完成好友搜索、关系状态、删除好友幂等 | `docs/acceptance/A-003-friend-discovery-phase9-acceptance.md` |
+| Phase 9 | 好友发现与关系 | 已完成好友搜索、关系状态、删除好友幂等 | `docs/prd/P-003`、`openspec/changes/archive/2026-05-19-enhance-friend-discovery-relationship` |
 | Phase 10-11 | 群资料与成员治理 | 已完成群资料更新、群主移除普通成员和权限边界 | `openspec/specs/chat-room-access/spec.md` |
 | Phase 12-13 | 富消息与已读摘要 | 已完成引用回复预览、跨房间防泄露、发送者已读/未读聚合统计 | `openspec/specs/chat-message/spec.md` |
-| Phase 14-15 | 动态 feed | 已完成动态发布、好友可见列表、作者删除、点赞、取消点赞、评论、互动通知降级 | `docs/acceptance/A-004-moments-feed-foundation-acceptance.md`、`A-005` |
-| Phase 16-17R | 通知中心接入 | 已完成好友申请通知、群邀请通知和群邀请 afterCommit 事务边界 | `docs/acceptance/A-006-friend-notification-center-acceptance.md`、`A-007` |
-| Phase 18 | 图片/文件消息契约 | 已加固 IMAGE/FILE extra 的 URL、名称、扩展名、宽高和大小边界 | `docs/acceptance/A-008-message-media-extra-contract-acceptance.md` |
-| Phase 19-22 | 事实优先与推送降级 | 已完成群成员加入幂等、群解散、退群、会话操作、消息发送、已读、撤回的推送失败降级 | `docs/acceptance/A-009` 到 `A-012` |
-| Phase 23-24 | 好友申请可靠性 | 已完成好友申请/通过推送失败降级，以及好友通知 afterCommit 事务边界 | `docs/acceptance/A-013`、`A-014` |
+| Phase 14-15 | 动态 feed | 已完成动态发布、好友可见列表、作者删除、点赞、取消点赞、评论、互动通知降级 | `docs/prd/P-007`、动态相关 OpenSpec archive |
+| Phase 16-17R | 通知中心接入 | 已完成好友申请通知、群邀请通知和群邀请 afterCommit 事务边界 | `docs/prd/P-008`、通知相关 OpenSpec archive |
+| Phase 18 | 图片/文件消息契约 | 已加固 IMAGE/FILE extra 的 URL、名称、扩展名、宽高和大小边界 | `docs/prd/P-005`、消息相关 OpenSpec archive |
+| Phase 19-22 | 事实优先与推送降级 | 已完成群成员加入幂等、群解散、退群、会话操作、消息发送、已读、撤回的推送失败降级 | chat-service focused tests、OpenSpec archive |
+| Phase 23-24 | 好友申请可靠性 | 已完成好友申请/通过推送失败降级，以及好友通知 afterCommit 事务边界 | 好友通知相关 OpenSpec archive 与 PR 记录 |
 
 ## 5. 当前完成度
 
@@ -93,7 +94,7 @@ downstream:
 1. OpenSpec 无 active change。
 2. `openspec validate --all --strict` 通过。
 3. `mallchat-chat-service` 回归测试通过。
-4. 相关验收文档位于 `docs/acceptance/`，并在 README 中可检索。
+4. 相关验收结论位于 OpenSpec archive、Issue 或 PR；只有长期复用规则进入 `docs/acceptance/`。
 5. GitHub `main` 与本地 `HEAD` 同步。
 
 ## 8. 风险与边界

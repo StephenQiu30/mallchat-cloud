@@ -24,7 +24,8 @@ triggers:
   - "进入 Taro、UniApp、Flutter 或 Admin 自动化建设"
   - "新增核心 IM API、WebSocket 事件或治理后台能力"
 downstream:
-  - "docs/acceptance/A-025-m10-admin-audit-e2e-acceptance.md"
+  - "GitHub Issues / PRs"
+  - "CI E2E workflows"
   - "openspec/specs/multi-client-e2e-matrix/spec.md"
 ---
 

@@ -13,7 +13,7 @@ status: review
 version: "0.1.0"
 owner: "StephenQiu30"
 inputs:
-  - "docs/superpowers/specs/2026-05-20-im-production-readiness-issue-design.md"
+  - "docs/plans/PL-010-im-backend-production-roadmap.md"
   - "docs/prd/P-005-message-media-and-rich-types-prd.md"
   - "docs/prd/P-007-qzone-like-moments-feed-prd.md"
 outputs:

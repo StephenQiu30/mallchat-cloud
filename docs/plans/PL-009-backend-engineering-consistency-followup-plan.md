@@ -15,7 +15,7 @@ owner: "StephenQiu30"
 inputs:
   - "docs/design/D-003-backend-engineering-consistency-design.md"
   - "docs/plans/PL-008-backend-engineering-consistency-plan.md"
-  - "docs/acceptance/A-026-m11-chat-consistency-acceptance.md"
+  - "docs/plans/PL-010-im-backend-production-roadmap.md"
 outputs:
   - "E2/E3/E4 后端工程化一致性治理 Issue 编排"
   - "m12/m13/m14 分批治理边界"
@@ -23,8 +23,8 @@ triggers:
   - "m11 Chat 工程化一致性治理完成后"
   - "准备消费 log/file/notification/user/ai/gateway/common 领域治理任务"
 downstream:
-  - "docs/acceptance/A-027-backend-engineering-followup-issue-acceptance.md"
   - "m12/m13/m14 GitHub Issue 与 PR"
+  - "scripts/validate-repository.sh"
 ---
 
 # 后端工程化一致性后续批次计划

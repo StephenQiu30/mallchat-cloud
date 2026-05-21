@@ -10,7 +10,7 @@ feature_area: qq-like-im-mvp-architecture
 purpose: "基于开源 IM 案例和 MallChat 当前后端事实，定义成熟但不过度设计的 QQ-like IM MVP 架构边界。"
 canonical_path: "docs/design/D-002-qq-like-im-mvp-architecture.md"
 status: draft
-version: "0.1.0"
+version: "0.1.1"
 owner: "StephenQiu30"
 inputs:
   - "docs/prd/P-001-im-real-time-communication-prd.md"
@@ -30,7 +30,7 @@ triggers:
   - "继续开发好友、群聊、动态、消息或通知能力"
   - "需要判断某个 IM 能力是否进入 MVP"
 downstream:
-  - "docs/superpowers/plans/2026-05-20-moments-feed-mvp.md"
+  - "docs/prd/P-007-qzone-like-moments-feed-prd.md"
   - "openspec/changes/add-moments-feed-mvp"
 ---
 
@@ -122,7 +122,7 @@ MVP 只做好友可见：
 - 新增后端代码遵循红绿测试，相关测试至少覆盖 `ChatMomentServiceImplTest`。
 - chat-service 回归通过 `mvn -pl :mallchat-chat-service -am test`。
 - OpenSpec 全量通过 `openspec validate --all --strict`。
-- PRD、设计、计划和验收结论可互相追踪。
+- PRD、设计、OpenSpec 和 PR/Issue 验收结论可互相追踪。
 
 ## 7. 风险与边界
 
@@ -135,3 +135,4 @@ MVP 只做好友可见：
 | 日期 | 作者 | 版本 | 变更说明 |
 | --- | --- | --- | --- |
 | 2026-05-20 | StephenQiu30 | 0.1.0 | 初始化 QQ-like IM MVP 架构设计与开源案例参考 |
+| 2026-05-21 | StephenQiu30 | 0.1.1 | 移除对一次性 Superpowers 过程计划的长期引用 |

@@ -22,7 +22,7 @@ triggers:
   - "启动后端工程化治理"
   - "新增或修改后端接口、DTO、VO、Enum、Entity、Service、Controller"
 downstream:
-  - "docs/acceptance/A-026-m11-chat-consistency-acceptance.md"
+  - "docs/plans/PL-009-backend-engineering-consistency-followup-plan.md"
   - "后续 GitHub Issue 与 PR"
 ---
 
@@ -37,7 +37,7 @@ downstream:
 1. 以 `chat` 主领域为第一批，建立后端工程化一致性治理样板。
 2. 每批先审查再修正，避免在没有事实清单时直接改代码。
 3. 行为变化必须 TDD，完成后必须 Code Review。
-4. 将治理结果沉淀到 docs、验收文档和后续 PR checklist。
+4. 将治理结果沉淀到 docs、OpenSpec、Issue 和后续 PR checklist。
 
 ## 3. 非目标
 
@@ -68,7 +68,7 @@ downstream:
 7. 运行验证命令。
 8. 触发只读 Code Review。
 9. 修复 Critical / Important 问题。
-10. 写验收文档并提交 PR。
+10. 将长期规则写入 docs，单次验收证据写入 PR 或 Issue。
 
 ## 6. 第一批 E1 Chat 治理草案
 
@@ -133,7 +133,7 @@ bash scripts/validate-repository.sh
 1. 每批 PR 创建前必须先安排只读 reviewer。
 2. reviewer 输出 Critical、Important、Minor。
 3. Critical 和 Important 必须处理后再合并。
-4. Minor 可以记录到对应验收文档或后续批次。
+4. Minor 可以记录到对应 PR/Issue 或后续批次。
 5. review 重点包括：风格一致性、过度设计、兼容性、权限、事务、幂等、缓存、推送和测试有效性。
 
 ## 9. PR 与提交规则
@@ -154,7 +154,7 @@ bash scripts/validate-repository.sh
 2. 不把风格偏好包装成 P0。
 3. 不用工具代替人工审查。
 4. 不用治理名义新增业务功能。
-5. 每批结束后都要更新验收文档和后续风险清单。
+5. 每批结束后都要更新长期文档、PR/Issue 结论和后续风险清单。
 
 ## 11. 任务审查结论
 

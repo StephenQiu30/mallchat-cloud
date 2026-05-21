@@ -13,8 +13,8 @@ status: review
 version: "0.1.0"
 owner: "StephenQiu30"
 inputs:
-  - "docs/superpowers/specs/2026-05-20-im-production-readiness-issue-design.md"
-  - "docs/superpowers/plans/2026-05-20-im-production-readiness-p0.md"
+  - "docs/design/D-002-qq-like-im-mvp-architecture.md"
+  - "docs/plans/PL-010-im-backend-production-roadmap.md"
   - "AGENTS.md"
 outputs:
   - "P0 GitHub Epic 与子 Issue 创建队列"
@@ -25,9 +25,9 @@ triggers:
   - "准备按 TDD 消费后端生产化 Issue"
   - "需要判断 P1/P2 是否可以进入 GitHub 队列"
 downstream:
-  - "docs/acceptance/A-016-im-production-readiness-issue-generation-acceptance.md"
   - "openspec/changes/*"
   - "GitHub P0 Issues"
+  - "m 系列 PR"
 ---
 
 # IM 生产可用 P0 Issue 编排计划

@@ -11,13 +11,13 @@ import com.stephen.cloud.api.user.model.dto.UserQueryRequest;
 import com.stephen.cloud.api.user.client.UserFeignClient;
 import com.stephen.cloud.api.user.model.vo.UserVO;
 import com.stephen.cloud.chat.convert.ChatFriendConvert;
+import com.stephen.cloud.chat.mapper.UserFriendApplyMapper;
 import com.stephen.cloud.chat.mapper.UserFriendBlockMapper;
 import com.stephen.cloud.chat.mapper.UserFriendMapper;
 import com.stephen.cloud.chat.model.entity.UserFriendApply;
 import com.stephen.cloud.chat.model.entity.UserFriendBlock;
 import com.stephen.cloud.chat.model.entity.UserFriend;
 import com.stephen.cloud.chat.service.ChatOnlineStatusService;
-import com.stephen.cloud.chat.service.UserFriendApplyService;
 import com.stephen.cloud.chat.service.UserFriendService;
 import com.stephen.cloud.common.cache.constants.ChatCacheConstant;
 import com.stephen.cloud.common.cache.utils.CacheUtils;
@@ -63,7 +63,7 @@ public class UserFriendServiceImpl extends ServiceImpl<UserFriendMapper, UserFri
     private ChatOnlineStatusService chatOnlineStatusService;
 
     @Resource
-    private UserFriendApplyService userFriendApplyService;
+    private UserFriendApplyMapper userFriendApplyMapper;
 
     /**
      * 校验好友数据
@@ -508,7 +508,7 @@ public class UserFriendServiceImpl extends ServiceImpl<UserFriendMapper, UserFri
     }
 
     protected boolean hasPendingFriendApply(Long userId, Long targetUserId) {
-        return userFriendApplyService.count(new LambdaQueryWrapper<UserFriendApply>()
+        return userFriendApplyMapper.selectCount(new LambdaQueryWrapper<UserFriendApply>()
                 .eq(UserFriendApply::getStatus, 1)
                 .eq(UserFriendApply::getUserId, userId)
                 .eq(UserFriendApply::getTargetId, targetUserId)) > 0;

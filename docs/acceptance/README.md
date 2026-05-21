@@ -1,46 +1,23 @@
 # Acceptance 文档
 
-本目录存放验收与验证类文档。
+本目录仅保留需要长期复用的验收标准或发布级验证规则。
 
 ## 适合放入
 
-1. 验收标准。
-2. 测试记录。
-3. 验证报告。
-4. 回归证据和残余风险说明。
+1. 会长期影响后续开发的验收标准。
+2. 发布前固定执行的验证规则。
+3. 需要跨 PR 复用的回归边界。
 
 ## 文档清单
 
-| 文档 | 说明 |
-| --- | --- |
-| [A-001-agents-ci-report.md](./A-001-agents-ci-report.md) | AGENTS 迁移与后端 CI 验收结论 |
-| [A-011-session-operation-push-degradation-acceptance.md](./A-011-session-operation-push-degradation-acceptance.md) | 退群、会话置顶、会话删除推送失败降级验收结论 |
-| [A-012-message-flow-push-degradation-acceptance.md](./A-012-message-flow-push-degradation-acceptance.md) | 消息发送、已读上报、消息撤回推送失败降级验收结论 |
-| [A-013-friend-apply-push-degradation-acceptance.md](./A-013-friend-apply-push-degradation-acceptance.md) | 好友申请、好友通过推送失败降级验收结论 |
-| [A-014-friend-notification-after-commit-acceptance.md](./A-014-friend-notification-after-commit-acceptance.md) | 好友申请、好友通过通知 afterCommit 验收结论 |
-| [A-015-im-backend-long-task-acceptance-summary.md](./A-015-im-backend-long-task-acceptance-summary.md) | IM 后端长任务最终验收摘要 |
-| [A-016-im-production-readiness-issue-generation-acceptance.md](./A-016-im-production-readiness-issue-generation-acceptance.md) | IM 生产可用 P0 Issue 编排验收 |
-| [A-017-m3-message-reliability-acceptance.md](./A-017-m3-message-reliability-acceptance.md) | m3 消息可靠性与可恢复 Epic 验收 |
-| [A-018-m4-ops-observability-acceptance.md](./A-018-m4-ops-observability-acceptance.md) | m4 可观测性与运维门禁 Epic 验收 |
-| [A-019-m5-data-recovery-acceptance.md](./A-019-m5-data-recovery-acceptance.md) | m5 数据安全与备份恢复 Epic 验收 |
-| [A-020-m6-user-governance-acceptance.md](./A-020-m6-user-governance-acceptance.md) | m6 用户安全与关系治理 Epic 验收 |
-| [A-021-m7-room-message-experience-acceptance.md](./A-021-m7-room-message-experience-acceptance.md) | m7 群聊治理与消息体验 Epic 验收 |
-| [A-022-im-p2-issue-generation-acceptance.md](./A-022-im-p2-issue-generation-acceptance.md) | IM P2 Issue 编排验收 |
-| [A-023-m8-rich-message-forward-acceptance.md](./A-023-m8-rich-message-forward-acceptance.md) | m8 富消息与转发体验 Epic 验收 |
-| [A-024-m9-moments-discovery-governance-acceptance.md](./A-024-m9-moments-discovery-governance-acceptance.md) | m9 动态发现与内容治理 Epic 验收 |
-| [A-025-m10-admin-audit-e2e-acceptance.md](./A-025-m10-admin-audit-e2e-acceptance.md) | m10 审计检索与多端验收 Epic 验收 |
-| [A-026-m11-chat-consistency-acceptance.md](./A-026-m11-chat-consistency-acceptance.md) | m11 Chat 工程化一致性验收 |
-| [A-027-backend-engineering-followup-issue-acceptance.md](./A-027-backend-engineering-followup-issue-acceptance.md) | 后端工程化一致性后续批次编排验收 |
-| [A-028-m12-support-consistency-audit.md](./A-028-m12-support-consistency-audit.md) | m12 支撑领域工程化一致性审查 |
-| [A-029-m13-foundation-consistency-acceptance.md](./A-029-m13-foundation-consistency-acceptance.md) | m13 基础领域工程化一致性验收 |
-| [A-030-m14-engineering-guard-acceptance.md](./A-030-m14-engineering-guard-acceptance.md) | m14 工程化守护规则验收 |
+当前没有需要长期保留的独立验收文档。单次任务的测试记录、PR 验证命令和过程性结果写在 PR 或 Issue 中，不再沉淀到 `docs/acceptance/`。
 
 ## 不适合放入
 
 1. 产品需求或执行计划。
 2. 架构设计草案。
 3. 发布流程说明。
-4. 没有验收结论或长期复用价值的临时测试过程记录。
+4. 没有长期复用价值的临时测试过程记录、m 系列进展报告或一次性验收流水。
 
 ## 命名建议
 

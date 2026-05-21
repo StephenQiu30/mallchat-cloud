@@ -9,6 +9,7 @@ import com.stephen.cloud.api.user.model.dto.UserQueryRequest;
 import com.stephen.cloud.api.user.model.vo.UserVO;
 import com.stephen.cloud.common.common.BaseResponse;
 import com.stephen.cloud.chat.service.ChatOnlineStatusService;
+import com.stephen.cloud.chat.service.UserFriendApplyService;
 import com.stephen.cloud.chat.model.entity.UserFriendBlock;
 import com.stephen.cloud.chat.model.entity.UserFriend;
 import com.stephen.cloud.common.cache.constants.ChatCacheConstant;
@@ -23,6 +24,7 @@ import org.redisson.api.RSet;
 import org.redisson.api.RedissonClient;
 import org.springframework.test.util.ReflectionTestUtils;
 
+import java.lang.reflect.Field;
 import java.lang.reflect.Proxy;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -131,6 +133,13 @@ class UserFriendServiceImplTest {
         Integer status = userFriendService.getFriendshipStatus(1L, 2L);
 
         Assertions.assertEquals(0, status);
+    }
+
+    @Test
+    void shouldNotInjectFriendApplyServiceToAvoidServiceCycle() {
+        for (Field field : UserFriendServiceImpl.class.getDeclaredFields()) {
+            Assertions.assertNotEquals(UserFriendApplyService.class, field.getType());
+        }
     }
 
     @Test

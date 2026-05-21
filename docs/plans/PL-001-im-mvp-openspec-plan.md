@@ -18,7 +18,8 @@ outputs:
 triggers:
   - "启动或继续 IM MVP 实现"
 downstream:
-  - "../acceptance/A-002-im-mvp-research-acceptance.md"
+  - "openspec/changes/orchestrate-im-product-mvp"
+  - "GitHub Issues / PRs"
 ---
 
 # MallChat IM MVP OpenSpec 执行计划
@@ -49,10 +50,10 @@ downstream:
 
 - 单次变更只在一个端做代码实现，避免多端 CI 同时漂移。
 - 后端本轮保持 PRD/OpenSpec 编排，不做 schema 重构。
-- 所有正式结论写入 docs 或 OpenSpec，不保留一次性报告。
+- 所有正式结论写入 docs、OpenSpec、Issue 或 PR，不保留一次性报告。
 
 ## 5. 验收门禁
 
 - `openspec validate --strict` 通过。
 - 相关仓库 CI 等价命令通过。
-- `docs/acceptance` 记录测试结论。
+- PR 或 Issue 记录测试结论；长期验收规则再沉淀到 docs。

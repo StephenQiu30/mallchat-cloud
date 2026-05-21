@@ -9,12 +9,12 @@ feature_area: backend-engineering-consistency
 purpose: "定义 MallChat 后端工程化一致性治理的设计边界、代码风格规则、TDD 与 Code Review 门禁。"
 canonical_path: "docs/design/D-003-backend-engineering-consistency-design.md"
 status: review
-version: "0.1.0"
+version: "0.1.1"
 owner: "StephenQiu30"
 inputs:
   - "AGENTS.md"
-  - "docs/plans/PL-006-im-p2-backend-experience-plan.md"
-  - "docs/plans/PL-007-multi-client-e2e-matrix-plan.md"
+  - "docs/prd/P-001-im-real-time-communication-prd.md"
+  - "docs/design/D-002-qq-like-im-mvp-architecture.md"
 outputs:
   - "后端工程化一致性治理设计"
   - "分批治理代码风格规则"
@@ -22,7 +22,8 @@ triggers:
   - "新增后端 API、DTO、VO、Enum、Entity、Service 或 Controller"
   - "进入后端工程化一致性治理批次"
 downstream:
-  - "docs/plans/PL-008-backend-engineering-consistency-plan.md"
+  - "AGENTS.md"
+  - "docs/plans/PL-010-im-backend-production-roadmap.md"
   - "后续 m11+ 分批治理 PR"
 ---
 
@@ -182,7 +183,7 @@ bash scripts/validate-repository.sh
 
 ## 12. 设计自审结论
 
-1. 逻辑闭环：设计只定义分层、风格、TDD 和 Code Review 门禁；具体修正进入对应计划、Issue、PR 和验收文档。
+1. 逻辑闭环：设计只定义分层、风格、TDD 和 Code Review 门禁；具体修正进入 OpenSpec、Issue、PR 和必要的长期验收规则。
 2. 风格一致性：规则基于当前 `chat-*` / `Chat*` 命名、MyBatis Plus、`ResultUtils.success`、`Page<T>`、DTO Request、VO Response 和 Convert 工具类风格，不引入平行体系。
 3. 兼容性：接口路径、字段名、枚举 code、数据库字段不因风格偏好直接破坏兼容。
 4. 不过度设计：暂不引入代码生成器、复杂静态分析平台、新框架或统一平台层。
@@ -193,3 +194,4 @@ bash scripts/validate-repository.sh
 | 日期 | 作者 | 版本 | 变更说明 |
 | --- | --- | --- | --- |
 | 2026-05-21 | StephenQiu30 | 0.1.0 | 初始化后端工程化一致性治理设计 |
+| 2026-05-21 | StephenQiu30 | 0.1.1 | 移除对一次性计划文档的长期引用 |

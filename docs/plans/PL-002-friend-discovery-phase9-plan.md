@@ -20,7 +20,8 @@ outputs:
 triggers:
   - "执行 chat-friend 关系增强与高可用复核"
 downstream:
-  - "../acceptance/A-003-friend-discovery-phase9-acceptance.md"
+  - "../prd/P-003-friend-discovery-and-relationship-prd.md"
+  - "openspec/changes/archive/2026-05-19-enhance-friend-discovery-relationship"
 ---
 
 # Phase9 好友发现与关系状态增强计划
@@ -67,4 +68,3 @@ downstream:
 - 变更文件统一在 `mallchat-api-chat`、`mallchat-chat-service` 与 `openspec` 相关目录；
 - 按 OpenSpec close-the-loop 规则完成归档后再提交；
 - 保留后续迭代议题：控制器级契约测试与缓存脏数据退化场景。
-
