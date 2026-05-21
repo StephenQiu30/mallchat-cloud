@@ -85,7 +85,7 @@ downstream:
 | `mvn -B -pl mallchat-service/mallchat-user-service -am -Dtest=UserApiContractConsistencyTest -Dsurefire.failIfNoSpecifiedTests=false test` | 通过 | user 契约守护 |
 | `mvn -B -pl mallchat-service/mallchat-ai-service -am -Dtest=AiApiContractConsistencyTest -Dsurefire.failIfNoSpecifiedTests=false test` | 通过 | ai 契约守护 |
 | `mvn -B -pl mallchat-gateway -am -Dtest=GatewayAuthWhitelistConfigTest,RateLimitConfigTest -Dsurefire.failIfNoSpecifiedTests=false test` | 通过 | gateway 白名单和限流 key 守护 |
-| `mvn -B -pl mallchat-common/mallchat-common-rabbitmq -Dtest=RabbitMqSenderTest -Dsurefire.failIfNoSpecifiedTests=false test` | 通过 | RabbitMQ 公共组件事务发送守护 4 tests |
+| `mvn -B -pl mallchat-common/mallchat-common-rabbitmq -am -Dtest=RabbitMqSenderTest -Dsurefire.failIfNoSpecifiedTests=false test` | 通过 | RabbitMQ 公共组件事务发送守护 4 tests |
 | `mvn -B -DskipTests compile` | 通过 | 全仓 25 个 Maven 模块编译通过 |
 | `openspec validate --all --strict` | 通过 | 21 items passed |
 | `git diff --check` | 通过 | 补丁格式检查通过 |

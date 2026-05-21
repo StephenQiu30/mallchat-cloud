@@ -189,7 +189,7 @@ mvn -B -pl mallchat-service/mallchat-notification-service -am -Dtest=Notificatio
 mvn -B -pl mallchat-service/mallchat-user-service -am -Dtest=UserApiContractConsistencyTest -Dsurefire.failIfNoSpecifiedTests=false test
 mvn -B -pl mallchat-service/mallchat-ai-service -am -Dtest=AiApiContractConsistencyTest -Dsurefire.failIfNoSpecifiedTests=false test
 mvn -B -pl mallchat-gateway -am -Dtest=GatewayAuthWhitelistConfigTest,RateLimitConfigTest -Dsurefire.failIfNoSpecifiedTests=false test
-mvn -B -pl mallchat-common/mallchat-common-rabbitmq -Dtest=RabbitMqSenderTest -Dsurefire.failIfNoSpecifiedTests=false test
+mvn -B -pl mallchat-common/mallchat-common-rabbitmq -am -Dtest=RabbitMqSenderTest -Dsurefire.failIfNoSpecifiedTests=false test
 mvn -B -DskipTests compile
 openspec validate --all --strict
 git diff --check
