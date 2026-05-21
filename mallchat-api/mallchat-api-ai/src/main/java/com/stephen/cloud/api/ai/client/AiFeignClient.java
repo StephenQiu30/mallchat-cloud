@@ -1,13 +1,14 @@
 package com.stephen.cloud.api.ai.client;
 
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import com.stephen.cloud.api.ai.model.dto.AiChatRecordDeleteRequest;
 import com.stephen.cloud.api.ai.model.dto.AiChatRecordQueryRequest;
 import com.stephen.cloud.api.ai.model.dto.AiChatRequest;
 import com.stephen.cloud.api.ai.model.vo.AiChatRecordVO;
 import com.stephen.cloud.api.ai.model.vo.AiChatResponse;
 import com.stephen.cloud.api.ai.model.vo.AiModelVO;
+import com.stephen.cloud.api.ai.model.vo.AiOperationResultVO;
 import com.stephen.cloud.common.common.BaseResponse;
-import com.stephen.cloud.common.common.DeleteRequest;
 import org.springframework.cloud.openfeign.FeignClient;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -56,5 +57,5 @@ public interface AiFeignClient {
      * @return 是否成功
      */
     @PostMapping("/record/delete")
-    BaseResponse<Boolean> deleteAiChatRecord(@RequestBody DeleteRequest deleteRequest);
+    BaseResponse<AiOperationResultVO> deleteAiChatRecord(@RequestBody AiChatRecordDeleteRequest deleteRequest);
 }

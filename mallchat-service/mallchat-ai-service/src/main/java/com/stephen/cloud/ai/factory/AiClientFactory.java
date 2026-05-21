@@ -4,6 +4,8 @@ import com.stephen.cloud.ai.config.DashScopeProperties;
 import com.stephen.cloud.ai.config.OllamaProperties;
 import com.stephen.cloud.api.ai.model.dto.AiChatRequest;
 import com.stephen.cloud.api.ai.model.enums.AiModelTypeEnum;
+import com.stephen.cloud.common.common.ErrorCode;
+import com.stephen.cloud.common.common.ThrowUtils;
 import dev.langchain4j.model.chat.ChatLanguageModel;
 import dev.langchain4j.model.chat.StreamingChatLanguageModel;
 import dev.langchain4j.model.dashscope.QwenChatModel;
@@ -11,6 +13,7 @@ import dev.langchain4j.model.dashscope.QwenStreamingChatModel;
 import dev.langchain4j.model.ollama.OllamaChatModel;
 import dev.langchain4j.model.ollama.OllamaStreamingChatModel;
 import jakarta.annotation.Resource;
+import org.apache.commons.lang3.StringUtils;
 import org.springframework.stereotype.Component;
 
 /**
@@ -36,11 +39,7 @@ public class AiClientFactory {
      */
     public ChatLanguageModel getChatModel(AiChatRequest request) {
         String modelType = request.getModelType();
-        AiModelTypeEnum typeEnum = AiModelTypeEnum.getEnumByValue(modelType);
-        // 默认兜底使用通义千问 (DashScope)
-        if (typeEnum == null) {
-            typeEnum = AiModelTypeEnum.DASHSCOPE;
-        }
+        AiModelTypeEnum typeEnum = resolveModelType(modelType);
 
         return switch (typeEnum) {
             case DASHSCOPE -> QwenChatModel.builder()
@@ -67,10 +66,7 @@ public class AiClientFactory {
      */
     public StreamingChatLanguageModel getStreamingChatModel(AiChatRequest request) {
         String modelType = request.getModelType();
-        AiModelTypeEnum typeEnum = AiModelTypeEnum.getEnumByValue(modelType);
-        if (typeEnum == null) {
-            typeEnum = AiModelTypeEnum.DASHSCOPE;
-        }
+        AiModelTypeEnum typeEnum = resolveModelType(modelType);
 
         return switch (typeEnum) {
             case DASHSCOPE -> QwenStreamingChatModel.builder()
@@ -87,5 +83,14 @@ public class AiClientFactory {
                     .topP(ollamaProperties.getTopP())
                     .build();
         };
+    }
+
+    private AiModelTypeEnum resolveModelType(String modelType) {
+        if (StringUtils.isBlank(modelType)) {
+            return AiModelTypeEnum.DASHSCOPE;
+        }
+        AiModelTypeEnum typeEnum = AiModelTypeEnum.getEnumByValue(modelType);
+        ThrowUtils.throwIf(typeEnum == null, ErrorCode.PARAMS_ERROR, "不支持的 AI 模型类型");
+        return typeEnum;
     }
 }

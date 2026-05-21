@@ -37,8 +37,6 @@ spring:
         white-list:
           - /api/user/register
           - /api/user/login/**
-          - /api/user/logout
-          - /api/notification/page
           - /doc.html
           - /swagger-ui/**
           - /swagger-resources/**

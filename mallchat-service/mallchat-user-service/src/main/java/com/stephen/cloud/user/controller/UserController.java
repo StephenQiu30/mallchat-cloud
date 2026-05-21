@@ -4,6 +4,9 @@ import cn.dev33.satoken.annotation.SaCheckRole;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.stephen.cloud.api.user.model.dto.*;
 import com.stephen.cloud.api.user.model.vo.LoginUserVO;
+import com.stephen.cloud.api.user.model.vo.UserAdminStatusVO;
+import com.stephen.cloud.api.user.model.vo.UserIdVO;
+import com.stephen.cloud.api.user.model.vo.UserOperationResultVO;
 import com.stephen.cloud.api.user.model.vo.UserVO;
 import com.stephen.cloud.common.common.*;
 import com.stephen.cloud.common.constants.UserConstant;
@@ -18,6 +21,7 @@ import jakarta.annotation.Resource;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
+import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -47,10 +51,10 @@ public class UserController {
     @PostMapping("/logout")
     @Operation(summary = "用户注销", description = "退出当前登录状态")
     @OperationLog(module = "用户认证", action = "用户注销")
-    public BaseResponse<Boolean> userLogout(HttpServletRequest request) {
+    public BaseResponse<UserOperationResultVO> userLogout(HttpServletRequest request) {
         ThrowUtils.throwIf(request == null, ErrorCode.PARAMS_ERROR);
         boolean result = userService.userLogout(request);
-        return ResultUtils.success(result);
+        return ResultUtils.success(UserOperationResultVO.of(result));
     }
 
     /**
@@ -129,12 +133,12 @@ public class UserController {
     @PostMapping("/login/email/code")
     @Operation(summary = "发送邮箱验证码", description = "向指定邮箱发送 6 位数登录验证码")
     @OperationLog(module = "用户认证", action = "发送邮箱验证码")
-    public BaseResponse<Boolean> sendEmailCode(@RequestBody UserEmailCodeRequest emailCodeRequest) {
+    public BaseResponse<UserOperationResultVO> sendEmailCode(@RequestBody UserEmailCodeRequest emailCodeRequest) {
         if (emailCodeRequest == null || StringUtils.isBlank(emailCodeRequest.getEmail())) {
             throw new BusinessException(ErrorCode.PARAMS_ERROR, "邮箱地址不能为空");
         }
         userService.sendEmailCode(emailCodeRequest.getEmail());
-        return ResultUtils.success(true);
+        return ResultUtils.success(UserOperationResultVO.of(true));
     }
 
     /**
@@ -167,8 +171,8 @@ public class UserController {
     @SaCheckRole(UserConstant.ADMIN_ROLE)
     @Operation(summary = "创建用户", description = "管理员手动创建新用户")
     @OperationLog(module = "用户管理", action = "创建用户")
-    public BaseResponse<Long> addUser(@RequestBody UserAddRequest userAddRequest,
-                                      HttpServletRequest request) {
+    public BaseResponse<UserIdVO> addUser(@RequestBody UserAddRequest userAddRequest,
+                                          HttpServletRequest request) {
         // 请求参数非空校验
         if (userAddRequest == null) {
             throw new BusinessException(ErrorCode.PARAMS_ERROR);
@@ -183,7 +187,7 @@ public class UserController {
         // 返回新增成功后的主键 ID
         long newUserId = user.getId();
 
-        return ResultUtils.success(newUserId);
+        return ResultUtils.success(UserIdVO.of(newUserId));
     }
 
     /**
@@ -197,10 +201,10 @@ public class UserController {
     @Operation(summary = "删除用户", description = "删除指定 ID 的用户（仅本人或管理员）")
     @OperationLog(module = "用户管理", action = "删除用户")
     @SaCheckRole(UserConstant.ADMIN_ROLE)
-    public BaseResponse<Boolean> deleteUser(@RequestBody DeleteRequest deleteRequest,
-                                            HttpServletRequest request) {
+    public BaseResponse<UserOperationResultVO> deleteUser(@Validated @RequestBody UserIdRequest deleteRequest,
+                                                          HttpServletRequest request) {
         // 参数校验：ID 必须大于 0
-        if (deleteRequest == null || deleteRequest.getId() <= 0) {
+        if (deleteRequest == null || deleteRequest.getId() == null || deleteRequest.getId() <= 0) {
             throw new BusinessException(ErrorCode.PARAMS_ERROR);
         }
         // 获取当前操作人信息
@@ -221,7 +225,7 @@ public class UserController {
             throw new BusinessException(ErrorCode.OPERATION_ERROR);
         }
 
-        return ResultUtils.success(true);
+        return ResultUtils.success(UserOperationResultVO.of(true));
     }
 
     /**
@@ -235,8 +239,8 @@ public class UserController {
     @Operation(summary = "更新用户", description = "管理员后台更新用户信息")
     @OperationLog(module = "用户管理", action = "更新用户")
     @SaCheckRole(UserConstant.ADMIN_ROLE)
-    public BaseResponse<Boolean> updateUser(@RequestBody UserUpdateRequest userUpdateRequest,
-                                            HttpServletRequest request) {
+    public BaseResponse<UserOperationResultVO> updateUser(@RequestBody UserUpdateRequest userUpdateRequest,
+                                                          HttpServletRequest request) {
         // 基本参数校验
         if (userUpdateRequest == null || userUpdateRequest.getId() == null || userUpdateRequest.getId() <= 0) {
             throw new BusinessException(ErrorCode.PARAMS_ERROR);
@@ -256,7 +260,7 @@ public class UserController {
             throw new BusinessException(ErrorCode.OPERATION_ERROR);
         }
 
-        return ResultUtils.success(true);
+        return ResultUtils.success(UserOperationResultVO.of(true));
     }
 
     /**
@@ -267,46 +271,46 @@ public class UserController {
      */
     @GetMapping("/is/admin")
     @Operation(summary = "是否管理员", description = "返回当前登录用户是否为管理员")
-    public BaseResponse<Boolean> isAdmin(HttpServletRequest request) {
+    public BaseResponse<UserAdminStatusVO> isAdmin(HttpServletRequest request) {
         try {
-            return ResultUtils.success(userService.isAdmin(request));
+            return ResultUtils.success(UserAdminStatusVO.of(userService.isAdmin(request)));
         } catch (Exception e) {
             log.warn("获取管理员标记失败，按非管理员处理", e);
-            return ResultUtils.success(false);
+            return ResultUtils.success(UserAdminStatusVO.of(false));
         }
     }
 
     /**
      * 根据 id 获取用户（仅管理员）
      *
-     * @param id      用户id
+     * @param userIdRequest 用户ID请求
      * @param request request
      * @return BaseResponse<User>
      */
     @GetMapping("/get")
     @SaCheckRole(UserConstant.ADMIN_ROLE)
     @Operation(summary = "根据ID获取用户", description = "根据用户ID获取用户详细信息（仅管理员）")
-    public BaseResponse<User> getUserById(
-            @io.swagger.v3.oas.annotations.Parameter(description = "用户ID", required = true, example = "1") @RequestParam("id") long id,
-            HttpServletRequest request) {
+    public BaseResponse<UserVO> getUserById(@Validated UserIdRequest userIdRequest,
+                                            HttpServletRequest request) {
+        Long id = userIdRequest.getId();
         ThrowUtils.throwIf(id <= 0, ErrorCode.PARAMS_ERROR);
         User user = userService.getById(id);
         ThrowUtils.throwIf(user == null, ErrorCode.NOT_FOUND_ERROR);
-        return ResultUtils.success(user);
+        return ResultUtils.success(userService.getUserVO(user, request));
     }
 
     /**
      * 根据 id 获取包装类
      *
-     * @param id      用户id
+     * @param userIdRequest 用户ID请求
      * @param request request
      * @return 查询得到的用户包装类
      */
     @GetMapping("/get/vo")
     @Operation(summary = "根据ID获取用户视图对象", description = "根据用户ID获取用户脱敏后的视图对象")
-    public BaseResponse<UserVO> getUserVOById(
-            @io.swagger.v3.oas.annotations.Parameter(description = "用户ID", required = true, example = "1") @RequestParam("id") long id,
-            HttpServletRequest request) {
+    public BaseResponse<UserVO> getUserVOById(@Validated UserIdRequest userIdRequest,
+                                              HttpServletRequest request) {
+        Long id = userIdRequest.getId();
         ThrowUtils.throwIf(id <= 0, ErrorCode.PARAMS_ERROR);
         User user = userService.getById(id);
         ThrowUtils.throwIf(user == null, ErrorCode.NOT_FOUND_ERROR);
@@ -316,13 +320,13 @@ public class UserController {
     /**
      * 批量根据 id 获取用户包装类（Feign 调用）
      *
-     * @param ids 用户id列表
+     * @param request 用户ID批量请求
      * @return 查询得到的用户包装类列表
      */
     @GetMapping("/get/vo/batch")
     @Operation(summary = "批量获取用户视图对象", description = "根据用户ID列表批量获取用户脱敏后的视图对象")
-    public BaseResponse<List<UserVO>> getUserVOByIds(
-            @io.swagger.v3.oas.annotations.Parameter(description = "用户ID列表", required = true, example = "[1,2,3]") @RequestParam("ids") List<Long> ids) {
+    public BaseResponse<List<UserVO>> getUserVOByIds(@Validated UserIdsRequest request) {
+        List<Long> ids = request.getIds();
         ThrowUtils.throwIf(ids == null || ids.isEmpty(), ErrorCode.PARAMS_ERROR);
         List<User> userList = userService.listByIds(ids);
         // 批量接口主要用于内部 Feign 调用（如 ES 同步），不依赖 HttpServletRequest 上下文
@@ -342,15 +346,21 @@ public class UserController {
     @PostMapping("/list/page")
     @SaCheckRole(UserConstant.ADMIN_ROLE)
     @Operation(summary = "分页获取用户列表", description = "管理员分页查询原始用户信息")
-    public BaseResponse<Page<User>> listUserByPage(@RequestBody UserQueryRequest userQueryRequest,
-                                                   HttpServletRequest request) {
+    public BaseResponse<Page<UserVO>> listUserByPage(@RequestBody UserQueryRequest userQueryRequest,
+                                                     HttpServletRequest request) {
+        if (userQueryRequest == null) {
+            throw new BusinessException(ErrorCode.PARAMS_ERROR);
+        }
         // 获取当前页码和每页大小
         long current = userQueryRequest.getCurrent();
         long size = userQueryRequest.getPageSize();
         // 执行分页查询，getQueryWrapper 内部处理过滤条件
         Page<User> userPage = userService.page(new Page<>(current, size),
                 userService.getQueryWrapper(userQueryRequest));
-        return ResultUtils.success(userPage);
+        Page<UserVO> userVOPage = new Page<>(current, size, userPage.getTotal());
+        List<UserVO> userVOList = userService.getUserVO(userPage.getRecords(), request);
+        userVOPage.setRecords(userVOList);
+        return ResultUtils.success(userVOPage);
     }
 
     /**
@@ -390,8 +400,8 @@ public class UserController {
     @PostMapping("/edit")
     @Operation(summary = "编辑个人信息", description = "当前登录用户编辑自己的个人资料")
     @OperationLog(module = "用户管理", action = "编辑个人信息")
-    public BaseResponse<Boolean> editUser(@RequestBody UserEditRequest userEditRequest,
-                                          HttpServletRequest request) {
+    public BaseResponse<UserOperationResultVO> editUser(@RequestBody UserEditRequest userEditRequest,
+                                                        HttpServletRequest request) {
         if (userEditRequest == null) {
             throw new BusinessException(ErrorCode.PARAMS_ERROR);
         }
@@ -404,7 +414,7 @@ public class UserController {
             throw new BusinessException(ErrorCode.OPERATION_ERROR);
         }
 
-        return ResultUtils.success(true);
+        return ResultUtils.success(UserOperationResultVO.of(true));
     }
 
 }

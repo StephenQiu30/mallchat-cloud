@@ -32,6 +32,7 @@
 | [A-026-m11-chat-consistency-acceptance.md](./A-026-m11-chat-consistency-acceptance.md) | m11 Chat 工程化一致性验收 |
 | [A-027-backend-engineering-followup-issue-acceptance.md](./A-027-backend-engineering-followup-issue-acceptance.md) | 后端工程化一致性后续批次编排验收 |
 | [A-028-m12-support-consistency-audit.md](./A-028-m12-support-consistency-audit.md) | m12 支撑领域工程化一致性审查 |
+| [A-029-m13-foundation-consistency-acceptance.md](./A-029-m13-foundation-consistency-acceptance.md) | m13 基础领域工程化一致性验收 |
 
 ## 不适合放入
 

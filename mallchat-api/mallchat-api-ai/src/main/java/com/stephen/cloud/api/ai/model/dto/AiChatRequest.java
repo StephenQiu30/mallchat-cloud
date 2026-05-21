@@ -1,6 +1,7 @@
 package com.stephen.cloud.api.ai.model.dto;
 
 import io.swagger.v3.oas.annotations.media.Schema;
+import jakarta.validation.constraints.NotBlank;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -27,6 +28,7 @@ public class AiChatRequest implements Serializable {
     /**
      * 消息内容
      */
+    @NotBlank(message = "消息内容不能为空")
     @Schema(description = "问题内容", example = "你好，请自我介绍一下")
     private String message;
 

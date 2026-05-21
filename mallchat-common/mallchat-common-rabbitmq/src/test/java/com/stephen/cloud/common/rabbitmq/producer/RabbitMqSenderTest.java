@@ -13,6 +13,7 @@ import org.springframework.amqp.core.MessageProperties;
 import org.springframework.amqp.rabbit.connection.CorrelationData;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.test.util.ReflectionTestUtils;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.util.Map;
 
@@ -60,6 +61,25 @@ class RabbitMqSenderTest {
 
         Assertions.assertNull(rabbitTemplate.payload);
         Assertions.assertEquals(1.0, counterValue("mallchat.rabbitmq.publish.total", "NOTIFICATION_SEND", "rejected"));
+    }
+
+    @Test
+    void shouldSendTransactionalMessageAfterCommit() {
+        TransactionSynchronizationManager.initSynchronization();
+        TransactionSynchronizationManager.setActualTransactionActive(true);
+        try {
+            sender.sendTransactional(MqBizTypeEnum.WEBSOCKET_PUSH, "session_msg:2", Map.of("roomId", 2L));
+
+            Assertions.assertNull(rabbitTemplate.payload);
+            TransactionSynchronizationManager.getSynchronizations()
+                    .forEach(synchronization -> synchronization.afterCommit());
+
+            Assertions.assertEquals(MqBizTypeEnum.WEBSOCKET_PUSH.getExchange(), rabbitTemplate.exchange);
+            Assertions.assertEquals("WEBSOCKET_PUSH:session_msg:2", rabbitTemplate.correlationId);
+        } finally {
+            TransactionSynchronizationManager.setActualTransactionActive(false);
+            TransactionSynchronizationManager.clearSynchronization();
+        }
     }
 
     private double counterValue(String name, String bizType, String result) {

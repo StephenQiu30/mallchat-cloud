@@ -4,8 +4,10 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.stephen.cloud.ai.model.entity.AiChatRecord;
 import com.stephen.cloud.ai.service.AiChatRecordService;
+import com.stephen.cloud.api.ai.model.dto.AiChatRecordDeleteRequest;
 import com.stephen.cloud.api.ai.model.dto.AiChatRecordQueryRequest;
 import com.stephen.cloud.api.ai.model.vo.AiChatRecordVO;
+import com.stephen.cloud.api.ai.model.vo.AiOperationResultVO;
 import com.stephen.cloud.common.auth.utils.SecurityUtils;
 import com.stephen.cloud.common.common.*;
 import com.stephen.cloud.common.log.annotation.OperationLog;
@@ -14,6 +16,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.annotation.Resource;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -46,14 +49,14 @@ public class AiChatRecordController {
     @Operation(summary = "分页获取我的对话记录", description = "获取当前登录用户的历史 AI 对话记录，支持分页")
     @OperationLog(module = "AI 管理", action = "获取 AI 对话记录")
     public BaseResponse<Page<AiChatRecordVO>> listMyAiChatRecordVOByPage(
-            @RequestBody AiChatRecordQueryRequest aiChatRecordQueryRequest,
+            @Validated @RequestBody AiChatRecordQueryRequest aiChatRecordQueryRequest,
             HttpServletRequest request) {
         log.info("分页获取 AI 对话记录请求: {}", aiChatRecordQueryRequest);
         ThrowUtils.throwIf(aiChatRecordQueryRequest == null, ErrorCode.PARAMS_ERROR);
         Long userId = SecurityUtils.getLoginUserId();
         long current = aiChatRecordQueryRequest.getCurrent();
         long size = aiChatRecordQueryRequest.getPageSize();
-        ThrowUtils.throwIf(size > 20, ErrorCode.PARAMS_ERROR);
+        ThrowUtils.throwIf(current <= 0 || size <= 0 || size > 20, ErrorCode.PARAMS_ERROR);
 
         LambdaQueryWrapper<AiChatRecord> queryWrapper = aiChatRecordService.getQueryWrapper(aiChatRecordQueryRequest);
         queryWrapper.eq(AiChatRecord::getUserId, userId);
@@ -75,10 +78,12 @@ public class AiChatRecordController {
     @PostMapping("/delete")
     @Operation(summary = "删除对话记录", description = "根据 ID 删除指定的对话记录，仅本人可删除")
     @OperationLog(module = "AI 管理", action = "删除 AI 对话记录")
-    public BaseResponse<Boolean> deleteAiChatRecord(@RequestBody DeleteRequest deleteRequest,
-                                                    HttpServletRequest request) {
+    public BaseResponse<AiOperationResultVO> deleteAiChatRecord(
+            @Validated @RequestBody AiChatRecordDeleteRequest deleteRequest,
+            HttpServletRequest request) {
         log.info("删除 AI 对话记录请求: {}", deleteRequest);
-        ThrowUtils.throwIf(deleteRequest == null || deleteRequest.getId() <= 0, ErrorCode.PARAMS_ERROR);
+        ThrowUtils.throwIf(deleteRequest == null || deleteRequest.getId() == null || deleteRequest.getId() <= 0,
+                ErrorCode.PARAMS_ERROR);
         long id = deleteRequest.getId();
         AiChatRecord oldAiChatRecord = aiChatRecordService.getById(id);
         ThrowUtils.throwIf(oldAiChatRecord == null, ErrorCode.NOT_FOUND_ERROR);
@@ -91,7 +96,7 @@ public class AiChatRecordController {
 
         boolean result = aiChatRecordService.removeById(id);
         log.info("删除 AI 对话记录结果: {}, id: {}", result, id);
-        return ResultUtils.success(result);
+        return ResultUtils.success(AiOperationResultVO.of(result));
     }
 
 }

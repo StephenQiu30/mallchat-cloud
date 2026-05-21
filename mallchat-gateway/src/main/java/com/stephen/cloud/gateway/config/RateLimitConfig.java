@@ -1,5 +1,7 @@
 package com.stephen.cloud.gateway.config;
 
+import com.stephen.cloud.common.constants.SecurityConstant;
+import com.stephen.cloud.gateway.constant.GatewayConstant;
 import org.springframework.cloud.gateway.filter.ratelimit.KeyResolver;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -45,7 +47,10 @@ public class RateLimitConfig {
     @Bean
     public KeyResolver userKeyResolver() {
         return exchange -> {
-            String userId = exchange.getRequest().getHeaders().getFirst("userId");
+            String userId = exchange.getAttribute(GatewayConstant.ATTR_LOGIN_USER_ID);
+            if (userId == null) {
+                userId = exchange.getRequest().getHeaders().getFirst(SecurityConstant.USER_ID_HEADER);
+            }
             return Mono.just(userId != null ? userId : "anonymous");
         };
     }

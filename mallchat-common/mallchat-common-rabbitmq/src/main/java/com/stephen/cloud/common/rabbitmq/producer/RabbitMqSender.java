@@ -8,6 +8,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.amqp.rabbit.connection.CorrelationData;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.util.UUID;
 
@@ -65,9 +67,19 @@ public class RabbitMqSender {
     }
 
     public void sendTransactional(MqBizTypeEnum bizTypeEnum, String msgId, Object payload) {
-        // MVP：移除本地事务事件机制后，保留 API 以兼容历史调用方。
-        // 语义降级为“立即发送”，调用方若需要 AFTER_COMMIT，请在业务侧自行编排。
-        log.debug("[RabbitMqSender] sendTransactional 已降级为立即发送（已移除事务事件机制）: BizType={}, MsgId={}",
+        if (TransactionSynchronizationManager.isActualTransactionActive()
+                && TransactionSynchronizationManager.isSynchronizationActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    send(bizTypeEnum, msgId, payload);
+                }
+            });
+            log.debug("[RabbitMqSender] sendTransactional 已注册事务提交后发送: BizType={}, MsgId={}",
+                    bizTypeEnum.getValue(), msgId);
+            return;
+        }
+        log.debug("[RabbitMqSender] 当前无线程事务同步，按直接发送处理: BizType={}, MsgId={}",
                 bizTypeEnum.getValue(), msgId);
         send(bizTypeEnum, msgId, payload);
     }
