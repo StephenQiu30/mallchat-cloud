@@ -37,6 +37,9 @@ public final class ChatMessageHelper {
             case TEXT -> ThrowUtils.throwIf(StringUtils.isBlank(chatMessage.getContent()), ErrorCode.PARAMS_ERROR, "文本消息不能为空");
             case IMAGE -> validateImageExtra(chatMessage.getExtra());
             case FILE -> validateFileExtra(chatMessage.getExtra());
+            case VOICE -> validateVoiceExtra(chatMessage.getExtra());
+            case VIDEO -> validateVideoExtra(chatMessage.getExtra());
+            case STICKER -> validateStickerExtra(chatMessage.getExtra());
             default -> throw new IllegalStateException("Unexpected value: " + typeEnum);
         }
     }
@@ -72,6 +75,15 @@ public final class ChatMessageHelper {
         if (ChatMessageTypeEnum.FILE.getCode().equals(type)) {
             return "[文件]";
         }
+        if (ChatMessageTypeEnum.VOICE.getCode().equals(type)) {
+            return "[语音]";
+        }
+        if (ChatMessageTypeEnum.VIDEO.getCode().equals(type)) {
+            return "[视频]";
+        }
+        if (ChatMessageTypeEnum.STICKER.getCode().equals(type)) {
+            return "[表情]";
+        }
         return StringUtils.defaultString(content);
     }
 
@@ -91,6 +103,34 @@ public final class ChatMessageHelper {
                 && hasText(extraJson, "ext")
                 && hasPositiveNumber(extraJson, "size");
         ThrowUtils.throwIf(!valid, ErrorCode.PARAMS_ERROR, "文件消息扩展字段不完整");
+    }
+
+    private static void validateVoiceExtra(String extra) {
+        JSONObject extraJson = parseExtra(extra, "语音消息扩展字段不完整");
+        boolean valid = hasText(extraJson, "url")
+                && hasText(extraJson, "format")
+                && hasPositiveNumber(extraJson, "duration")
+                && hasPositiveNumber(extraJson, "size");
+        ThrowUtils.throwIf(!valid, ErrorCode.PARAMS_ERROR, "语音消息扩展字段不完整");
+    }
+
+    private static void validateVideoExtra(String extra) {
+        JSONObject extraJson = parseExtra(extra, "视频消息扩展字段不完整");
+        boolean valid = hasText(extraJson, "url")
+                && hasText(extraJson, "format")
+                && hasPositiveNumber(extraJson, "duration")
+                && hasPositiveNumber(extraJson, "size")
+                && hasPositiveNumber(extraJson, "width")
+                && hasPositiveNumber(extraJson, "height");
+        ThrowUtils.throwIf(!valid, ErrorCode.PARAMS_ERROR, "视频消息扩展字段不完整");
+    }
+
+    private static void validateStickerExtra(String extra) {
+        JSONObject extraJson = parseExtra(extra, "表情消息扩展字段不完整");
+        boolean valid = hasText(extraJson, "stickerId")
+                && hasText(extraJson, "name")
+                && hasText(extraJson, "url");
+        ThrowUtils.throwIf(!valid, ErrorCode.PARAMS_ERROR, "表情消息扩展字段不完整");
     }
 
     private static JSONObject parseExtra(String extra, String errorMessage) {

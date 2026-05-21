@@ -63,6 +63,17 @@ public interface ChatMessageService extends IService<ChatMessage> {
     ChatMessageVO sendMessage(ChatMessage chatMessage, Long userId);
 
     /**
+     * 转发单条消息
+     *
+     * @param sourceMessageId 来源消息 ID
+     * @param targetRoomId    目标房间 ID
+     * @param clientMsgId     新消息客户端幂等 ID
+     * @param userId          当前用户 ID
+     * @return 消息视图
+     */
+    ChatMessageVO forwardMessage(Long sourceMessageId, Long targetRoomId, String clientMsgId, Long userId);
+
+    /**
      * 获取聊天室历史消息
      *
      * @param roomId        房间 ID

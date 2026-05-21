@@ -55,6 +55,8 @@ class ChatMessageServiceImplTest {
     private ChatPrivateRoom privateRoom;
     private ChatRoomMember roomMember;
     private List<ChatRoomMember> roomMembers;
+    private Map<Long, ChatRoom> roomsById;
+    private Map<Long, Boolean> roomMembership;
     private ChatSessionVO sessionVO;
     private long unreadCountAfterBoundary;
     private List<Long> pushUserIds;
@@ -70,6 +72,9 @@ class ChatMessageServiceImplTest {
         room = new ChatRoom();
         room.setId(1L);
         room.setType(ChatRoomTypeEnum.PRIVATE.getCode());
+        roomsById = new HashMap<>();
+        roomsById.put(1L, room);
+        roomMembership = new HashMap<>();
         member = true;
         mutualFriend = true;
         privateRoom = new ChatPrivateRoom();
@@ -126,6 +131,22 @@ class ChatMessageServiceImplTest {
 
         Assertions.assertEquals(ErrorCode.NO_AUTH_ERROR.getCode(), exception.getCode());
         Assertions.assertEquals("双方存在拉黑关系", exception.getMessage());
+        Assertions.assertNull(chatMessageService.messageById);
+        Assertions.assertNull(chatMqProducer.lastGroupPushRoomId);
+    }
+
+    @Test
+    void shouldRejectPrivateMessageWhenSenderIsNotPrivateRoomParticipant() {
+        roomsById.put(2L, createRoom(2L, ChatRoomTypeEnum.PRIVATE.getCode()));
+        privateRoom.setRoomId(2L);
+        privateRoom.setUserLow(2L);
+        privateRoom.setUserHigh(3L);
+        ChatMessage message = createTextMessage(2L, "private-not-member", "hello");
+
+        BusinessException exception = Assertions.assertThrows(BusinessException.class,
+                () -> chatMessageService.sendMessage(message, 1L));
+
+        Assertions.assertEquals(ErrorCode.NO_AUTH_ERROR.getCode(), exception.getCode());
         Assertions.assertNull(chatMessageService.messageById);
         Assertions.assertNull(chatMqProducer.lastGroupPushRoomId);
     }
@@ -656,6 +677,99 @@ class ChatMessageServiceImplTest {
         Assertions.assertNull(result.getReplyMsg());
     }
 
+    @Test
+    void shouldForwardVisibleNormalMessageToTargetRoomThroughSendFlow() {
+        ChatRoom sourceRoom = createRoom(1L, ChatRoomTypeEnum.GROUP.getCode());
+        ChatRoom targetRoom = createRoom(2L, ChatRoomTypeEnum.GROUP.getCode());
+        roomsById.put(1L, sourceRoom);
+        roomsById.put(2L, targetRoom);
+        roomMembership.put(1L, true);
+        roomMembership.put(2L, true);
+        ChatMessage source = createMediaMessage(ChatMessageTypeEnum.IMAGE,
+                "{\"url\":\"https://example.com/a.png\",\"width\":100,\"height\":200,\"size\":4096}");
+        source.setId(10L);
+        source.setRoomId(1L);
+        source.setContent("[图片]");
+        source.setFromUserId(2L);
+        source.setStatus(MessageStatusEnum.NORMAL.getCode());
+        chatMessageService.messageById = source;
+
+        ChatMessageVO result = chatMessageService.forwardMessage(10L, 2L, "forward-1", 1L);
+
+        Assertions.assertEquals(100L, result.getId());
+        Assertions.assertEquals(2L, chatMessageService.messageById.getRoomId());
+        Assertions.assertEquals(ChatMessageTypeEnum.IMAGE.getCode(), chatMessageService.messageById.getType());
+        Assertions.assertEquals("forward-1", chatMessageService.messageById.getClientMsgId());
+        Assertions.assertEquals(source.getExtra(), chatMessageService.messageById.getExtra());
+        Assertions.assertEquals(2L, chatMqProducer.lastGroupPushRoomId);
+    }
+
+    @Test
+    void shouldRejectForwardWhenSourceRoomIsNotVisible() {
+        roomsById.put(1L, createRoom(1L, ChatRoomTypeEnum.GROUP.getCode()));
+        roomsById.put(2L, createRoom(2L, ChatRoomTypeEnum.GROUP.getCode()));
+        roomMembership.put(1L, false);
+        roomMembership.put(2L, true);
+        chatMessageService.messageById = createStoredMessage(10L, 1L);
+
+        BusinessException exception = Assertions.assertThrows(BusinessException.class,
+                () -> chatMessageService.forwardMessage(10L, 2L, "forward-2", 1L));
+
+        Assertions.assertEquals(ErrorCode.NO_AUTH_ERROR.getCode(), exception.getCode());
+        Assertions.assertNull(chatMqProducer.lastGroupPushRoomId);
+    }
+
+    @Test
+    void shouldRejectForwardWhenTargetRoomCannotSend() {
+        roomsById.put(1L, createRoom(1L, ChatRoomTypeEnum.GROUP.getCode()));
+        roomsById.put(2L, createRoom(2L, ChatRoomTypeEnum.GROUP.getCode()));
+        roomMembership.put(1L, true);
+        roomMembership.put(2L, false);
+        chatMessageService.messageById = createStoredMessage(10L, 1L);
+
+        BusinessException exception = Assertions.assertThrows(BusinessException.class,
+                () -> chatMessageService.forwardMessage(10L, 2L, "forward-3", 1L));
+
+        Assertions.assertEquals(ErrorCode.NO_AUTH_ERROR.getCode(), exception.getCode());
+        Assertions.assertEquals(10L, chatMessageService.messageById.getId());
+        Assertions.assertNull(chatMqProducer.lastGroupPushRoomId);
+    }
+
+    @Test
+    void shouldRejectForwardToPrivateRoomWhenSenderIsNotParticipant() {
+        roomsById.put(1L, createRoom(1L, ChatRoomTypeEnum.GROUP.getCode()));
+        roomsById.put(2L, createRoom(2L, ChatRoomTypeEnum.PRIVATE.getCode()));
+        roomMembership.put(1L, true);
+        privateRoom.setRoomId(2L);
+        privateRoom.setUserLow(2L);
+        privateRoom.setUserHigh(3L);
+        chatMessageService.messageById = createStoredMessage(10L, 1L);
+
+        BusinessException exception = Assertions.assertThrows(BusinessException.class,
+                () -> chatMessageService.forwardMessage(10L, 2L, "forward-private", 1L));
+
+        Assertions.assertEquals(ErrorCode.NO_AUTH_ERROR.getCode(), exception.getCode());
+        Assertions.assertEquals(10L, chatMessageService.messageById.getId());
+        Assertions.assertNull(chatMqProducer.lastGroupPushRoomId);
+    }
+
+    @Test
+    void shouldRejectForwardWhenSourceMessageIsRecalled() {
+        roomsById.put(1L, createRoom(1L, ChatRoomTypeEnum.GROUP.getCode()));
+        roomsById.put(2L, createRoom(2L, ChatRoomTypeEnum.GROUP.getCode()));
+        roomMembership.put(1L, true);
+        roomMembership.put(2L, true);
+        ChatMessage source = createStoredMessage(10L, 1L);
+        source.setStatus(MessageStatusEnum.RECALL.getCode());
+        chatMessageService.messageById = source;
+
+        BusinessException exception = Assertions.assertThrows(BusinessException.class,
+                () -> chatMessageService.forwardMessage(10L, 2L, "forward-4", 1L));
+
+        Assertions.assertEquals(ErrorCode.PARAMS_ERROR.getCode(), exception.getCode());
+        Assertions.assertNull(chatMqProducer.lastGroupPushRoomId);
+    }
+
     private ChatMessage createTextMessage(Long roomId, String clientMsgId, String content) {
         ChatMessage message = new ChatMessage();
         message.setRoomId(roomId);
@@ -681,6 +795,13 @@ class ChatMessageServiceImplTest {
         message.setStatus(MessageStatusEnum.NORMAL.getCode());
         message.setCreateTime(new Date());
         return message;
+    }
+
+    private ChatRoom createRoom(Long roomId, Integer roomType) {
+        ChatRoom chatRoom = new ChatRoom();
+        chatRoom.setId(roomId);
+        chatRoom.setType(roomType);
+        return chatRoom;
     }
 
     private UserVO buildUser(Long id, String name) {
@@ -712,7 +833,8 @@ class ChatMessageServiceImplTest {
                 new Class[]{ChatRoomService.class},
                 (proxy, method, args) -> {
                     if ("getById".equals(method.getName())) {
-                        return room;
+                        ChatRoom matched = roomsById.get((Long) args[0]);
+                        return matched == null ? room : matched;
                     }
                     return defaultValue(method.getReturnType());
                 }
@@ -738,7 +860,7 @@ class ChatMessageServiceImplTest {
                 new Class[]{ChatRoomMemberService.class},
                 (proxy, method, args) -> {
                     return switch (method.getName()) {
-                        case "isMember" -> member;
+                        case "isMember" -> roomMembership.getOrDefault((Long) args[0], member);
                         case "getMember" -> roomMember;
                         case "listByRoomId" -> roomMembers;
                         case "updateById" -> true;
