@@ -20,4 +20,4 @@
 
 - [x] 4.1 运行 m7 聚焦 Maven 测试。
 - [x] 4.2 运行 chat/notification service 全量测试。
-- [ ] 4.3 同步 GitHub Issue #30。
+- [x] 4.3 同步 GitHub Issue #30。
