@@ -31,6 +31,7 @@
 | [A-025-m10-admin-audit-e2e-acceptance.md](./A-025-m10-admin-audit-e2e-acceptance.md) | m10 审计检索与多端验收 Epic 验收 |
 | [A-026-m11-chat-consistency-acceptance.md](./A-026-m11-chat-consistency-acceptance.md) | m11 Chat 工程化一致性验收 |
 | [A-027-backend-engineering-followup-issue-acceptance.md](./A-027-backend-engineering-followup-issue-acceptance.md) | 后端工程化一致性后续批次编排验收 |
+| [A-028-m12-support-consistency-audit.md](./A-028-m12-support-consistency-audit.md) | m12 支撑领域工程化一致性审查 |
 
 ## 不适合放入
 

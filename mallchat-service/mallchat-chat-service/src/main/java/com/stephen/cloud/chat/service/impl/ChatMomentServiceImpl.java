@@ -15,6 +15,7 @@ import com.stephen.cloud.api.chat.model.vo.ChatMomentVO;
 import com.stephen.cloud.api.notification.client.NotificationFeignClient;
 import com.stephen.cloud.api.notification.model.dto.NotificationCreateRequest;
 import com.stephen.cloud.api.notification.model.enums.NotificationTypeEnum;
+import com.stephen.cloud.api.notification.model.vo.NotificationIdVO;
 import com.stephen.cloud.common.common.BaseResponse;
 import com.stephen.cloud.chat.mapper.ChatMomentMapper;
 import com.stephen.cloud.chat.mapper.ChatMomentCommentMapper;
@@ -372,7 +373,7 @@ public class ChatMomentServiceImpl extends ServiceImpl<ChatMomentMapper, ChatMom
                 ? "moment_comment_" + commentId
                 : "moment_like_" + moment.getId() + "_" + actorUserId;
         request.setBizId(bizId);
-        BaseResponse<Long> response = notificationFeignClient.addBusinessNotification(request);
+        BaseResponse<NotificationIdVO> response = notificationFeignClient.addBusinessNotification(request);
         ThrowUtils.throwIf(response == null || response.getData() == null, ErrorCode.OPERATION_ERROR, "创建互动通知失败");
     }
 

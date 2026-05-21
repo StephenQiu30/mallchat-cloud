@@ -13,6 +13,7 @@ import com.stephen.cloud.api.chat.model.vo.ChatRoomJoinApplyVO;
 import com.stephen.cloud.api.notification.client.NotificationFeignClient;
 import com.stephen.cloud.api.notification.model.dto.NotificationCreateRequest;
 import com.stephen.cloud.api.notification.model.enums.NotificationTypeEnum;
+import com.stephen.cloud.api.notification.model.vo.NotificationIdVO;
 import com.stephen.cloud.chat.convert.ChatRoomJoinApplyConvert;
 import com.stephen.cloud.chat.mapper.ChatRoomJoinApplyMapper;
 import com.stephen.cloud.chat.model.entity.ChatRoom;
@@ -228,7 +229,7 @@ public class ChatRoomJoinApplyServiceImpl extends ServiceImpl<ChatRoomJoinApplyM
         notification.setRelatedId(applyId);
         notification.setBizId(bizId);
         notification.setContentUrl("/chat/room/join/apply?id=" + applyId);
-        BaseResponse<Long> response = notificationFeignClient.addBusinessNotification(notification);
+        BaseResponse<NotificationIdVO> response = notificationFeignClient.addBusinessNotification(notification);
         ThrowUtils.throwIf(response == null || response.getData() == null,
                 ErrorCode.OPERATION_ERROR, "创建入群申请通知失败");
     }

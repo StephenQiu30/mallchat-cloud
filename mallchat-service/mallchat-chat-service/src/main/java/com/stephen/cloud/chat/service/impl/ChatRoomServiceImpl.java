@@ -12,6 +12,7 @@ import com.stephen.cloud.api.chat.model.vo.ChatRoomVO;
 import com.stephen.cloud.api.notification.client.NotificationFeignClient;
 import com.stephen.cloud.api.notification.model.dto.NotificationCreateRequest;
 import com.stephen.cloud.api.notification.model.enums.NotificationTypeEnum;
+import com.stephen.cloud.api.notification.model.vo.NotificationIdVO;
 import com.stephen.cloud.api.user.client.UserFeignClient;
 import com.stephen.cloud.api.user.model.vo.UserVO;
 import com.stephen.cloud.chat.convert.ChatRoomConvert;
@@ -551,7 +552,7 @@ public class ChatRoomServiceImpl extends ServiceImpl<ChatRoomMapper, ChatRoom>
         request.setRelatedType(RELATED_TYPE_CHAT_ROOM);
         request.setContentUrl("/chat/room/detail?id=" + room.getId());
         request.setBizId("group_invite:" + room.getId() + ":" + userId);
-        BaseResponse<Long> response = notificationFeignClient.addBusinessNotification(request);
+        BaseResponse<NotificationIdVO> response = notificationFeignClient.addBusinessNotification(request);
         ThrowUtils.throwIf(response == null || response.getData() == null,
                 ErrorCode.OPERATION_ERROR, "创建群邀请通知失败");
     }

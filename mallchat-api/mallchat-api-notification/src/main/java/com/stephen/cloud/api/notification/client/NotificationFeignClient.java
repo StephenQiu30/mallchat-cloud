@@ -2,14 +2,16 @@ package com.stephen.cloud.api.notification.client;
 
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.stephen.cloud.api.notification.model.dto.NotificationCreateRequest;
+import com.stephen.cloud.api.notification.model.dto.NotificationIdRequest;
 import com.stephen.cloud.api.notification.model.dto.NotificationQueryRequest;
+import com.stephen.cloud.api.notification.model.vo.NotificationIdVO;
 import com.stephen.cloud.api.notification.model.vo.NotificationVO;
 import com.stephen.cloud.common.common.BaseResponse;
 import org.springframework.cloud.openfeign.FeignClient;
+import org.springframework.cloud.openfeign.SpringQueryMap;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestParam;
 
 /**
  * 通知服务 Feign 客户端
@@ -22,11 +24,11 @@ public interface NotificationFeignClient {
     /**
      * 根据 ID 获取通知 VO
      *
-     * @param id 通知 ID
+     * @param request 通知 ID 请求
      * @return 通知信息
      */
     @GetMapping("/get/vo")
-    BaseResponse<NotificationVO> getNotificationVOById(@RequestParam("id") Long id);
+    BaseResponse<NotificationVO> getNotificationVOById(@SpringQueryMap NotificationIdRequest request);
 
     /**
      * 分页查询通知列表（用于同步）
@@ -45,5 +47,5 @@ public interface NotificationFeignClient {
      * @return 通知 ID
      */
     @PostMapping("/internal/add")
-    BaseResponse<Long> addBusinessNotification(@RequestBody NotificationCreateRequest request);
+    BaseResponse<NotificationIdVO> addBusinessNotification(@RequestBody NotificationCreateRequest request);
 }
