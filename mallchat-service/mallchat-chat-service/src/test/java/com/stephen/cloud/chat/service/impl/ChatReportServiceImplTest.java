@@ -30,6 +30,7 @@ class ChatReportServiceImplTest {
     private Map<Long, UserVO> users;
     private boolean roomMember;
     private Set<Long> mutualFriendIds;
+    private boolean blockedBetween;
 
     @BeforeEach
     void setUp() {
@@ -37,6 +38,7 @@ class ChatReportServiceImplTest {
         users = new HashMap<>();
         roomMember = true;
         mutualFriendIds = Set.of();
+        blockedBetween = false;
         ReflectionTestUtils.setField(chatReportService, "userFeignClient", createUserFeignClient());
         ReflectionTestUtils.setField(chatReportService, "chatRoomMemberService", createChatRoomMemberService());
         ReflectionTestUtils.setField(chatReportService, "userFriendService", createUserFriendService());
@@ -121,6 +123,8 @@ class ChatReportServiceImplTest {
         moment.setId(30L);
         moment.setUserId(2L);
         moment.setStatus(0);
+        moment.setVisibility(0);
+        moment.setAuditStatus(1);
         moment.setIsDelete(0);
         chatReportService.momentById = moment;
         chatReportService.saveResult = true;
@@ -135,6 +139,39 @@ class ChatReportServiceImplTest {
         Assertions.assertEquals(100L, result);
         Assertions.assertEquals(ChatReportTargetTypeEnum.MOMENT.getCode(), chatReportService.savedReport.getTargetType());
         Assertions.assertEquals(2L, chatReportService.savedReport.getTargetOwnerId());
+    }
+
+    @Test
+    void shouldCreateMomentReportWhenReporterCanViewPublicMoment() {
+        ChatMoment moment = publicMoment(30L, 2L);
+        chatReportService.momentById = moment;
+        chatReportService.saveResult = true;
+        ChatReportSubmitRequest request = new ChatReportSubmitRequest();
+        request.setTargetType(ChatReportTargetTypeEnum.MOMENT.getCode());
+        request.setTargetId(30L);
+        request.setReasonType("illegal");
+
+        Long result = chatReportService.submitReport(1L, request);
+
+        Assertions.assertEquals(100L, result);
+        Assertions.assertEquals(ChatReportTargetTypeEnum.MOMENT.getCode(), chatReportService.savedReport.getTargetType());
+        Assertions.assertEquals(2L, chatReportService.savedReport.getTargetOwnerId());
+    }
+
+    @Test
+    void shouldRejectPublicMomentReportWhenReporterBlockedWithAuthor() {
+        blockedBetween = true;
+        chatReportService.momentById = publicMoment(30L, 2L);
+        ChatReportSubmitRequest request = new ChatReportSubmitRequest();
+        request.setTargetType(ChatReportTargetTypeEnum.MOMENT.getCode());
+        request.setTargetId(30L);
+        request.setReasonType("illegal");
+
+        BusinessException exception = Assertions.assertThrows(BusinessException.class,
+                () -> chatReportService.submitReport(1L, request));
+
+        Assertions.assertEquals(ErrorCode.NO_AUTH_ERROR.getCode(), exception.getCode());
+        Assertions.assertNull(chatReportService.savedReport);
     }
 
     @Test
@@ -190,8 +227,22 @@ class ChatReportServiceImplTest {
                     if ("listMutualFriendIds".equals(method.getName())) {
                         return mutualFriendIds;
                     }
+                    if ("isBlockedBetween".equals(method.getName())) {
+                        return blockedBetween;
+                    }
                     return defaultValue(method.getReturnType());
                 });
+    }
+
+    private static ChatMoment publicMoment(Long id, Long userId) {
+        ChatMoment moment = new ChatMoment();
+        moment.setId(id);
+        moment.setUserId(userId);
+        moment.setStatus(0);
+        moment.setVisibility(1);
+        moment.setAuditStatus(1);
+        moment.setIsDelete(0);
+        return moment;
     }
 
     private static class TestableChatReportServiceImpl extends ChatReportServiceImpl {

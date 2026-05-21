@@ -21,5 +21,8 @@ public class ChatMomentPublishRequest implements Serializable {
     @Schema(description = "动态媒体列表")
     private List<ChatMomentMediaRequest> mediaList;
 
+    @Schema(description = "可见范围：0-好友可见，1-公开", example = "0")
+    private Integer visibility;
+
     private static final long serialVersionUID = 1L;
 }

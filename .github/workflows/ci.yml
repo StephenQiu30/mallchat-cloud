@@ -55,7 +55,7 @@ jobs:
         run: |
           mvn -B -pl mallchat-common/mallchat-common-websocket -am -Dtest=ChannelManagerTest -Dsurefire.failIfNoSpecifiedTests=false test
           mvn -B -pl mallchat-service/mallchat-chat-service -am -Dtest=ChatRoomMemberServiceImplTest,UserFriendServiceImplTest -Dsurefire.failIfNoSpecifiedTests=false test
-          mvn -B -pl mallchat-service/mallchat-chat-service,mallchat-service/mallchat-notification-service -am -Dtest=ChatRoomServiceImplTest,ChatRoomJoinApplyServiceImplTest,ChatMessageHelperTest,ChatMessageServiceImplTest,ChatSessionServiceImplTest,ChatMessagePushHandlerTest -Dsurefire.failIfNoSpecifiedTests=false test
+          mvn -B -pl mallchat-service/mallchat-chat-service,mallchat-service/mallchat-notification-service -am -Dtest=ChatRoomServiceImplTest,ChatRoomJoinApplyServiceImplTest,ChatMessageHelperTest,ChatMessageServiceImplTest,ChatSessionServiceImplTest,ChatMomentServiceImplTest,ChatReportServiceImplTest,ChatMessagePushHandlerTest -Dsurefire.failIfNoSpecifiedTests=false test
           mvn -B -pl mallchat-service/mallchat-file-service -am -Dtest=FileUploadValidatorTest,FileUploadRecordRecorderTest,FileServiceApplicationTest -Dsurefire.failIfNoSpecifiedTests=false test
 
       - name: Compile backend modules

@@ -83,7 +83,31 @@ class ChatMomentServiceImplTest {
         Assertions.assertEquals(1L, chatMomentService.savedMoment.getUserId());
         Assertions.assertEquals("hello moments", chatMomentService.savedMoment.getContent());
         Assertions.assertEquals(0, chatMomentService.savedMoment.getMediaCount());
+        Assertions.assertEquals(0, chatMomentService.savedMoment.getVisibility());
+        Assertions.assertEquals(1, chatMomentService.savedMoment.getAuditStatus());
         Assertions.assertTrue(chatMomentService.savedMediaList.isEmpty());
+    }
+
+    @Test
+    void shouldPublishPublicMomentWithAuditPass() {
+        ChatMomentPublishRequest request = new ChatMomentPublishRequest();
+        request.setContent("public moment");
+        request.setVisibility(1);
+
+        Long momentId = chatMomentService.publish(1L, request);
+
+        Assertions.assertEquals(100L, momentId);
+        Assertions.assertEquals(1, chatMomentService.savedMoment.getVisibility());
+        Assertions.assertEquals(1, chatMomentService.savedMoment.getAuditStatus());
+    }
+
+    @Test
+    void shouldRejectInvalidMomentVisibility() {
+        ChatMomentPublishRequest request = new ChatMomentPublishRequest();
+        request.setContent("bad visibility");
+        request.setVisibility(9);
+
+        Assertions.assertThrows(RuntimeException.class, () -> chatMomentService.publish(1L, request));
     }
 
     @Test
@@ -132,6 +156,43 @@ class ChatMomentServiceImplTest {
         Assertions.assertEquals(new LinkedHashSet<>(Set.of(1L)), chatMomentService.capturedVisibleAuthorIds);
         Assertions.assertEquals(1, page.getRecords().size());
         Assertions.assertEquals(11L, page.getRecords().get(0).getId());
+    }
+
+    @Test
+    void shouldListPublicMomentsByLightRanking() {
+        ChatMoment friendOnly = moment(10L, 2L, "friend only");
+        ChatMoment rejected = publicMoment(11L, 3L, "rejected", 8, 6);
+        rejected.setAuditStatus(2);
+        ChatMoment olderPopular = publicMoment(12L, 4L, "older popular", 5, 3);
+        ChatMoment newerPopular = publicMoment(13L, 5L, "newer popular", 5, 3);
+        ChatMoment latestQuiet = publicMoment(14L, 6L, "latest quiet", 0, 0);
+        chatMomentService.moments = List.of(friendOnly, rejected, olderPopular, newerPopular, latestQuiet);
+
+        Page<ChatMomentVO> page = chatMomentService.listPublicMoments(1L, 1, 10);
+
+        Assertions.assertEquals(3, page.getRecords().size());
+        Assertions.assertEquals(13L, page.getRecords().get(0).getId());
+        Assertions.assertEquals(12L, page.getRecords().get(1).getId());
+        Assertions.assertEquals(14L, page.getRecords().get(2).getId());
+        Assertions.assertEquals(1, page.getRecords().get(0).getVisibility());
+    }
+
+    @Test
+    void shouldExcludeBlockedAuthorFromPublicMomentsAndInteraction() {
+        chatMomentService.blockedUserIds = Set.of(2L);
+        chatMomentService.moments = List.of(
+                publicMoment(10L, 2L, "blocked public", 9, 9),
+                publicMoment(11L, 3L, "visible public", 1, 1));
+        chatMomentService.momentById = Map.of(10L, chatMomentService.moments.get(0));
+
+        Page<ChatMomentVO> page = chatMomentService.listPublicMoments(1L, 1, 10);
+
+        Assertions.assertEquals(1, page.getRecords().size());
+        Assertions.assertEquals(11L, page.getRecords().get(0).getId());
+        Assertions.assertThrows(RuntimeException.class, () -> chatMomentService.likeMoment(1L, 10L));
+        Assertions.assertThrows(RuntimeException.class, () -> chatMomentService.commentMoment(1L, commentRequest(10L, "blocked")));
+        Assertions.assertTrue(chatMomentService.savedLikes.isEmpty());
+        Assertions.assertTrue(chatMomentService.savedComments.isEmpty());
     }
 
     @Test
@@ -237,6 +298,32 @@ class ChatMomentServiceImplTest {
     void shouldRejectInvisibleMomentInteraction() {
         chatMomentService.visibleFriendIds = new LinkedHashSet<>();
         chatMomentService.momentById = Map.of(10L, moment(10L, 2L, "stranger"));
+
+        Assertions.assertThrows(RuntimeException.class, () -> chatMomentService.likeMoment(1L, 10L));
+        Assertions.assertThrows(RuntimeException.class, () -> chatMomentService.commentMoment(1L, commentRequest(10L, "hi")));
+        Assertions.assertTrue(chatMomentService.savedLikes.isEmpty());
+        Assertions.assertTrue(chatMomentService.savedComments.isEmpty());
+    }
+
+    @Test
+    void shouldAllowPublicMomentInteractionWithoutFriendRelation() {
+        chatMomentService.visibleFriendIds = new LinkedHashSet<>();
+        chatMomentService.momentById = Map.of(10L, publicMoment(10L, 2L, "public", 0, 0));
+
+        chatMomentService.likeMoment(1L, 10L);
+        Long commentId = chatMomentService.commentMoment(1L, commentRequest(10L, "nice"));
+
+        Assertions.assertEquals(200L, commentId);
+        Assertions.assertEquals(1, chatMomentService.savedLikes.size());
+        Assertions.assertEquals(1, chatMomentService.savedComments.size());
+    }
+
+    @Test
+    void shouldRejectAuditFailedMomentInteraction() {
+        ChatMoment rejected = publicMoment(10L, 2L, "rejected", 0, 0);
+        rejected.setAuditStatus(2);
+        chatMomentService.visibleFriendIds = new LinkedHashSet<>(Set.of(2L));
+        chatMomentService.momentById = Map.of(10L, rejected);
 
         Assertions.assertThrows(RuntimeException.class, () -> chatMomentService.likeMoment(1L, 10L));
         Assertions.assertThrows(RuntimeException.class, () -> chatMomentService.commentMoment(1L, commentRequest(10L, "hi")));
@@ -371,8 +458,18 @@ class ChatMomentServiceImplTest {
         moment.setLikeCount(0);
         moment.setCommentCount(0);
         moment.setStatus(0);
+        moment.setVisibility(0);
+        moment.setAuditStatus(1);
         moment.setIsDelete(0);
         moment.setCreateTime(new Date(id));
+        return moment;
+    }
+
+    private static ChatMoment publicMoment(Long id, Long userId, String content, int likeCount, int commentCount) {
+        ChatMoment moment = moment(id, userId, content);
+        moment.setVisibility(1);
+        moment.setLikeCount(likeCount);
+        moment.setCommentCount(commentCount);
         return moment;
     }
 
@@ -416,6 +513,7 @@ class ChatMomentServiceImplTest {
         private final List<ChatMomentMedia> savedMediaList = new ArrayList<>();
         private List<ChatMoment> moments = new ArrayList<>();
         private Set<Long> visibleFriendIds = new LinkedHashSet<>();
+        private Set<Long> blockedUserIds = Set.of();
         private Set<Long> capturedVisibleAuthorIds = new LinkedHashSet<>();
         private Map<Long, ChatMoment> momentById = Map.of();
         private final List<Long> deletedMomentIds = new ArrayList<>();
@@ -452,12 +550,46 @@ class ChatMomentServiceImplTest {
         }
 
         @Override
+        protected boolean isBlockedBetween(Long userId, Long targetUserId) {
+            return blockedUserIds.contains(targetUserId);
+        }
+
+        @Override
         protected Page<ChatMoment> pageVisibleMoments(Set<Long> visibleAuthorIds, int current, int pageSize) {
             capturedVisibleAuthorIds = new LinkedHashSet<>(visibleAuthorIds);
             List<ChatMoment> records = moments.stream()
                     .filter(item -> visibleAuthorIds.contains(item.getUserId()))
                     .filter(item -> Integer.valueOf(0).equals(item.getStatus()))
+                    .filter(item -> Integer.valueOf(1).equals(item.getAuditStatus()))
                     .filter(item -> Integer.valueOf(0).equals(item.getIsDelete()))
+                    .toList();
+            Page<ChatMoment> page = new Page<>(current, pageSize, records.size());
+            page.setRecords(records);
+            return page;
+        }
+
+        @Override
+        protected Page<ChatMoment> pagePublicMoments(int current, int pageSize) {
+            List<ChatMoment> records = moments.stream()
+                    .filter(item -> Integer.valueOf(1).equals(item.getVisibility()))
+                    .filter(item -> Integer.valueOf(1).equals(item.getAuditStatus()))
+                    .filter(item -> Integer.valueOf(0).equals(item.getStatus()))
+                    .filter(item -> Integer.valueOf(0).equals(item.getIsDelete()))
+                    .sorted((left, right) -> {
+                        int likeCompare = Integer.compare(right.getLikeCount(), left.getLikeCount());
+                        if (likeCompare != 0) {
+                            return likeCompare;
+                        }
+                        int commentCompare = Integer.compare(right.getCommentCount(), left.getCommentCount());
+                        if (commentCompare != 0) {
+                            return commentCompare;
+                        }
+                        int timeCompare = right.getCreateTime().compareTo(left.getCreateTime());
+                        if (timeCompare != 0) {
+                            return timeCompare;
+                        }
+                        return Long.compare(right.getId(), left.getId());
+                    })
                     .toList();
             Page<ChatMoment> page = new Page<>(current, pageSize, records.size());
             page.setRecords(records);
