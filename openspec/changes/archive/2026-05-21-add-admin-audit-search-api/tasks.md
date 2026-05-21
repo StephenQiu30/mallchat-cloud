@@ -20,4 +20,4 @@
 
 - [x] 4.1 运行 log-service focused tests。
 - [x] 4.2 运行 OpenSpec strict 校验。
-- [ ] 4.3 同步 m10 验收文档和 GitHub Issue #47。
+- [x] 4.3 同步 m10 验收文档和 GitHub Issue #47。

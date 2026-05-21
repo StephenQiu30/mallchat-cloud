@@ -15,8 +15,8 @@ inputs:
   - "GitHub Issue #46"
   - "GitHub Issue #47"
   - "GitHub Issue #48"
-  - "openspec/changes/add-admin-audit-search-api"
-  - "openspec/changes/document-multi-client-e2e-matrix"
+  - "openspec/changes/archive/2026-05-21-add-admin-audit-search-api"
+  - "openspec/changes/archive/2026-05-21-document-multi-client-e2e-matrix"
 outputs:
   - "m10-backend-audit-e2e-epic"
   - "管理后台审计检索后端 API"
@@ -78,12 +78,12 @@ docker compose config >/tmp/mallchat-compose-config.txt
 
 ## 6. OpenSpec 状态
 
-当前 m10 active changes：
+m10 OpenSpec change 已归档：
 
-1. `openspec/changes/add-admin-audit-search-api`
-2. `openspec/changes/document-multi-client-e2e-matrix`
+1. `openspec/changes/archive/2026-05-21-add-admin-audit-search-api`
+2. `openspec/changes/archive/2026-05-21-document-multi-client-e2e-matrix`
 
-完成实现和最终验证后需要归档，并在归档后再次运行 `openspec validate --all --strict`。
+归档后 `openspec list` 无 active changes，`openspec validate --all --strict` 仍通过。
 
 ## 7. 残余风险
 
@@ -96,3 +96,4 @@ docker compose config >/tmp/mallchat-compose-config.txt
 | 日期 | 作者 | 版本 | 变更说明 |
 | --- | --- | --- | --- |
 | 2026-05-21 | StephenQiu30 | 0.1.0 | 初始化 m10 审计检索与多端验收记录 |
+| 2026-05-21 | StephenQiu30 | 0.1.1 | 补充 OpenSpec 归档状态 |

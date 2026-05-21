@@ -43,3 +43,9 @@ The operation audit system SHALL record sensitive IM operations without storing 
 - **THEN** audit recording SHALL be enabled for asynchronous execution
 - **AND** audit service failures SHALL NOT interrupt the original business flow
 
+#### Scenario: Admin searches operation logs by audit dimensions
+- **WHEN** an administrator queries operation logs by operator id, operator name, module, action, business id, success status, client IP, or creation time range
+- **THEN** mallchat-log-service SHALL apply those filters to `/log/operation/list/page`
+- **AND** the response SHALL continue to return paged `OperationLogVO` records
+- **AND** the query SHALL NOT require a new audit table or external search service
+

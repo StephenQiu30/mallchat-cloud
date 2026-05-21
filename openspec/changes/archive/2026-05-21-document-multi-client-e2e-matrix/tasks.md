@@ -14,4 +14,4 @@
 
 - [x] 3.1 运行 OpenSpec strict 校验。
 - [x] 3.2 运行 Markdown/仓库结构检查。
-- [ ] 3.3 同步 m10 验收文档和 GitHub Issue #48。
+- [x] 3.3 同步 m10 验收文档和 GitHub Issue #48。
