@@ -7,6 +7,8 @@
 | 文档 | 说明 |
 |------|------|
 | [D-001-im-projects-reference.md](./D-001-im-projects-reference.md) | IM 开源项目参考分析 |
+| [D-002-qq-like-im-mvp-architecture.md](./D-002-qq-like-im-mvp-architecture.md) | QQ-like IM MVP 架构设计 |
+| [D-003-backend-engineering-consistency-design.md](./D-003-backend-engineering-consistency-design.md) | 后端工程化一致性治理设计 |
 
 ## 适合放入
 
