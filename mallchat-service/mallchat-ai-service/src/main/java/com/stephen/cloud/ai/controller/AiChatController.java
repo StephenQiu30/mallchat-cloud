@@ -18,6 +18,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.annotation.Resource;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
@@ -55,7 +56,8 @@ public class AiChatController {
     @PostMapping("/chat")
     @OperationLog(module = "AI 管理", action = "AI 标准对话")
     @Operation(summary = "AI 对话 (标准)", description = "发送问题并同步等待 AI 完整的文本回复")
-    public BaseResponse<AiChatResponse> doAiChat(@RequestBody AiChatRequest aiChatRequest, HttpServletRequest request) {
+    public BaseResponse<AiChatResponse> doAiChat(@Validated @RequestBody AiChatRequest aiChatRequest,
+                                                 HttpServletRequest request) {
         log.info("AI 对话请求: {}", aiChatRequest);
         ThrowUtils.throwIf(aiChatRequest == null, ErrorCode.PARAMS_ERROR);
 
@@ -80,7 +82,7 @@ public class AiChatController {
     @PostMapping("/chat/stream")
     @OperationLog(module = "AI 管理", action = "AI 流式对话")
     @Operation(summary = "AI 对话 (流式)", description = "发送问题并通过 SSE 获取 AI 实时、逐字下发的回答内容")
-    public SseEmitter doStreamAiChat(@RequestBody AiChatRequest aiChatRequest, HttpServletRequest request) {
+    public SseEmitter doStreamAiChat(@Validated @RequestBody AiChatRequest aiChatRequest, HttpServletRequest request) {
         log.info("AI 对话流处理已启动");
         ThrowUtils.throwIf(aiChatRequest == null, ErrorCode.PARAMS_ERROR);
 

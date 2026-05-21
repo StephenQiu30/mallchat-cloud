@@ -12,6 +12,7 @@ import com.stephen.cloud.api.ai.model.vo.AiChatResponse;
 import com.stephen.cloud.common.auth.utils.SecurityUtils;
 import com.stephen.cloud.common.common.ErrorCode;
 import com.stephen.cloud.common.common.ThrowUtils;
+import com.stephen.cloud.common.exception.BusinessException;
 import com.stephen.cloud.common.rabbitmq.enums.MqBizTypeEnum;
 import com.stephen.cloud.common.rabbitmq.producer.RabbitMqSender;
 import dev.langchain4j.data.message.AiMessage;
@@ -62,8 +63,8 @@ public class AiChatServiceImpl implements AiChatService {
      */
     @Override
     public AiChatResponse chat(AiChatRequest aiChatRequest, HttpServletRequest request) {
-        log.info("执行 AI 标准对话: modelType={}, message={}", aiChatRequest.getModelType(), aiChatRequest.getMessage());
         ThrowUtils.throwIf(aiChatRequest == null, ErrorCode.PARAMS_ERROR);
+        log.info("执行 AI 标准对话: modelType={}, message={}", aiChatRequest.getModelType(), aiChatRequest.getMessage());
         String message = aiChatRequest.getMessage();
         ThrowUtils.throwIf(StringUtils.isBlank(message), ErrorCode.PARAMS_ERROR, "消息内容不能为空");
 
@@ -102,8 +103,8 @@ public class AiChatServiceImpl implements AiChatService {
      */
     @Override
     public void streamChat(AiChatRequest aiChatRequest, SseEmitter emitter, HttpServletRequest request) {
-        log.info("执行 AI 流式对话: modelType={}, message={}", aiChatRequest.getModelType(), aiChatRequest.getMessage());
         ThrowUtils.throwIf(aiChatRequest == null, ErrorCode.PARAMS_ERROR);
+        log.info("执行 AI 流式对话: modelType={}, message={}", aiChatRequest.getModelType(), aiChatRequest.getMessage());
         String message = aiChatRequest.getMessage();
         ThrowUtils.throwIf(StringUtils.isBlank(message), ErrorCode.PARAMS_ERROR, "消息内容不能为空");
 
@@ -156,10 +157,12 @@ public class AiChatServiceImpl implements AiChatService {
         MessageWindowChatMemory memory = MessageWindowChatMemory.withMaxMessages(20);
 
         if (StringUtils.isNotBlank(sessionId)) {
+            Long userId = getCurrentUserIdForMemory();
             List<AiChatRecord> history = aiChatRecordService.list(
                     new LambdaQueryWrapper<AiChatRecord>()
                             .select(AiChatRecord::getMessage, AiChatRecord::getResponse)
                             .eq(AiChatRecord::getSessionId, sessionId)
+                            .eq(AiChatRecord::getUserId, userId)
                             .orderByDesc(AiChatRecord::getCreateTime)
                             .last("limit 20"));
             Collections.reverse(history);
@@ -169,6 +172,16 @@ public class AiChatServiceImpl implements AiChatService {
             }
         }
         return memory;
+    }
+
+    private Long getCurrentUserIdForMemory() {
+        try {
+            Long userId = SecurityUtils.getLoginUserIdPermitNull();
+            ThrowUtils.throwIf(userId == null, ErrorCode.NOT_LOGIN_ERROR);
+            return userId;
+        } catch (Exception e) {
+            throw new BusinessException(ErrorCode.NOT_LOGIN_ERROR);
+        }
     }
 
     /**
