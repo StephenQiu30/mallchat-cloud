@@ -156,3 +156,24 @@ The system SHALL NOT increment session unread counts more than once for the same
 - **THEN** the system SHALL keep that session's `lastMessageId`
 - **AND** the system SHALL NOT increment that session's unread count again
 
+### Requirement: 语音消息会话预览应稳定展示
+The system SHALL show a stable placeholder preview for voice messages in session lists.
+
+#### Scenario: 语音消息进入会话列表
+- **WHEN** a session's latest normal message is a voice message
+- **THEN** the session preview is `[语音]`
+
+### Requirement: 视频消息会话预览应稳定展示
+The system SHALL show a stable placeholder preview for video messages in session lists.
+
+#### Scenario: 视频消息进入会话列表
+- **WHEN** a session's latest normal message is a video message
+- **THEN** the session preview is `[视频]`
+
+### Requirement: 表情贴纸消息会话预览应稳定展示
+The system SHALL show a stable placeholder preview for sticker messages in session lists.
+
+#### Scenario: 表情贴纸消息进入会话列表
+- **WHEN** a session's latest normal message is a sticker message
+- **THEN** the session preview is `[表情]`
+

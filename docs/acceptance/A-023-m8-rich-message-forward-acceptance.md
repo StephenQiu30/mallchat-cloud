@@ -71,13 +71,17 @@ focused tests 通过 81 个测试；chat/file 相关模块扩展测试通过 209
 
 `.github/workflows/ci.yml` 的 backend focused tests 已把 `ChatMessageHelperTest` 纳入 chat-service 质量门禁，文件上传边界继续通过 `FileUploadValidatorTest` 覆盖。
 
-## 6. 残余风险
+## 6. OpenSpec 归档
+
+本次 m8 完成项已归档到 `openspec/changes/archive/2026-05-21-*`，`openspec list` 返回 `No active changes found.`，`openspec validate --all --strict` 通过 20 项正式 spec。
+
+## 7. 残余风险
 
 1. m8 不包含端侧录音、录像、播放、贴纸选择器或上传 UI。
 2. m8 不做语音转文字、视频转码、封面生成或内容审核。
 3. 合并转发只保留设计骨架，避免在快照策略未稳定前扩大表结构。
 
-## 7. 变更记录
+## 8. 变更记录
 
 | 日期 | 作者 | 版本 | 变更说明 |
 | --- | --- | --- | --- |

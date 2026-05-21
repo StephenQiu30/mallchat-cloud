@@ -22,3 +22,25 @@ The system SHALL reject unsafe or unsupported uploaded files before object stora
 - **WHEN** the suffix or content type is not in the business whitelist
 - **THEN** the upload SHALL fail with a parameter error
 
+### Requirement: 语音上传应使用独立 chat_voice 边界
+The system SHALL validate voice uploads using a dedicated `chat_voice` business type.
+
+#### Scenario: 合法语音文件上传
+- **WHEN** a user uploads a supported voice file through `chat_voice`
+- **THEN** the upload boundary accepts the file before storage
+
+#### Scenario: 伪造或不支持的语音文件上传
+- **WHEN** a user uploads a forged or unsupported voice file through `chat_voice`
+- **THEN** the upload boundary rejects the file with a parameter error
+
+### Requirement: 视频上传应使用独立 chat_video 边界
+The system SHALL validate video uploads using a dedicated `chat_video` business type.
+
+#### Scenario: 合法视频文件上传
+- **WHEN** a user uploads a supported video file through `chat_video`
+- **THEN** the upload boundary accepts the file before storage
+
+#### Scenario: 伪造或不支持的视频文件上传
+- **WHEN** a user uploads a forged or unsupported video file through `chat_video`
+- **THEN** the upload boundary rejects the file with a parameter error
+
