@@ -113,11 +113,14 @@ public class NettyWebSocketServer {
                         pipeline.addLast(new HttpObjectAggregator(8192));
                         /*
                          * IdleStateHandler用于检测连接的空闲状态
-                         * readerIdleTime: 读超时时间，即多长时间没有读取到数据就触发读空闲事件（60秒）
-                         * writerIdleTime: 写超时时间，即多长时间没有写数据就触发写空闲事件（30秒，服务器主动心跳）
+                         * readerIdleTime: 读超时时间，即多长时间没有读取到数据就触发读空闲事件
+                         * writerIdleTime: 写超时时间，即多长时间没有写数据就触发写空闲事件（服务器主动心跳）
                          * allIdleTime: 读写超时时间，即多长时间没有读写数据就触发读写空闲事件
                          */
-                        pipeline.addLast(new IdleStateHandler(60, 30, 0, TimeUnit.SECONDS));
+                        pipeline.addLast(new IdleStateHandler(
+                                webSocketProperties.getHeartbeatReaderIdle(),
+                                webSocketProperties.getHeartbeatWriterIdle(),
+                                0, TimeUnit.SECONDS));
                         /*
                          * WebSocketServerProtocolHandler用于将HTTP协议升级为WebSocket协议，
                          * 并且支持保持WebSocket长连接。它会自动处理WebSocket握手过程
