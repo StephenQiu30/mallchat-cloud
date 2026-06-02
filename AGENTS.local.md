@@ -12,4 +12,4 @@
 
 1. 本项目内的角色配置放在 `.claude/agents/` 目录。
 2. 本项目内的可复用流程放在 `.claude/skills/` 目录。
-3. 本项目内的 OpenSpec 配置放在 `openspec/` 目录。
+3. 本项目不再依赖额外规格框架；需求、设计、验收和过程闭环分别沉淀在 `docs/`、GitHub Issue、PR 模板和 `.claude/` 协作资产中。

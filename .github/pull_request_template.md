@@ -3,7 +3,6 @@
 ## Linked Issues
 
 - Closes #
-- OpenSpec change:
 
 ## Test-first Evidence
 

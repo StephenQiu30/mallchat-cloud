@@ -15,14 +15,14 @@
 1. 新文档先判断类型，再放入对应子目录。
 2. 文档标题和文件名应能表达主题，避免使用 `new.md`、`temp.md` 等模糊命名。
 3. 文档内容应保持 MVP 风格，只写当前阶段需要的信息。
-4. OpenSpec proposal、tasks、spec delta 仍放在 `openspec/`，不要混入 `docs/`。
+4. 过程性任务记录放在 Issue、PR 或 Workpad，不混入 `docs/`。
 
 ## 收录边界
 
 1. `docs/` 只收录会对项目产生长期真实影响的文档。
 2. 可收录内容包括需求边界、产品决策、技术方案、验收标准、发布流程、Git/PR 规范和长期维护说明。
 3. 不收录执行 todo、临时任务清单、过程性进展记录、一次性排查记录、会议流水账或仅服务当前一次执行的中间材料。
-4. 过程性任务应写入 OpenSpec change 的 `tasks`，执行完成后随 change 归档，不额外沉淀为 docs 文档。
+4. 过程性任务应写入 Issue、PR 或 Workpad，完成后以验收结论收口，不额外沉淀为 docs 文档。
 5. 如果文档不能影响后续开发、验收、发布或维护决策，默认不应放入 `docs/`。
 
 ## 必要信息
@@ -62,7 +62,7 @@
 1. PRD 应关联后续 plans、design、acceptance 文档。
 2. plans 应关联来源 PRD、相关 design 和 acceptance 文档。
 3. design 应关联来源 PRD、执行 plans 和验证 acceptance 文档。
-4. acceptance 应关联被验收的 PRD、plans、design 或 OpenSpec change。
+4. acceptance 应关联被验收的 PRD、plans、design、Issue 或 PR。
 5. operations 应关联对应的发布、提交、PR、部署或回滚流程。
 
 ## 模板

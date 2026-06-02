@@ -14,7 +14,7 @@
 1. 产品需求。
 2. 技术方案正文。
 3. 测试报告主体。
-4. 单次执行命令流水账或已由 OpenSpec tasks 归档的过程记录。
+4. 单次执行命令流水账、临时任务清单或一次性过程记录。
 
 ## 命名建议
 
@@ -22,8 +22,4 @@
 
 ## 文档清单
 
-| 文档 | 说明 |
-| --- | --- |
-| [O-001-github-ci.md](./O-001-github-ci.md) | GitHub CI 与仓库验证流程 |
-| [O-002-websocket-runtime-contract.md](./O-002-websocket-runtime-contract.md) | WebSocket 运行契约与联调说明 |
-| [O-003-im-production-runbook.md](./O-003-im-production-runbook.md) | MallChat 后端生产上线、健康检查、故障定位、回滚和恢复 Runbook |
+当前目录仅保留分类说明。新增长期运维文档后，再在本节补充文件链接和一句话说明。
