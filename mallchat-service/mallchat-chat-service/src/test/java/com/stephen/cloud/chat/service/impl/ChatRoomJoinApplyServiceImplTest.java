@@ -209,6 +209,42 @@ class ChatRoomJoinApplyServiceImplTest {
         Assertions.assertEquals(100L, page.getRecords().get(0).getId());
     }
 
+    @Test
+    void shouldNotAddMemberWhenApprovingAlreadyApprovedApply() {
+        storedApply = buildPendingApply();
+        storedApply.setStatus(2);
+        storedApply.setActiveKey(null);
+
+        ChatRoomJoinApproveRequest request = new ChatRoomJoinApproveRequest();
+        request.setApplyId(100L);
+        request.setStatus(2);
+
+        BusinessException exception = Assertions.assertThrows(BusinessException.class,
+                () -> service.approveJoinRoom(request, 1L));
+
+        Assertions.assertEquals(ErrorCode.PARAMS_ERROR.getCode(), exception.getCode());
+        Assertions.assertTrue(addedMembers.isEmpty());
+    }
+
+    @Test
+    void shouldCompleteJoinApprovalFlowWithMemberSessionAndNotification() {
+        storedApply = buildPendingApply();
+
+        ChatRoomJoinApproveRequest request = new ChatRoomJoinApproveRequest();
+        request.setApplyId(100L);
+        request.setStatus(2);
+
+        boolean result = service.approveJoinRoom(request, 1L);
+
+        Assertions.assertTrue(result);
+        Assertions.assertEquals(2, storedApply.getStatus());
+        Assertions.assertNull(storedApply.getActiveKey());
+        Assertions.assertEquals(List.of(2L), addedMembers);
+        Assertions.assertEquals(List.of(2L), updatedSessions);
+        Assertions.assertEquals(1, notifications.size());
+        Assertions.assertEquals(2L, notifications.get(0).getUserId());
+    }
+
     private ChatRoomJoinApply buildPendingApply() {
         ChatRoomJoinApply apply = new ChatRoomJoinApply();
         apply.setId(100L);
