@@ -76,15 +76,20 @@ class TextWebSocketFrameHandlerTest {
     @Test
     void shouldRefreshRedisConnectionWhenHeartbeatReceived() {
         EmbeddedChannel channel = newAuthedChannel("1001");
+        // Fire handshake so channel is registered in ChannelManager
+        channel.pipeline().fireUserEventTriggered(
+                new WebSocketServerProtocolHandler.HandshakeComplete(
+                        channel.id().asLongText(), null, "/websocket"));
+
         WebSocketMessage heartbeat = new WebSocketMessage();
         heartbeat.setType(WebSocketMessageTypeEnum.HEARTBEAT.getCode());
         heartbeat.setData("ping");
 
         channel.writeInbound(new TextWebSocketFrame(JSONUtil.toJsonStr(heartbeat)));
 
-        // After heartbeat, the user connections key should be refreshed
+        // After heartbeat, the user connections key should be refreshed and non-empty
         Set<String> connections = cacheUtils.sMembers(WebSocketConstant.WS_USER_CONNECTIONS_KEY + "1001");
-        Assertions.assertNotNull(connections);
+        Assertions.assertFalse(connections.isEmpty());
         channel.finishAndReleaseAll();
     }
 
