@@ -75,6 +75,15 @@ public interface ChatRoomMemberService extends IService<ChatRoomMember> {
     boolean isOwner(Long roomId, Long userId);
 
     /**
+     * 是否为管理员或群主
+     *
+     * @param roomId 房间 ID
+     * @param userId 用户 ID
+     * @return 是否为管理员或群主
+     */
+    boolean isAdmin(Long roomId, Long userId);
+
+    /**
      * 获取成员视图类
      *
      * @param chatRoomMember 房间成员

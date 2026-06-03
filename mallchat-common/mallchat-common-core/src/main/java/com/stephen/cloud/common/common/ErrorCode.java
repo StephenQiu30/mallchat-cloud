@@ -101,7 +101,27 @@ public enum ErrorCode {
     /**
      * 服务暂时不可用
      */
-    SERVICE_UNAVAILABLE(50002, "服务暂时不可用");
+    SERVICE_UNAVAILABLE(50002, "服务暂时不可用"),
+
+    /**
+     * 非房间成员
+     */
+    NOT_ROOM_MEMBER(40310, "非房间成员"),
+
+    /**
+     * 用户已被拉黑
+     */
+    USER_BLOCKED(40311, "用户已被拉黑"),
+
+    /**
+     * 操作过于频繁
+     */
+    RATE_LIMITED(40312, "操作过于频繁"),
+
+    /**
+     * 需要管理员权限
+     */
+    ADMIN_REQUIRED(40313, "需要管理员权限");
 
     /**
      * 状态码

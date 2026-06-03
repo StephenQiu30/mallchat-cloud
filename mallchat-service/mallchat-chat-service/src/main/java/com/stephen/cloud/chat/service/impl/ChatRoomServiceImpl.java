@@ -304,7 +304,7 @@ public class ChatRoomServiceImpl extends ServiceImpl<ChatRoomMapper, ChatRoom>
         ChatRoom room = this.getById(roomId);
         ThrowUtils.throwIf(room == null, ErrorCode.NOT_FOUND_ERROR, "聊天室不存在");
         ThrowUtils.throwIf(!ChatRoomTypeEnum.GROUP.getCode().equals(room.getType()), ErrorCode.PARAMS_ERROR, "仅群聊支持移除成员");
-        ThrowUtils.throwIf(!chatRoomMemberService.isOwner(roomId, userId), ErrorCode.NO_AUTH_ERROR, "仅群主可移除成员");
+        ThrowUtils.throwIf(!chatRoomMemberService.isAdmin(roomId, userId), ErrorCode.ADMIN_REQUIRED, "仅群主或管理员可移除成员");
 
         ChatRoomMember targetMember = chatRoomMemberService.getMember(roomId, memberId);
         ThrowUtils.throwIf(targetMember == null, ErrorCode.NOT_FOUND_ERROR, "成员不在此群聊中");
