@@ -15,5 +15,8 @@ import lombok.EqualsAndHashCode;
 @Schema(description = "动态列表查询请求")
 public class ChatMomentQueryRequest extends PageRequest {
 
+    @Schema(description = "用户ID（用于查询指定用户的动态）")
+    private Long userId;
+
     private static final long serialVersionUID = 1L;
 }

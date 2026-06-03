@@ -66,6 +66,16 @@ public class ChatMomentController {
                 userId, request.getCurrent(), request.getPageSize()));
     }
 
+    @GetMapping("/user/list")
+    @Operation(summary = "用户动态列表", description = "查询指定用户的动态，自己的 PRIVATE 动态也会展示")
+    public BaseResponse<Page<ChatMomentVO>> listUserMoments(ChatMomentQueryRequest request) {
+        ThrowUtils.throwIf(request == null || request.getUserId() == null || request.getUserId() <= 0,
+                ErrorCode.PARAMS_ERROR);
+        Long userId = SecurityUtils.getLoginUserId();
+        return ResultUtils.success(chatMomentService.listUserMoments(
+                userId, request.getUserId(), request.getCurrent(), request.getPageSize()));
+    }
+
     @DeleteMapping("/delete")
     @OperationLog(module = "动态管理", action = "删除动态")
     @Operation(summary = "删除动态", description = "删除自己的动态")

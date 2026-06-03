@@ -25,6 +25,8 @@ public interface ChatMomentService extends IService<ChatMoment> {
 
     Page<ChatMomentVO> listPublicMoments(Long userId, int current, int pageSize);
 
+    Page<ChatMomentVO> listUserMoments(Long viewerId, Long userId, int current, int pageSize);
+
     void deleteMoment(Long userId, Long momentId);
 
     void likeMoment(Long userId, Long momentId);
