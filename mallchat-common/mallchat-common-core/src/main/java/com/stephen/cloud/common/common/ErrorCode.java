@@ -89,6 +89,16 @@ public enum ErrorCode {
     ALREADY_EXIST(40301, "已存在"),
 
     /**
+     * 无权撤回该消息
+     */
+    RECALL_FORBIDDEN(40302, "无权撤回该消息"),
+
+    /**
+     * 需要管理员权限
+     */
+    ADMIN_REQUIRED(40303, "需要管理员权限"),
+
+    /**
      * 系统内部异常
      */
     SYSTEM_ERROR(50000, "系统内部异常"),

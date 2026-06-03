@@ -312,13 +312,18 @@ public class ChatRoomServiceImpl extends ServiceImpl<ChatRoomMapper, ChatRoom>
         ChatRoom room = this.getById(roomId);
         ThrowUtils.throwIf(room == null, ErrorCode.NOT_FOUND_ERROR, "聊天室不存在");
         ThrowUtils.throwIf(!ChatRoomTypeEnum.GROUP.getCode().equals(room.getType()), ErrorCode.PARAMS_ERROR, "仅群聊支持移除成员");
-        ThrowUtils.throwIf(!chatRoomMemberService.isOwner(roomId, userId), ErrorCode.NO_AUTH_ERROR, "仅群主可移除成员");
+        ChatRoomMember operatorMember = chatRoomMemberService.getMember(roomId, userId);
+        boolean isOwner = operatorMember != null && ChatRoomRoleEnum.OWNER.getCode().equals(operatorMember.getRole());
+        boolean isAdmin = operatorMember != null && ChatRoomRoleEnum.ADMIN.getCode().equals(operatorMember.getRole());
+        ThrowUtils.throwIf(!isOwner && !isAdmin, ErrorCode.ADMIN_REQUIRED, "需要管理员或群主权限");
 
         ChatRoomMember targetMember = chatRoomMemberService.getMember(roomId, memberId);
         ThrowUtils.throwIf(targetMember == null, ErrorCode.NOT_FOUND_ERROR, "成员不在此群聊中");
         ThrowUtils.throwIf(ChatRoomRoleEnum.OWNER.getCode().equals(targetMember.getRole()),
                 ErrorCode.OPERATION_ERROR, "不能移除群主");
-        ThrowUtils.throwIf(!ChatRoomRoleEnum.MEMBER.getCode().equals(targetMember.getRole()),
+        ThrowUtils.throwIf(ChatRoomRoleEnum.ADMIN.getCode().equals(targetMember.getRole()) && !isOwner,
+                ErrorCode.NO_AUTH_ERROR, "管理员不可移除其他管理员");
+        ThrowUtils.throwIf(!ChatRoomRoleEnum.MEMBER.getCode().equals(targetMember.getRole()) && !isOwner,
                 ErrorCode.NO_AUTH_ERROR, "当前版本仅支持移除普通成员");
 
         chatSessionService.remove(new LambdaQueryWrapper<com.stephen.cloud.chat.model.entity.ChatSession>()

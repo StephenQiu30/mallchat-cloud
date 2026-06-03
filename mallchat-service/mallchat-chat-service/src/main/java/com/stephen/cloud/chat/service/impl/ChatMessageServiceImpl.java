@@ -6,6 +6,7 @@ import com.baomidou.mybatisplus.core.conditions.update.UpdateWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.stephen.cloud.api.chat.model.enums.ChatMessageTypeEnum;
+import com.stephen.cloud.api.chat.model.enums.ChatRoomRoleEnum;
 import com.stephen.cloud.api.chat.model.enums.ChatRoomTypeEnum;
 import com.stephen.cloud.api.chat.model.enums.MessageStatusEnum;
 import com.stephen.cloud.api.chat.model.vo.ChatMessageReadStatusVO;
@@ -28,8 +29,12 @@ import com.stephen.cloud.chat.service.ChatRoomMemberService;
 import com.stephen.cloud.chat.service.ChatRoomService;
 import com.stephen.cloud.chat.service.ChatSessionService;
 import com.stephen.cloud.chat.service.UserFriendService;
+import com.stephen.cloud.chat.model.entity.ChatAuditEvent;
+import com.stephen.cloud.chat.support.ChatAuditEventRecorder;
 import com.stephen.cloud.chat.support.ChatBusinessMetricsRecorder;
 import com.stephen.cloud.chat.support.ChatMessageHelper;
+import com.stephen.cloud.common.cache.model.TimeModel;
+import com.stephen.cloud.common.cache.utils.ratelimit.RateLimitUtils;
 import com.stephen.cloud.common.common.ErrorCode;
 import com.stephen.cloud.common.common.ThrowUtils;
 import com.stephen.cloud.common.exception.BusinessException;
@@ -92,6 +97,12 @@ public class ChatMessageServiceImpl extends ServiceImpl<ChatMessageMapper, ChatM
 
     @Resource
     private ChatBusinessMetricsRecorder businessMetricsRecorder;
+
+    @Resource
+    private RateLimitUtils rateLimitUtils;
+
+    @Resource
+    private ChatAuditEventRecorder auditEventRecorder;
 
     @Override
     public void validChatMessage(ChatMessage chatMessage) {
@@ -162,6 +173,11 @@ public class ChatMessageServiceImpl extends ServiceImpl<ChatMessageMapper, ChatM
     public ChatMessageVO sendMessage(ChatMessage chatMessage, Long userId) {
         ThrowUtils.throwIf(chatMessage == null || userId == null, ErrorCode.PARAMS_ERROR);
         validChatMessage(chatMessage);
+
+        // 频控：每用户每分钟最多 30 条消息
+        rateLimitUtils.doRateLimit("msg_send:" + userId,
+                new TimeModel(1L, java.util.concurrent.TimeUnit.MINUTES), 30L, 1L);
+
         log.info("[ChatMessageServiceImpl] 用户发送消息: userId={}, roomId={}, clientMsgId={}",
                 userId, chatMessage.getRoomId(), chatMessage.getClientMsgId());
 
@@ -396,12 +412,47 @@ public class ChatMessageServiceImpl extends ServiceImpl<ChatMessageMapper, ChatM
 
         ChatMessage msg = this.getById(messageId);
         ThrowUtils.throwIf(msg == null, ErrorCode.NOT_FOUND_ERROR, "消息不存在");
-        ThrowUtils.throwIf(!Objects.equals(msg.getFromUserId(), userId), ErrorCode.NO_AUTH_ERROR, "只能撤回自己的消息");
 
-        long now = System.currentTimeMillis();
-        long createTime = msg.getCreateTime().getTime();
-        if (now - createTime > 2 * 60 * 1000) {
-            throw new BusinessException(ErrorCode.OPERATION_ERROR, "消息发送超过 2 分钟，无法撤回");
+        boolean isSender = Objects.equals(msg.getFromUserId(), userId);
+        boolean isPrivilegedRecall = false;
+
+        if (!isSender) {
+            // 拉黑收敛：被拉黑用户无法撤回对方消息
+            ThrowUtils.throwIf(userFriendService.isBlockedBetween(userId, msg.getFromUserId()),
+                    ErrorCode.NO_AUTH_ERROR, "双方存在拉黑关系，无法撤回");
+
+            // 群主/管理员撤回权限检查
+            ChatRoomMember operatorMember = chatRoomMemberService.getMember(msg.getRoomId(), userId);
+            ChatRoomMember senderMember = chatRoomMemberService.getMember(msg.getRoomId(), msg.getFromUserId());
+
+            if (operatorMember != null && senderMember != null) {
+                boolean isOwner = ChatRoomRoleEnum.OWNER.getCode().equals(operatorMember.getRole());
+                boolean isAdmin = ChatRoomRoleEnum.ADMIN.getCode().equals(operatorMember.getRole());
+                boolean senderIsMember = ChatRoomRoleEnum.MEMBER.getCode().equals(senderMember.getRole());
+
+                if (isOwner) {
+                    // 群主可撤回任何消息
+                    isPrivilegedRecall = true;
+                } else if (isAdmin && senderIsMember) {
+                    // 管理员可撤回普通成员消息
+                    isPrivilegedRecall = true;
+                } else if (isAdmin) {
+                    throw new BusinessException(ErrorCode.FORBIDDEN_ERROR, "管理员不可撤回其他管理员的消息");
+                }
+            }
+
+            if (!isPrivilegedRecall) {
+                ThrowUtils.throwIf(true, ErrorCode.NO_AUTH_ERROR, "只能撤回自己的消息");
+            }
+        }
+
+        // 时间限制：群主/管理员豁免 2 分钟限制
+        if (!isPrivilegedRecall) {
+            long now = System.currentTimeMillis();
+            long createTime = msg.getCreateTime().getTime();
+            if (now - createTime > 2 * 60 * 1000) {
+                throw new BusinessException(ErrorCode.OPERATION_ERROR, "消息发送超过 2 分钟，无法撤回");
+            }
         }
 
         if (Objects.equals(msg.getStatus(), MessageStatusEnum.RECALL.getCode())) {
@@ -412,6 +463,15 @@ public class ChatMessageServiceImpl extends ServiceImpl<ChatMessageMapper, ChatM
         if (!ok) {
             return false;
         }
+
+        // 记录审计事件
+        ChatAuditEvent auditEvent = new ChatAuditEvent();
+        auditEvent.setUserId(userId);
+        auditEvent.setAction("MESSAGE_RECALL");
+        auditEvent.setTargetType("MESSAGE");
+        auditEvent.setTargetId(messageId);
+        auditEvent.setRoomId(msg.getRoomId());
+        auditEventRecorder.record(auditEvent);
 
         ChatMessageVO messageVO = getChatMessageVO(msg, null);
         List<ChatRoomMember> members = chatRoomMemberService.listByRoomId(msg.getRoomId());
