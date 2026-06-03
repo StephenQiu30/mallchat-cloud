@@ -13,43 +13,43 @@ class ErrorCodeDeliveryTest {
 
     @Test
     void shouldContainMessageNotFound() {
-        ErrorCode code = ErrorCode.getEnumByCode(40401);
-        assertNotNull(code, "MESSAGE_NOT_FOUND 错误码应存在");
+        ErrorCode code = ErrorCode.MESSAGE_NOT_FOUND;
+        assertEquals(40410, code.getCode());
         assertEquals("消息不存在", code.getMessage());
     }
 
     @Test
     void shouldContainMessageDuplicate() {
-        ErrorCode code = ErrorCode.getEnumByCode(40901);
-        assertNotNull(code, "MESSAGE_DUPLICATE 错误码应存在");
+        ErrorCode code = ErrorCode.MESSAGE_DUPLICATE;
+        assertEquals(40901, code.getCode());
         assertEquals("重复消息", code.getMessage());
     }
 
     @Test
     void shouldContainMessageRevokeTimeout() {
-        ErrorCode code = ErrorCode.getEnumByCode(40302);
-        assertNotNull(code, "MESSAGE_REVOKE_TIMEOUT 错误码应存在");
+        ErrorCode code = ErrorCode.MESSAGE_REVOKE_TIMEOUT;
+        assertEquals(40302, code.getCode());
         assertEquals("撤回超时", code.getMessage());
     }
 
     @Test
     void shouldContainMessageRevokeNoPermission() {
-        ErrorCode code = ErrorCode.getEnumByCode(40303);
-        assertNotNull(code, "MESSAGE_REVOKE_NO_PERMISSION 错误码应存在");
+        ErrorCode code = ErrorCode.MESSAGE_REVOKE_NO_PERMISSION;
+        assertEquals(40303, code.getCode());
         assertEquals("无权限撤回", code.getMessage());
     }
 
     @Test
     void shouldContainMessageReplyNotFound() {
-        ErrorCode code = ErrorCode.getEnumByCode(40402);
-        assertNotNull(code, "MESSAGE_REPLY_NOT_FOUND 错误码应存在");
+        ErrorCode code = ErrorCode.MESSAGE_REPLY_NOT_FOUND;
+        assertEquals(40411, code.getCode());
         assertEquals("被回复消息不存在", code.getMessage());
     }
 
     @Test
     void shouldContainMessageDeliveryFailed() {
-        ErrorCode code = ErrorCode.getEnumByCode(50003);
-        assertNotNull(code, "MESSAGE_DELIVERY_FAILED 错误码应存在");
+        ErrorCode code = ErrorCode.MESSAGE_DELIVERY_FAILED;
+        assertEquals(50003, code.getCode());
         assertEquals("消息投递失败", code.getMessage());
     }
 

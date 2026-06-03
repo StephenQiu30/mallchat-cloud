@@ -5,15 +5,20 @@ import com.stephen.cloud.api.chat.model.dto.ChatFriendDeleteRequest;
 import com.stephen.cloud.api.chat.model.dto.ChatFriendListRequest;
 import com.stephen.cloud.api.chat.model.dto.ChatFriendQueryRequest;
 import com.stephen.cloud.api.chat.model.dto.ChatMessageAfterQueryRequest;
+import com.stephen.cloud.api.chat.model.dto.ChatMessageDeliveryStatusRequest;
+import com.stephen.cloud.api.chat.model.dto.ChatMessageForwardRequest;
 import com.stephen.cloud.api.chat.model.dto.ChatMessageHistoryQueryRequest;
 import com.stephen.cloud.api.chat.model.dto.ChatMessageReadRequest;
 import com.stephen.cloud.api.chat.model.dto.ChatMessageReadStatusRequest;
+import com.stephen.cloud.api.chat.model.dto.ChatMessageRecallRequest;
 import com.stephen.cloud.api.chat.model.dto.ChatMessageSendRequest;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.stephen.cloud.api.chat.model.dto.ChatPrivateRoomRequest;
 import com.stephen.cloud.api.chat.model.vo.ChatFriendUserVO;
 import com.stephen.cloud.api.chat.model.vo.ChatIdVO;
+import com.stephen.cloud.api.chat.model.vo.ChatMessageDeliveryVO;
 import com.stephen.cloud.api.chat.model.vo.ChatMessageReadStatusVO;
+import com.stephen.cloud.api.chat.model.vo.ChatMessageRevokeVO;
 import com.stephen.cloud.api.chat.model.vo.ChatMessageVO;
 import com.stephen.cloud.api.chat.model.vo.ChatOperationResultVO;
 import com.stephen.cloud.api.chat.model.vo.ChatRoomVO;
@@ -93,4 +98,31 @@ public interface ChatFeignClient {
 
     @GetMapping("/message/read/status")
     BaseResponse<ChatMessageReadStatusVO> getMessageReadStatus(@SpringQueryMap ChatMessageReadStatusRequest request);
+
+    /**
+     * 撤回消息
+     *
+     * @param request 撤回请求
+     * @return 撤回结果
+     */
+    @PostMapping("/message/recall")
+    BaseResponse<ChatMessageRevokeVO> recallMessage(@RequestBody ChatMessageRecallRequest request);
+
+    /**
+     * 转发消息
+     *
+     * @param request 转发请求
+     * @return 转发后的消息
+     */
+    @PostMapping("/message/forward")
+    BaseResponse<ChatMessageVO> forwardMessage(@RequestBody ChatMessageForwardRequest request);
+
+    /**
+     * 查询消息投递状态
+     *
+     * @param request 投递状态查询请求
+     * @return 投递状态
+     */
+    @GetMapping("/message/delivery/status")
+    BaseResponse<ChatMessageDeliveryVO> getMessageDeliveryStatus(@SpringQueryMap ChatMessageDeliveryStatusRequest request);
 }

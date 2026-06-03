@@ -88,6 +88,12 @@ public class ChatMessageVO implements Serializable {
     private Integer status;
 
     /**
+     * 投递状态：0-待投递，1-已投递，2-投递失败
+     */
+    @Schema(description = "投递状态：0-待投递，1-已投递，2-投递失败", example = "1")
+    private Integer deliveryStatus;
+
+    /**
      * 发送时间
      */
     @Schema(description = "发送时间")

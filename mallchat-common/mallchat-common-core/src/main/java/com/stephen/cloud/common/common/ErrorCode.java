@@ -121,7 +121,37 @@ public enum ErrorCode {
     /**
      * 需要管理员权限
      */
-    ADMIN_REQUIRED(40313, "需要管理员权限");
+    ADMIN_REQUIRED(40313, "需要管理员权限"),
+
+    /**
+     * 消息不存在
+     */
+    MESSAGE_NOT_FOUND(40410, "消息不存在"),
+
+    /**
+     * 重复消息
+     */
+    MESSAGE_DUPLICATE(40901, "重复消息"),
+
+    /**
+     * 撤回超时
+     */
+    MESSAGE_REVOKE_TIMEOUT(40302, "撤回超时"),
+
+    /**
+     * 无权限撤回
+     */
+    MESSAGE_REVOKE_NO_PERMISSION(40303, "无权限撤回"),
+
+    /**
+     * 被回复消息不存在
+     */
+    MESSAGE_REPLY_NOT_FOUND(40411, "被回复消息不存在"),
+
+    /**
+     * 消息投递失败
+     */
+    MESSAGE_DELIVERY_FAILED(50003, "消息投递失败");
 
     /**
      * 状态码
