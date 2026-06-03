@@ -2,6 +2,7 @@ package com.stephen.cloud.chat.service.impl;
 
 import com.stephen.cloud.api.chat.model.enums.ChatRoomTypeEnum;
 import com.stephen.cloud.api.chat.model.enums.ChatRoomRoleEnum;
+import com.stephen.cloud.api.chat.model.vo.ChatRoomVO;
 import com.stephen.cloud.api.chat.model.vo.ChatSessionVO;
 import com.stephen.cloud.api.notification.client.NotificationFeignClient;
 import com.stephen.cloud.api.notification.model.dto.NotificationCreateRequest;
@@ -69,6 +70,7 @@ class ChatRoomServiceImplTest {
     private boolean notificationFails;
     private int notificationAttempts;
     private ChatRoomMember updatedRoomMember;
+    private List<ChatRoom> stubRooms;
 
     @BeforeEach
     void setUp() {
@@ -91,6 +93,7 @@ class ChatRoomServiceImplTest {
         leftUsers = new ArrayList<>();
         notifications = new ArrayList<>();
         currentUserIsAdmin = false;
+        stubRooms = new ArrayList<>();
     }
 
     @Test
@@ -635,6 +638,42 @@ class ChatRoomServiceImplTest {
     }
 
     @Test
+    void shouldListUserChatRooms() {
+        ChatRoomMember member1 = new ChatRoomMember();
+        member1.setRoomId(1L);
+        member1.setUserId(1L);
+        ChatRoomMember member2 = new ChatRoomMember();
+        member2.setRoomId(2L);
+        member2.setUserId(1L);
+
+        ChatRoomMemberService chatRoomMemberService = (ChatRoomMemberService) Proxy.newProxyInstance(
+                ChatRoomMemberService.class.getClassLoader(),
+                new Class[]{ChatRoomMemberService.class},
+                (proxy, method, args) -> {
+                    if ("list".equals(method.getName())) {
+                        return java.util.List.of(member1, member2);
+                    }
+                    return defaultValue(method.getReturnType());
+                }
+        );
+        ReflectionTestUtils.setField(chatRoomService, "chatRoomMemberService", chatRoomMemberService);
+
+        ChatRoom room1 = new ChatRoom();
+        room1.setId(1L);
+        room1.setName("Room 1");
+        room1.setType(ChatRoomTypeEnum.GROUP.getCode());
+        ChatRoom room2 = new ChatRoom();
+        room2.setId(2L);
+        room2.setName("Room 2");
+        room2.setType(ChatRoomTypeEnum.PRIVATE.getCode());
+        stubRooms = java.util.List.of(room1, room2);
+
+        List<ChatRoomVO> result = chatRoomService.listUserChatRooms(1L);
+
+        Assertions.assertEquals(2, result.size());
+    }
+
+    @Test
     void shouldDismissGroupWhenSessionDeletePushThrows() {
         chatRoomService.stubRoom = buildGroupRoom();
         currentUserIsMember = true;
@@ -680,6 +719,9 @@ class ChatRoomServiceImplTest {
                     if ("save".equals(method.getName())) {
                         privateRoomMappingSaved = true;
                         return true;
+                    }
+                    if ("list".equals(method.getName())) {
+                        return new ArrayList<>();
                     }
                     return defaultValue(method.getReturnType());
                 }
@@ -753,6 +795,9 @@ class ChatRoomServiceImplTest {
                     if ("remove".equals(method.getName())) {
                         removedGroupInfoRoomId = currentRoomId();
                         return true;
+                    }
+                    if ("list".equals(method.getName())) {
+                        return new ArrayList<>();
                     }
                     return defaultValue(method.getReturnType());
                 }
@@ -917,6 +962,11 @@ class ChatRoomServiceImplTest {
         public boolean removeById(java.io.Serializable id) {
             removedRoomId = (Long) id;
             return true;
+        }
+
+        @Override
+        public java.util.List<ChatRoom> listByIds(java.util.Collection<? extends java.io.Serializable> idList) {
+            return stubRooms;
         }
     }
 
