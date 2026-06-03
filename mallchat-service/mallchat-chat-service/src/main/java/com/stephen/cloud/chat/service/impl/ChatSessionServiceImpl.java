@@ -334,7 +334,7 @@ public class ChatSessionServiceImpl extends ServiceImpl<ChatSessionMapper, ChatS
         List<ChatSession> toUpdate = new ArrayList<>();
         Date now = new Date();
 
-        // 2. 遍历用户，补全或更新会话
+        // 2. 遍历用户，补全或更新会话（跳过过期消息，避免无效写入）
         for (Long userId : userIds) {
             ChatSession session = sessionMap.get(userId);
             if (session == null) {
@@ -345,14 +345,15 @@ public class ChatSessionServiceImpl extends ServiceImpl<ChatSessionMapper, ChatS
                 session.setTopStatus(0);
                 session.setMuteStatus(0);
             }
-            if (!isDuplicateOrStaleMessage(session, lastMessageId)) {
-                session.setLastMessageId(lastMessageId);
-                session.setActiveTime(now);
-                // 发送者不增加未读数
-                if (!userId.equals(senderId)) {
-                    Integer currentUnread = session.getUnreadCount();
-                    session.setUnreadCount((currentUnread == null ? 0 : currentUnread) + 1);
-                }
+            if (isDuplicateOrStaleMessage(session, lastMessageId)) {
+                continue;
+            }
+            session.setLastMessageId(lastMessageId);
+            session.setActiveTime(now);
+            // 发送者不增加未读数
+            if (!userId.equals(senderId)) {
+                Integer currentUnread = session.getUnreadCount();
+                session.setUnreadCount((currentUnread == null ? 0 : currentUnread) + 1);
             }
             toUpdate.add(session);
         }

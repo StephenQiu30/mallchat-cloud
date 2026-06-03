@@ -196,7 +196,7 @@ class ChatSessionServiceImplTest {
     }
 
     @Test
-    void shouldNotIncrementUnreadWhenSameMessageBatchIsAppliedTwice() {
+    void shouldSkipBatchUpdateWhenSameMessageIsAppliedTwice() {
         ChatSession senderSession = createSession(1L, 11L, 3, 0);
         senderSession.setUserId(1L);
         ChatSession receiverSession = createSession(1L, 11L, 2, 0);
@@ -205,18 +205,11 @@ class ChatSessionServiceImplTest {
 
         chatSessionService.updateSessionBatch(List.of(1L, 2L), 1L, 11L, 1L);
 
-        ChatSession savedSender = chatSessionService.lastBatchSaved.stream()
-                .filter(item -> item.getUserId().equals(1L))
-                .findFirst()
-                .orElseThrow();
-        ChatSession savedReceiver = chatSessionService.lastBatchSaved.stream()
-                .filter(item -> item.getUserId().equals(2L))
-                .findFirst()
-                .orElseThrow();
-        Assertions.assertEquals(3, savedSender.getUnreadCount());
-        Assertions.assertEquals(2, savedReceiver.getUnreadCount());
-        Assertions.assertEquals(11L, savedSender.getLastMessageId());
-        Assertions.assertEquals(11L, savedReceiver.getLastMessageId());
+        // Stale/duplicate message (11 == 11) — both sessions skipped, no DB write
+        Assertions.assertEquals(0, chatSessionService.lastBatchSaved.size());
+        // Original values unchanged
+        Assertions.assertEquals(3, senderSession.getUnreadCount());
+        Assertions.assertEquals(2, receiverSession.getUnreadCount());
     }
 
     @Test
