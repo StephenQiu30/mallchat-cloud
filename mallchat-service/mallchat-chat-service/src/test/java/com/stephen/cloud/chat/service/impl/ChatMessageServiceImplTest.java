@@ -504,6 +504,33 @@ class ChatMessageServiceImplTest {
     }
 
     @Test
+    void shouldSendRoomMemberSnapshotWhenPrivateMessageIsCreated() {
+        ChatRoomMember peerMember = new ChatRoomMember();
+        peerMember.setRoomId(1L);
+        peerMember.setUserId(2L);
+        roomMembers = List.of(roomMember, peerMember);
+
+        ChatMessageVO result = chatMessageService.sendMessage(createTextMessage(1L, "c1", "hello"), 1L);
+
+        Assertions.assertEquals(100L, result.getId());
+        Assertions.assertEquals(1L, chatMqProducer.lastGroupPushRoomId);
+        Assertions.assertEquals(List.of(1L, 2L), chatMqProducer.lastGroupPushUserIds);
+        Assertions.assertEquals(1.0, businessCounter("message_send", "success"));
+    }
+
+    @Test
+    void shouldKeepMessageFactWhenPrivatePushThrows() {
+        chatMqProducer.groupPushThrows = true;
+
+        ChatMessageVO result = Assertions.assertDoesNotThrow(
+                () -> chatMessageService.sendMessage(createTextMessage(1L, "c1", "hello"), 1L));
+
+        Assertions.assertEquals(100L, result.getId());
+        Assertions.assertEquals(100L, chatMessageService.messageById.getId());
+        Assertions.assertEquals(List.of(1L), chatMqProducer.groupPushAttemptRoomIds);
+    }
+
+    @Test
     void shouldRejectInvalidImageMessageWithoutPersistenceOrPush() {
         ChatMessage message = createMediaMessage(ChatMessageTypeEnum.IMAGE,
                 "{\"url\":\"https://example.com/a.png\",\"width\":100,\"height\":200,\"size\":0}");
