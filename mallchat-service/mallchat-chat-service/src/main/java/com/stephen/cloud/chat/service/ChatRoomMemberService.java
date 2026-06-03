@@ -108,4 +108,12 @@ public interface ChatRoomMemberService extends IService<ChatRoomMember> {
      * @param userId 用户 ID
      */
     void leaveRoom(Long roomId, Long userId);
+
+    /**
+     * 统计房间成员数量
+     *
+     * @param roomId 房间 ID
+     * @return 成员数量
+     */
+    long countByRoomId(Long roomId);
 }
