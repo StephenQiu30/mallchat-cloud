@@ -36,8 +36,8 @@
 ### Commit Plan
 
 - [x] `test:` red test or documented exception
-- [ ] `impl:`/`feat:` minimal behavior change
-- [ ] optional `refactor:`/`docs:`/`chore:` cleanup
+- [x] `impl:`/`feat:` minimal behavior change
+- [x] optional `refactor:`/`docs:`/`chore:` cleanup
 
 ### Validation
 
@@ -65,6 +65,18 @@
   - PR URL: https://github.com/StephenQiu30/mallchat-cloud/pull/111
   - 分支：stephenqiu/ste-130-p0-room-group-basic
   - 提交：test: add unit test for listUserChatRooms
+- 2026-06-04 00:20: 修复 CI 编译失败 + CodeRabbit 反馈
+  - 问题 1: CI "Backend quality gate" 编译失败 — OnlineStatusPublishDeduper 和 OnlineStatusNotificationPlanner 类缺失
+    - 原因: PR #106 合并时这两个类丢失
+    - 修复: 创建两个缺失类，通过 ChannelManagerTest 全部 19 个测试验证
+  - 问题 2: CodeRabbit 建议增强 shouldListUserChatRooms 断言
+    - 修复: 增加房间 ID 和类型断言，补充 null userId 和空成员关系边界测试
+  - 问题 3: CodeRabbit 建议清理 workpad.md 中的本地路径
+    - 修复: 替换为通用占位符
+  - 新增提交:
+    - impl: 补充 OnlineStatusPublishDeduper 和 OnlineStatusNotificationPlanner 缺失类
+    - test: 增强 listUserChatRooms 测试断言并补充边界用例
+    - docs: 清理 workpad 中的本地机器路径
 
 ### Confusions
 
