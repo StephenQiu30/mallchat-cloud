@@ -32,5 +32,11 @@ public class ReplyMsgVO implements Serializable {
     @Schema(description = "消息类型")
     private Integer type;
 
+    /**
+     * 媒体消息扩展内容（图片/文件/语音/视频的元数据）
+     */
+    @Schema(description = "媒体消息扩展内容（图片/文件/语音/视频的元数据）")
+    private String extra;
+
     private static final long serialVersionUID = 1L;
 }

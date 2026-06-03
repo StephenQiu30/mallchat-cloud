@@ -870,6 +870,175 @@ class ChatMessageServiceImplTest {
         Assertions.assertEquals(List.of(1L, 2L), chatMqProducer.lastReadUserIds);
     }
 
+    // ========== P1-05: 消息引用媒体预览 ==========
+
+    @Test
+    void shouldIncludeImageExtraInReplyMsgWhenReplyingToImageMessage() {
+        String imageExtra = "{\"url\":\"https://example.com/a.png\",\"width\":100,\"height\":200,\"size\":4096}";
+        ChatMessage replyMessage = createStoredMessage(10L, 1L);
+        replyMessage.setFromUserId(2L);
+        replyMessage.setType(ChatMessageTypeEnum.IMAGE.getCode());
+        replyMessage.setContent("[图片]");
+        replyMessage.setExtra(imageExtra);
+        replyMessagesById.put(10L, replyMessage);
+        chatMessageService.messageById = replyMessage;
+        ChatMessage message = createTextMessage(1L, "reply-img-1", "nice pic");
+        message.setReplyMsgId(10L);
+
+        ChatMessageVO result = chatMessageService.sendMessage(message, 1L);
+
+        Assertions.assertNotNull(result.getReplyMsg());
+        Assertions.assertEquals(10L, result.getReplyMsg().getId());
+        Assertions.assertEquals("[图片]", result.getReplyMsg().getContent());
+        Assertions.assertNotNull(result.getReplyMsg().getExtra());
+        Assertions.assertTrue(result.getReplyMsg().getExtra().contains("url"));
+        Assertions.assertTrue(result.getReplyMsg().getExtra().contains("a.png"));
+    }
+
+    @Test
+    void shouldIncludeFileExtraInReplyMsgWhenReplyingToMessage() {
+        String fileExtra = "{\"url\":\"https://example.com/doc.pdf\",\"name\":\"doc.pdf\",\"ext\":\"pdf\",\"size\":2048}";
+        ChatMessage replyMessage = createStoredMessage(11L, 1L);
+        replyMessage.setFromUserId(2L);
+        replyMessage.setType(ChatMessageTypeEnum.FILE.getCode());
+        replyMessage.setContent("[文件]");
+        replyMessage.setExtra(fileExtra);
+        replyMessagesById.put(11L, replyMessage);
+        chatMessageService.messageById = replyMessage;
+        ChatMessage message = createTextMessage(1L, "reply-file-1", "thanks");
+        message.setReplyMsgId(11L);
+
+        ChatMessageVO result = chatMessageService.sendMessage(message, 1L);
+
+        Assertions.assertNotNull(result.getReplyMsg());
+        Assertions.assertEquals("[文件]", result.getReplyMsg().getContent());
+        Assertions.assertNotNull(result.getReplyMsg().getExtra());
+        Assertions.assertTrue(result.getReplyMsg().getExtra().contains("doc.pdf"));
+    }
+
+    @Test
+    void shouldIncludeVoiceExtraInReplyMsgWhenReplyingToVoiceMessage() {
+        String voiceExtra = "{\"url\":\"https://example.com/v.m4a\",\"format\":\"m4a\",\"duration\":15,\"size\":3072}";
+        ChatMessage replyMessage = createStoredMessage(12L, 1L);
+        replyMessage.setFromUserId(2L);
+        replyMessage.setType(ChatMessageTypeEnum.VOICE.getCode());
+        replyMessage.setContent("[语音]");
+        replyMessage.setExtra(voiceExtra);
+        replyMessagesById.put(12L, replyMessage);
+        chatMessageService.messageById = replyMessage;
+        ChatMessage message = createTextMessage(1L, "reply-voice-1", "heard it");
+        message.setReplyMsgId(12L);
+
+        ChatMessageVO result = chatMessageService.sendMessage(message, 1L);
+
+        Assertions.assertNotNull(result.getReplyMsg());
+        Assertions.assertEquals("[语音]", result.getReplyMsg().getContent());
+        Assertions.assertNotNull(result.getReplyMsg().getExtra());
+        Assertions.assertTrue(result.getReplyMsg().getExtra().contains("v.m4a"));
+    }
+
+    @Test
+    void shouldIncludeVideoExtraInReplyMsgWhenReplyingToVideoMessage() {
+        String videoExtra = "{\"url\":\"https://example.com/clip.mp4\",\"format\":\"mp4\",\"duration\":60,\"size\":8192,\"width\":720,\"height\":1280}";
+        ChatMessage replyMessage = createStoredMessage(13L, 1L);
+        replyMessage.setFromUserId(2L);
+        replyMessage.setType(ChatMessageTypeEnum.VIDEO.getCode());
+        replyMessage.setContent("[视频]");
+        replyMessage.setExtra(videoExtra);
+        replyMessagesById.put(13L, replyMessage);
+        chatMessageService.messageById = replyMessage;
+        ChatMessage message = createTextMessage(1L, "reply-video-1", "cool video");
+        message.setReplyMsgId(13L);
+
+        ChatMessageVO result = chatMessageService.sendMessage(message, 1L);
+
+        Assertions.assertNotNull(result.getReplyMsg());
+        Assertions.assertEquals("[视频]", result.getReplyMsg().getContent());
+        Assertions.assertNotNull(result.getReplyMsg().getExtra());
+        Assertions.assertTrue(result.getReplyMsg().getExtra().contains("clip.mp4"));
+    }
+
+    @Test
+    void shouldNotIncludeExtraInReplyMsgWhenReplyingToTextMessage() {
+        ChatMessage replyMessage = createStoredMessage(14L, 1L);
+        replyMessage.setFromUserId(2L);
+        replyMessage.setType(ChatMessageTypeEnum.TEXT.getCode());
+        replyMessage.setContent("just text");
+        replyMessagesById.put(14L, replyMessage);
+        chatMessageService.messageById = replyMessage;
+        ChatMessage message = createTextMessage(1L, "reply-text-1", "reply");
+        message.setReplyMsgId(14L);
+
+        ChatMessageVO result = chatMessageService.sendMessage(message, 1L);
+
+        Assertions.assertNotNull(result.getReplyMsg());
+        Assertions.assertEquals("just text", result.getReplyMsg().getContent());
+        Assertions.assertNull(result.getReplyMsg().getExtra());
+    }
+
+    // ========== P1-01~04: 媒体消息发送端到端 ==========
+
+    @Test
+    void shouldSendImageMessageAndReturnVOWithExtra() {
+        String imageExtra = "{\"url\":\"https://example.com/photo.png\",\"width\":800,\"height\":600,\"size\":5120}";
+        ChatMessage message = createMediaMessage(ChatMessageTypeEnum.IMAGE, imageExtra);
+
+        ChatMessageVO result = chatMessageService.sendMessage(message, 1L);
+
+        Assertions.assertNotNull(result);
+        Assertions.assertEquals(ChatMessageTypeEnum.IMAGE.getCode(), result.getType());
+        Assertions.assertEquals(imageExtra, result.getExtra());
+        Assertions.assertEquals("[图片]", result.getContent());
+        Assertions.assertEquals(1L, chatMqProducer.lastGroupPushRoomId);
+        Assertions.assertNotNull(chatMqProducer.lastPushedMessageVO);
+        Assertions.assertEquals(imageExtra, chatMqProducer.lastPushedMessageVO.getExtra());
+    }
+
+    @Test
+    void shouldSendFileMessageAndReturnVOWithExtra() {
+        String fileExtra = "{\"url\":\"https://example.com/report.pdf\",\"name\":\"report.pdf\",\"ext\":\"pdf\",\"size\":10240}";
+        ChatMessage message = createMediaMessage(ChatMessageTypeEnum.FILE, fileExtra);
+
+        ChatMessageVO result = chatMessageService.sendMessage(message, 1L);
+
+        Assertions.assertNotNull(result);
+        Assertions.assertEquals(ChatMessageTypeEnum.FILE.getCode(), result.getType());
+        Assertions.assertEquals(fileExtra, result.getExtra());
+        Assertions.assertEquals("[文件]", result.getContent());
+        Assertions.assertNotNull(chatMqProducer.lastPushedMessageVO);
+        Assertions.assertEquals(fileExtra, chatMqProducer.lastPushedMessageVO.getExtra());
+    }
+
+    @Test
+    void shouldSendVoiceMessageAndReturnVOWithExtra() {
+        String voiceExtra = "{\"url\":\"https://example.com/recording.m4a\",\"format\":\"m4a\",\"duration\":30,\"size\":6144}";
+        ChatMessage message = createMediaMessage(ChatMessageTypeEnum.VOICE, voiceExtra);
+
+        ChatMessageVO result = chatMessageService.sendMessage(message, 1L);
+
+        Assertions.assertNotNull(result);
+        Assertions.assertEquals(ChatMessageTypeEnum.VOICE.getCode(), result.getType());
+        Assertions.assertEquals(voiceExtra, result.getExtra());
+        Assertions.assertEquals("[语音]", result.getContent());
+        Assertions.assertNotNull(chatMqProducer.lastPushedMessageVO);
+        Assertions.assertEquals(voiceExtra, chatMqProducer.lastPushedMessageVO.getExtra());
+    }
+
+    @Test
+    void shouldSendVideoMessageAndReturnVOWithExtra() {
+        String videoExtra = "{\"url\":\"https://example.com/clip.mp4\",\"format\":\"mp4\",\"duration\":45,\"size\":20480,\"width\":1920,\"height\":1080}";
+        ChatMessage message = createMediaMessage(ChatMessageTypeEnum.VIDEO, videoExtra);
+
+        ChatMessageVO result = chatMessageService.sendMessage(message, 1L);
+
+        Assertions.assertNotNull(result);
+        Assertions.assertEquals(ChatMessageTypeEnum.VIDEO.getCode(), result.getType());
+        Assertions.assertEquals(videoExtra, result.getExtra());
+        Assertions.assertEquals("[视频]", result.getContent());
+        Assertions.assertNotNull(chatMqProducer.lastPushedMessageVO);
+        Assertions.assertEquals(videoExtra, chatMqProducer.lastPushedMessageVO.getExtra());
+    }
+
     private ChatMessage createTextMessage(Long roomId, String clientMsgId, String content) {
         ChatMessage message = new ChatMessage();
         message.setRoomId(roomId);
@@ -1112,6 +1281,7 @@ class ChatMessageServiceImplTest {
         private Long lastSessionUpdateUserId;
         private Long lastGroupPushRoomId;
         private List<Long> lastGroupPushUserIds;
+        private ChatMessageVO lastPushedMessageVO;
         private List<Long> lastReadUserIds;
         private List<Long> lastRecallUserIds;
         private List<Long> groupPushAttemptRoomIds = new ArrayList<>();
@@ -1132,6 +1302,7 @@ class ChatMessageServiceImplTest {
             }
             this.lastGroupPushRoomId = roomId;
             this.lastGroupPushUserIds = userIds;
+            this.lastPushedMessageVO = chatMessageVO;
         }
 
         @Override
