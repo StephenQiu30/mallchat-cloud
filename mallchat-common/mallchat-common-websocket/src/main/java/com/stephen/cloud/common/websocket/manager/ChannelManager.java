@@ -3,12 +3,7 @@ package com.stephen.cloud.common.websocket.manager;
 import com.stephen.cloud.common.cache.constants.ChatCacheConstant;
 import com.stephen.cloud.common.cache.utils.CacheUtils;
 import com.stephen.cloud.common.constants.WebSocketConstant;
-import com.stephen.cloud.common.rabbitmq.enums.ImWebSocketEventTypeEnum;
 import com.stephen.cloud.common.rabbitmq.enums.MqBizTypeEnum;
-import com.stephen.cloud.common.rabbitmq.enums.WebSocketMessageTypeEnum;
-import com.stephen.cloud.common.rabbitmq.enums.WebSocketPushTypeEnum;
-import com.stephen.cloud.common.rabbitmq.model.ImWebSocketEvent;
-import com.stephen.cloud.common.rabbitmq.model.WebSocketMessage;
 import com.stephen.cloud.common.rabbitmq.producer.RabbitMqSender;
 import io.netty.channel.Channel;
 import io.netty.channel.group.ChannelGroup;
@@ -22,7 +17,6 @@ import org.springframework.stereotype.Component;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -60,6 +54,8 @@ public class ChannelManager {
     private final AtomicLong rejectedConnectionCount = new AtomicLong();
 
     private final AtomicLong abnormalDisconnectCount = new AtomicLong();
+
+    private OnlineStatusPublishDeduper onlineStatusPublishDeduper = new OnlineStatusPublishDeduper(5_000L);
 
     /**
      * 本地连接映射：userId -> (channelId -> Channel)
@@ -244,6 +240,10 @@ public class ChannelManager {
         this.minConnectIntervalMillis = minConnectIntervalMillis == null ? 0L : Math.max(minConnectIntervalMillis, 0L);
     }
 
+    void setOnlineStatusPublishDedupeTtlMillis(long ttlMillis) {
+        this.onlineStatusPublishDeduper = new OnlineStatusPublishDeduper(ttlMillis);
+    }
+
     public long getRejectedConnectionCount() {
         return rejectedConnectionCount.get();
     }
@@ -330,26 +330,18 @@ public class ChannelManager {
 
     private void notifyOnlineStatusChanged(String userId, boolean online) {
         try {
-            Set<Long> targetUserIds = new LinkedHashSet<>();
             Long currentUserId = Long.valueOf(userId);
-            targetUserIds.add(currentUserId);
-            targetUserIds.addAll(friendIdsResolver.apply(currentUserId));
+            Set<Long> targetUserIds = OnlineStatusNotificationPlanner.mergeNotificationTargets(
+                    currentUserId, friendIdsResolver.apply(currentUserId));
+            String dedupeId = OnlineStatusNotificationPlanner.buildDedupeId(currentUserId, online);
+            if (!onlineStatusPublishDeduper.tryAcquire(dedupeId)) {
+                log.debug("[ChannelManager] 跳过重复在线状态通知, userId={}, online={}, dedupeId={}",
+                        userId, online, dedupeId);
+                return;
+            }
 
-            ImWebSocketEvent event = ImWebSocketEvent.builder()
-                    .type(ImWebSocketEventTypeEnum.ONLINE_STATUS.getCode())
-                    .bizId("online_status:" + userId + ":" + (online ? 1 : 0))
-                    .data(Map.of("userId", currentUserId, "onlineStatus", online ? 1 : 0))
-                    .build();
-
-            WebSocketMessage wsMessage = WebSocketMessage.builder()
-                    .userIds(targetUserIds.stream().toList())
-                    .pushType(targetUserIds.size() == 1 ? WebSocketPushTypeEnum.SINGLE.getValue() : WebSocketPushTypeEnum.MULTIPLE.getValue())
-                    .type(WebSocketMessageTypeEnum.MESSAGE.getCode())
-                    .bizId(event.getBizId())
-                    .data(event)
-                    .build();
-
-            rabbitMqSender.send(MqBizTypeEnum.WEBSOCKET_PUSH, event.getBizId(), wsMessage);
+            rabbitMqSender.send(MqBizTypeEnum.WEBSOCKET_PUSH, dedupeId,
+                    OnlineStatusNotificationPlanner.buildMessage(currentUserId, online, targetUserIds, dedupeId));
         } catch (Exception e) {
             log.error("[ChannelManager] 广播在线状态变更失败, userId={}, online={}", userId, online, e);
         }
