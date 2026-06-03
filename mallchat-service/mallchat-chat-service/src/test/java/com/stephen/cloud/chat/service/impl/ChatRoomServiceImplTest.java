@@ -78,6 +78,7 @@ class ChatRoomServiceImplTest {
         ReflectionTestUtils.setField(chatRoomService, "chatGroupInfoService", createChatGroupInfoService());
         ReflectionTestUtils.setField(chatRoomService, "chatSessionService", createChatSessionService());
         ReflectionTestUtils.setField(chatRoomService, "chatMqProducer", createChatMqProducer());
+        ReflectionTestUtils.setField(chatRoomService, "groupGovernanceService", createGroupGovernanceService());
         injectNotificationFeignClientIfPresent();
         addedMembers = new ArrayList<>();
         roomMembers = new ArrayList<>();
@@ -737,6 +738,20 @@ class ChatRoomServiceImplTest {
                     throw new RuntimeException("session delete failed");
                 }
                 sessionDeleteUsers.add(userId);
+            }
+        };
+    }
+
+    private GroupGovernanceServiceImpl createGroupGovernanceService() {
+        return new GroupGovernanceServiceImpl() {
+            @Override
+            public void recordAudit(Long roomId, Long userId, String action, Long operatorId) {
+                // no-op in existing tests
+            }
+
+            @Override
+            public void enforceMaxMembers(Long roomId) {
+                // no-op in existing tests
             }
         };
     }
