@@ -770,6 +770,79 @@ class ChatMessageServiceImplTest {
         Assertions.assertNull(chatMqProducer.lastGroupPushRoomId);
     }
 
+    // ========== STE-98: Multi-device read sync — max cursor ==========
+
+    @Test
+    void shouldUseMaxCursorWhenSecondDeviceReportsHigherReadPosition() {
+        // Device A already read to message 8; Device B reports read to message 10
+        ChatMessage stored = createStoredMessage(10L, 1L);
+        chatMessageService.messageById = stored;
+        roomMember.setLastReadMessageId(8L);
+        unreadCountAfterBoundary = 1L;
+
+        boolean result = chatMessageService.markMessageRead(1L, 10L, 1L);
+
+        Assertions.assertTrue(result);
+        Assertions.assertEquals(10L, roomMember.getLastReadMessageId());
+        Assertions.assertEquals(10L, chatMessageService.updatedLastReadMessageId);
+        Assertions.assertEquals(1, chatMessageService.updatedUnreadCount);
+    }
+
+    @Test
+    void shouldIgnoreLowerCursorFromSecondDeviceDuringMultiDeviceSync() {
+        // Device A already read to message 10; Device B (lagging) reports read to message 6
+        ChatMessage stored = createStoredMessage(6L, 1L);
+        chatMessageService.messageById = stored;
+        roomMember.setLastReadMessageId(10L);
+
+        boolean result = chatMessageService.markMessageRead(1L, 6L, 1L);
+
+        Assertions.assertTrue(result);
+        // Cursor should NOT regress — no session update, no MQ push
+        Assertions.assertFalse(chatMessageService.sessionUpdateInvoked);
+        Assertions.assertNull(chatMqProducer.lastReadPayload);
+        Assertions.assertNull(chatMqProducer.lastSessionUpdateUserId);
+    }
+
+    // ========== STE-98: Group chat read cursor — stale boundary ==========
+
+    @Test
+    void shouldIgnoreStaleReadCursorInGroupChatContext() {
+        // Group room: member already read to 12, reports stale cursor at 8
+        room.setType(ChatRoomTypeEnum.GROUP.getCode());
+        ChatMessage stored = createStoredMessage(8L, 1L);
+        chatMessageService.messageById = stored;
+        roomMember.setLastReadMessageId(12L);
+
+        boolean result = chatMessageService.markMessageRead(1L, 8L, 1L);
+
+        Assertions.assertTrue(result);
+        Assertions.assertFalse(chatMessageService.sessionUpdateInvoked);
+        Assertions.assertNull(chatMqProducer.lastReadPayload);
+        // Cursor stays at 12, not regressed to 8
+        Assertions.assertEquals(12L, roomMember.getLastReadMessageId());
+    }
+
+    @Test
+    void shouldAdvanceGroupReadCursorWhenNewerMessageReported() {
+        room.setType(ChatRoomTypeEnum.GROUP.getCode());
+        ChatRoomMember peerMember = buildRoomMember(1L, 2L, 5L);
+        roomMembers = List.of(roomMember, peerMember);
+        ChatMessage stored = createStoredMessage(15L, 1L);
+        chatMessageService.messageById = stored;
+        roomMember.setLastReadMessageId(10L);
+        unreadCountAfterBoundary = 0L;
+
+        boolean result = chatMessageService.markMessageRead(1L, 15L, 1L);
+
+        Assertions.assertTrue(result);
+        Assertions.assertEquals(15L, roomMember.getLastReadMessageId());
+        Assertions.assertEquals(15L, chatMessageService.updatedLastReadMessageId);
+        Assertions.assertEquals(0, chatMessageService.updatedUnreadCount);
+        // MQ push goes to all group members
+        Assertions.assertEquals(List.of(1L, 2L), chatMqProducer.lastReadUserIds);
+    }
+
     private ChatMessage createTextMessage(Long roomId, String clientMsgId, String content) {
         ChatMessage message = new ChatMessage();
         message.setRoomId(roomId);
