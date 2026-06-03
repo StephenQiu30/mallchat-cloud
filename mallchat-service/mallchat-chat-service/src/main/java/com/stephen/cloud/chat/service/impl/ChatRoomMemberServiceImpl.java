@@ -201,6 +201,15 @@ public class ChatRoomMemberServiceImpl extends ServiceImpl<ChatRoomMemberMapper,
         cacheUtils.sRemove(key, String.valueOf(userId));
     }
 
+    @Override
+    public long countByRoomId(Long roomId) {
+        if (roomId == null) {
+            return 0;
+        }
+        return this.count(new LambdaQueryWrapper<ChatRoomMember>()
+                .eq(ChatRoomMember::getRoomId, roomId));
+    }
+
     private void loadRoomMembersToCache(Long roomId) {
         List<ChatRoomMember> members = this.list(new LambdaQueryWrapper<ChatRoomMember>()
                 .eq(ChatRoomMember::getRoomId, roomId));

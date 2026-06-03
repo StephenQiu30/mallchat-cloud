@@ -304,6 +304,7 @@ CREATE TABLE `chat_room`
     `name`        varchar(64) NOT NULL COMMENT '房间名称',
     `type`        tinyint     NOT NULL DEFAULT 1 COMMENT '房间类型：1-群聊，2-私聊',
     `avatar`      varchar(256)         DEFAULT NULL COMMENT '房间头像',
+    `max_members` int                   DEFAULT NULL COMMENT '最大成员数，NULL 或 0 表示不限制',
     `create_user` bigint      NOT NULL COMMENT '创建者用户ID',
     `create_time` datetime    NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
     `update_time` datetime    NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
@@ -529,3 +530,19 @@ CREATE TABLE `chat_group_info`
 ) ENGINE = InnoDB
   DEFAULT CHARSET = utf8mb4
   COLLATE = utf8mb4_unicode_ci COMMENT = '群组详情表';
+
+CREATE TABLE `chat_room_member_audit`
+(
+    `id`          bigint       NOT NULL AUTO_INCREMENT COMMENT '审计ID',
+    `room_id`     bigint       NOT NULL COMMENT '房间ID',
+    `user_id`     bigint       NOT NULL COMMENT '被操作用户ID',
+    `action`      varchar(32)  NOT NULL COMMENT '操作类型：JOIN/LEAVE/KICK/GRANT_ADMIN/REVOKE_ADMIN',
+    `operator_id` bigint       NOT NULL COMMENT '操作人ID',
+    `create_time` datetime     NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '操作时间',
+    PRIMARY KEY (`id`),
+    KEY `idx_room_time` (`room_id`, `create_time`),
+    KEY `idx_user_time` (`user_id`, `create_time`),
+    KEY `idx_action` (`action`)
+) ENGINE = InnoDB
+  DEFAULT CHARSET = utf8mb4
+  COLLATE = utf8mb4_unicode_ci COMMENT = '群成员变更审计表';
