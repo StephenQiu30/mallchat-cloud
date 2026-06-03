@@ -1,5 +1,6 @@
 package com.stephen.cloud.chat.service;
 
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.IService;
 import com.stephen.cloud.api.chat.model.dto.ChatReportSubmitRequest;
 import com.stephen.cloud.chat.model.entity.ChatReport;
@@ -19,4 +20,13 @@ public interface ChatReportService extends IService<ChatReport> {
      * @return 举报 ID
      */
     Long submitReport(Long reporterUserId, ChatReportSubmitRequest request);
+
+    /**
+     * 分页查询举报列表（管理员）
+     *
+     * @param current 当前页
+     * @param size    每页大小
+     * @return 举报分页
+     */
+    Page<ChatReport> listReports(long current, long size);
 }

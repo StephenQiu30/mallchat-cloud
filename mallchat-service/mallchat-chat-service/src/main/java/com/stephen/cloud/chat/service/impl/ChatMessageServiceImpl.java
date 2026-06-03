@@ -22,6 +22,7 @@ import com.stephen.cloud.chat.model.entity.ChatPrivateRoom;
 import com.stephen.cloud.chat.model.entity.ChatRoom;
 import com.stephen.cloud.chat.model.entity.ChatRoomMember;
 import com.stephen.cloud.chat.mq.producer.ChatMqProducer;
+import com.stephen.cloud.common.auth.utils.SecurityUtils;
 import com.stephen.cloud.chat.service.ChatMessageService;
 import com.stephen.cloud.chat.service.ChatPrivateRoomService;
 import com.stephen.cloud.chat.service.ChatRoomMemberService;
@@ -396,12 +397,21 @@ public class ChatMessageServiceImpl extends ServiceImpl<ChatMessageMapper, ChatM
 
         ChatMessage msg = this.getById(messageId);
         ThrowUtils.throwIf(msg == null, ErrorCode.NOT_FOUND_ERROR, "消息不存在");
-        ThrowUtils.throwIf(!Objects.equals(msg.getFromUserId(), userId), ErrorCode.NO_AUTH_ERROR, "只能撤回自己的消息");
 
-        long now = System.currentTimeMillis();
-        long createTime = msg.getCreateTime().getTime();
-        if (now - createTime > 2 * 60 * 1000) {
-            throw new BusinessException(ErrorCode.OPERATION_ERROR, "消息发送超过 2 分钟，无法撤回");
+        boolean isSender = Objects.equals(msg.getFromUserId(), userId);
+        if (!isSender) {
+            boolean privileged = isAdmin()
+                    || chatRoomMemberService.isOwner(msg.getRoomId(), userId)
+                    || isRoomAdmin(msg.getRoomId(), userId);
+            ThrowUtils.throwIf(!privileged, ErrorCode.NO_PERMISSION, "仅本人、管理员或群主可撤回消息");
+        }
+
+        if (isSender) {
+            long now = System.currentTimeMillis();
+            long createTime = msg.getCreateTime().getTime();
+            if (now - createTime > 2 * 60 * 1000) {
+                throw new BusinessException(ErrorCode.RECALL_TIMEOUT, "消息发送超过 2 分钟，无法撤回");
+            }
         }
 
         if (Objects.equals(msg.getStatus(), MessageStatusEnum.RECALL.getCode())) {
@@ -470,6 +480,15 @@ public class ChatMessageServiceImpl extends ServiceImpl<ChatMessageMapper, ChatM
                 .toList();
     }
 
+    private boolean isRoomAdmin(Long roomId, Long userId) {
+        ChatRoomMember member = chatRoomMemberService.getMember(roomId, userId);
+        return member != null && member.getRole() != null && member.getRole() >= 2;
+    }
+
+    protected boolean isAdmin() {
+        return SecurityUtils.isAdmin();
+    }
+
     private void validateSendPermission(ChatRoom chatRoom, Long roomId, Long userId) {
         if (ChatRoomTypeEnum.PRIVATE.getCode().equals(chatRoom.getType())) {
             ChatPrivateRoom privateRoom = chatPrivateRoomService.getOne(new LambdaQueryWrapper<ChatPrivateRoom>()
@@ -480,7 +499,7 @@ public class ChatMessageServiceImpl extends ServiceImpl<ChatMessageMapper, ChatM
                     && !Objects.equals(userId, privateRoom.getUserHigh()), ErrorCode.NO_AUTH_ERROR, "您不在此聊天室中");
 
             Long peerUserId = Objects.equals(userId, privateRoom.getUserLow()) ? privateRoom.getUserHigh() : privateRoom.getUserLow();
-            ThrowUtils.throwIf(userFriendService.isBlockedBetween(userId, peerUserId), ErrorCode.NO_AUTH_ERROR, "双方存在拉黑关系");
+            ThrowUtils.throwIf(userFriendService.isBlockedBetween(userId, peerUserId), ErrorCode.BLOCKED_BY_TARGET, "双方存在拉黑关系");
             ThrowUtils.throwIf(!userFriendService.isMutualFriend(userId, peerUserId), ErrorCode.NO_AUTH_ERROR, "非好友无法发送消息");
             return;
         }
