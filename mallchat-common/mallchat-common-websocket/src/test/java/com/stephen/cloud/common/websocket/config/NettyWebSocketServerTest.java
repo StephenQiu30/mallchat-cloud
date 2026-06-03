@@ -11,6 +11,24 @@ class NettyWebSocketServerTest {
     private final NettyWebSocketServer server = new NettyWebSocketServer(channelManager);
 
     @Test
+    void shouldRejectNullReaderIdle() {
+        WebSocketProperties properties = new WebSocketProperties();
+        properties.setHeartbeatReaderIdle(null);
+        properties.setHeartbeatWriterIdle(30L);
+
+        Assertions.assertThrows(IllegalArgumentException.class, () -> server.startServer(properties));
+    }
+
+    @Test
+    void shouldRejectNullWriterIdle() {
+        WebSocketProperties properties = new WebSocketProperties();
+        properties.setHeartbeatReaderIdle(60L);
+        properties.setHeartbeatWriterIdle(null);
+
+        Assertions.assertThrows(IllegalArgumentException.class, () -> server.startServer(properties));
+    }
+
+    @Test
     void shouldRejectNegativeReaderIdle() {
         WebSocketProperties properties = new WebSocketProperties();
         properties.setHeartbeatReaderIdle(-1L);
