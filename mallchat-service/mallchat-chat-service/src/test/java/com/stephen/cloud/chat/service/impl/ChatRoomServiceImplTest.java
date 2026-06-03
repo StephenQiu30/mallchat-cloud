@@ -671,6 +671,36 @@ class ChatRoomServiceImplTest {
         List<ChatRoomVO> result = chatRoomService.listUserChatRooms(1L);
 
         Assertions.assertEquals(2, result.size());
+        Assertions.assertEquals(java.util.List.of(1L, 2L), result.stream().map(ChatRoomVO::getId).toList());
+        Assertions.assertTrue(result.stream().anyMatch(r -> ChatRoomTypeEnum.GROUP.getCode().equals(r.getType())));
+        Assertions.assertTrue(result.stream().anyMatch(r -> ChatRoomTypeEnum.PRIVATE.getCode().equals(r.getType())));
+    }
+
+    @Test
+    void shouldThrowOnNullUserIdWhenListingChatRooms() {
+        BusinessException exception = Assertions.assertThrows(BusinessException.class,
+                () -> chatRoomService.listUserChatRooms(null));
+
+        Assertions.assertEquals(ErrorCode.PARAMS_ERROR.getCode(), exception.getCode());
+    }
+
+    @Test
+    void shouldReturnEmptyWhenNoMembershipsForListingChatRooms() {
+        ChatRoomMemberService chatRoomMemberService = (ChatRoomMemberService) Proxy.newProxyInstance(
+                ChatRoomMemberService.class.getClassLoader(),
+                new Class[]{ChatRoomMemberService.class},
+                (proxy, method, args) -> {
+                    if ("list".equals(method.getName())) {
+                        return java.util.List.of();
+                    }
+                    return defaultValue(method.getReturnType());
+                }
+        );
+        ReflectionTestUtils.setField(chatRoomService, "chatRoomMemberService", chatRoomMemberService);
+
+        List<ChatRoomVO> result = chatRoomService.listUserChatRooms(1L);
+
+        Assertions.assertTrue(result.isEmpty());
     }
 
     @Test
