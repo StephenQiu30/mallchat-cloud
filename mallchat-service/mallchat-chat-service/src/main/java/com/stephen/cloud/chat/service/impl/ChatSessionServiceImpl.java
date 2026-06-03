@@ -362,6 +362,54 @@ public class ChatSessionServiceImpl extends ServiceImpl<ChatSessionMapper, ChatS
     }
 
     @Override
+    public boolean readSession(Long roomId, Long userId) {
+        ThrowUtils.throwIf(roomId == null || userId == null, ErrorCode.PARAMS_ERROR);
+        ThrowUtils.throwIf(!chatRoomMemberService.isMember(roomId, userId), ErrorCode.NO_AUTH_ERROR, "您不在此聊天室中");
+
+        ChatSession session = this.getOne(new LambdaQueryWrapper<ChatSession>()
+                .eq(ChatSession::getUserId, userId)
+                .eq(ChatSession::getRoomId, roomId));
+        if (session == null) {
+            return true;
+        }
+
+        Long lastMessageId = session.getLastMessageId();
+        if (lastMessageId == null) {
+            return true;
+        }
+
+        Long oldRead = session.getLastReadMessageId();
+        if (oldRead != null && lastMessageId <= oldRead) {
+            return true;
+        }
+
+        session.setUnreadCount(0);
+        session.setLastReadMessageId(lastMessageId);
+        this.updateById(session);
+
+        ChatRoomMember member = chatRoomMemberService.getMember(roomId, userId);
+        if (member != null) {
+            Long memberOldRead = member.getLastReadMessageId();
+            if (memberOldRead == null || lastMessageId > memberOldRead) {
+                member.setLastReadMessageId(lastMessageId);
+                chatRoomMemberService.updateById(member);
+            }
+        }
+
+        ChatSessionVO sessionVO = getSessionVO(roomId, userId);
+        if (sessionVO != null) {
+            try {
+                chatMqProducer.sendSessionUpdate(userId, roomId, sessionVO,
+                        "session_read:" + roomId + ":" + userId + ":" + lastMessageId);
+            } catch (Exception e) {
+                log.warn("[ChatSessionServiceImpl] 推送会话已读刷新失败, roomId={}, userId={}, reason={}",
+                        roomId, userId, e.toString());
+            }
+        }
+        return true;
+    }
+
+    @Override
     public List<Long> filterPushUserIds(Long roomId, List<Long> userIds, Long senderId) {
         if (roomId == null || CollUtil.isEmpty(userIds)) {
             return Collections.emptyList();
