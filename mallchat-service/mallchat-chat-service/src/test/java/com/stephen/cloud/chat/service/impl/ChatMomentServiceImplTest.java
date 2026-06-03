@@ -132,11 +132,11 @@ class ChatMomentServiceImplTest {
     }
 
     @Test
-    void shouldListOwnAndFriendMoments() {
+    void shouldListOwnAndFriendPublicMoments() {
         chatMomentService.visibleFriendIds = new LinkedHashSet<>(Set.of(2L));
         chatMomentService.moments = List.of(
                 moment(10L, 1L, "mine"),
-                moment(11L, 2L, "friend"));
+                publicMoment(11L, 2L, "friend public", 0, 0));
 
         Page<ChatMomentVO> page = chatMomentService.listVisibleMoments(1L, 1, 10);
 
@@ -236,7 +236,7 @@ class ChatMomentServiceImplTest {
     @Test
     void shouldLikeVisibleMomentAndCreateNotification() {
         chatMomentService.visibleFriendIds = new LinkedHashSet<>(Set.of(2L));
-        chatMomentService.momentById = Map.of(10L, moment(10L, 2L, "friend"));
+        chatMomentService.momentById = Map.of(10L, publicMoment(10L, 2L, "friend public", 0, 0));
 
         chatMomentService.likeMoment(1L, 10L);
 
@@ -251,7 +251,7 @@ class ChatMomentServiceImplTest {
     @Test
     void shouldKeepRepeatedLikeIdempotent() {
         chatMomentService.visibleFriendIds = new LinkedHashSet<>(Set.of(2L));
-        chatMomentService.momentById = Map.of(10L, moment(10L, 2L, "friend"));
+        chatMomentService.momentById = Map.of(10L, publicMoment(10L, 2L, "friend public", 0, 0));
         chatMomentService.likeByMomentAndUser = Map.of("10:1", activeLike(31L, 10L, 1L));
 
         chatMomentService.likeMoment(1L, 10L);
@@ -264,7 +264,7 @@ class ChatMomentServiceImplTest {
     @Test
     void shouldTreatDuplicateLikeInsertAsIdempotent() {
         chatMomentService.visibleFriendIds = new LinkedHashSet<>(Set.of(2L));
-        chatMomentService.momentById = Map.of(10L, moment(10L, 2L, "friend"));
+        chatMomentService.momentById = Map.of(10L, publicMoment(10L, 2L, "friend public", 0, 0));
         chatMomentService.duplicateLikeOnSave = true;
 
         chatMomentService.likeMoment(1L, 10L);
@@ -276,7 +276,7 @@ class ChatMomentServiceImplTest {
     @Test
     void shouldUnlikeLikedMomentAndDecreaseCount() {
         chatMomentService.visibleFriendIds = new LinkedHashSet<>(Set.of(2L));
-        chatMomentService.momentById = Map.of(10L, moment(10L, 2L, "friend"));
+        chatMomentService.momentById = Map.of(10L, publicMoment(10L, 2L, "friend public", 0, 0));
         chatMomentService.likeByMomentAndUser = Map.of("10:1", activeLike(31L, 10L, 1L));
 
         chatMomentService.unlikeMoment(1L, 10L);
@@ -288,7 +288,7 @@ class ChatMomentServiceImplTest {
     @Test
     void shouldKeepRepeatedUnlikeIdempotent() {
         chatMomentService.visibleFriendIds = new LinkedHashSet<>(Set.of(2L));
-        chatMomentService.momentById = Map.of(10L, moment(10L, 2L, "friend"));
+        chatMomentService.momentById = Map.of(10L, publicMoment(10L, 2L, "friend public", 0, 0));
 
         chatMomentService.unlikeMoment(1L, 10L);
 
@@ -362,7 +362,7 @@ class ChatMomentServiceImplTest {
     @Test
     void shouldCommentVisibleMomentAndCreateNotification() {
         chatMomentService.visibleFriendIds = new LinkedHashSet<>(Set.of(2L));
-        chatMomentService.momentById = Map.of(10L, moment(10L, 2L, "friend"));
+        chatMomentService.momentById = Map.of(10L, publicMoment(10L, 2L, "friend public", 0, 0));
 
         Long commentId = chatMomentService.commentMoment(1L, commentRequest(10L, " hello "));
 
@@ -379,7 +379,7 @@ class ChatMomentServiceImplTest {
     @Test
     void shouldListVisibleMomentComments() {
         chatMomentService.visibleFriendIds = new LinkedHashSet<>(Set.of(2L));
-        chatMomentService.momentById = Map.of(10L, moment(10L, 2L, "friend"));
+        chatMomentService.momentById = Map.of(10L, publicMoment(10L, 2L, "friend public", 0, 0));
         chatMomentService.comments = List.of(comment(101L, 10L, 2L, "first"), comment(102L, 10L, 3L, "second"));
 
         Page<ChatMomentCommentVO> page = chatMomentService.listComments(1L, 10L, 1, 10);
@@ -402,7 +402,7 @@ class ChatMomentServiceImplTest {
         ChatMomentComment deletedComment = comment(102L, 10L, 3L, "deleted");
         deletedComment.setIsDelete(1);
         chatMomentService.visibleFriendIds = new LinkedHashSet<>(Set.of(2L));
-        chatMomentService.momentById = Map.of(10L, moment(10L, 2L, "friend"));
+        chatMomentService.momentById = Map.of(10L, publicMoment(10L, 2L, "friend public", 0, 0));
         chatMomentService.comments = List.of(comment(101L, 10L, 2L, "first"), deletedComment);
 
         Page<ChatMomentCommentVO> page = chatMomentService.listComments(1L, 10L, 1, 10);
@@ -414,7 +414,7 @@ class ChatMomentServiceImplTest {
     @Test
     void shouldKeepInteractionWhenNotificationFails() {
         chatMomentService.visibleFriendIds = new LinkedHashSet<>(Set.of(2L));
-        chatMomentService.momentById = Map.of(10L, moment(10L, 2L, "friend"));
+        chatMomentService.momentById = Map.of(10L, publicMoment(10L, 2L, "friend public", 0, 0));
         chatMomentService.failNotification = true;
 
         chatMomentService.likeMoment(1L, 10L);
@@ -439,6 +439,87 @@ class ChatMomentServiceImplTest {
         Assertions.assertEquals(1, chatMomentService.savedLikes.size());
         Assertions.assertEquals(1, chatMomentService.savedComments.size());
         Assertions.assertTrue(chatMomentService.sentNotifications.isEmpty());
+    }
+
+    // --- visibility filtering tests (STE-173) ---
+
+    @Test
+    void shouldFilterFriendPrivateMomentsFromFeed() {
+        chatMomentService.visibleFriendIds = new LinkedHashSet<>(Set.of(2L, 3L));
+        chatMomentService.moments = List.of(
+                moment(10L, 1L, "my own private"),
+                privateMoment(11L, 2L, "friend private"),
+                publicMoment(12L, 2L, "friend public", 0, 0),
+                publicMoment(13L, 3L, "other friend public", 0, 0));
+
+        Page<ChatMomentVO> page = chatMomentService.listVisibleMoments(1L, 1, 10);
+
+        Assertions.assertEquals(3, page.getRecords().size());
+        Assertions.assertEquals(10L, page.getRecords().get(0).getId());
+        Assertions.assertEquals(12L, page.getRecords().get(1).getId());
+        Assertions.assertEquals(13L, page.getRecords().get(2).getId());
+    }
+
+    @Test
+    void shouldIncludeOwnPrivateMomentsInFeed() {
+        chatMomentService.visibleFriendIds = new LinkedHashSet<>();
+        chatMomentService.moments = List.of(
+                privateMoment(10L, 1L, "my private"),
+                publicMoment(11L, 1L, "my public", 0, 0));
+
+        Page<ChatMomentVO> page = chatMomentService.listVisibleMoments(1L, 1, 10);
+
+        Assertions.assertEquals(2, page.getRecords().size());
+        Assertions.assertEquals(10L, page.getRecords().get(0).getId());
+        Assertions.assertEquals(11L, page.getRecords().get(1).getId());
+    }
+
+    @Test
+    void shouldListUserMomentsIncludingOwnPrivate() {
+        chatMomentService.moments = List.of(
+                privateMoment(10L, 1L, "my private"),
+                publicMoment(11L, 1L, "my public", 0, 0),
+                privateMoment(12L, 2L, "other private"),
+                publicMoment(13L, 2L, "other public", 0, 0));
+
+        Page<ChatMomentVO> page = chatMomentService.listUserMoments(1L, 1L, 1, 10);
+
+        Assertions.assertEquals(2, page.getRecords().size());
+        // Sorted by createTime desc, so moment 11 (newer) comes first
+        Assertions.assertEquals(11L, page.getRecords().get(0).getId());
+        Assertions.assertEquals(10L, page.getRecords().get(1).getId());
+    }
+
+    @Test
+    void shouldListOtherUserMomentsExcludingPrivate() {
+        chatMomentService.moments = List.of(
+                privateMoment(10L, 2L, "other private"),
+                publicMoment(11L, 2L, "other public", 0, 0));
+
+        Page<ChatMomentVO> page = chatMomentService.listUserMoments(1L, 2L, 1, 10);
+
+        Assertions.assertEquals(1, page.getRecords().size());
+        Assertions.assertEquals(11L, page.getRecords().get(0).getId());
+    }
+
+    @Test
+    void shouldRejectPrivateMomentInteractionByNonOwner() {
+        chatMomentService.visibleFriendIds = new LinkedHashSet<>(Set.of(2L));
+        chatMomentService.momentById = Map.of(10L, privateMoment(10L, 2L, "friend private"));
+
+        Assertions.assertThrows(RuntimeException.class, () -> chatMomentService.likeMoment(1L, 10L));
+        Assertions.assertThrows(RuntimeException.class, () -> chatMomentService.commentMoment(1L, commentRequest(10L, "hi")));
+    }
+
+    @Test
+    void shouldAllowPrivateMomentInteractionByOwner() {
+        chatMomentService.momentById = Map.of(10L, privateMoment(10L, 1L, "my private"));
+
+        chatMomentService.likeMoment(1L, 10L);
+        Long commentId = chatMomentService.commentMoment(1L, commentRequest(10L, "self comment"));
+
+        Assertions.assertEquals(1, chatMomentService.savedLikes.size());
+        Assertions.assertEquals(200L, commentId);
     }
 
     // --- createMoment tests (STE-170) ---
@@ -531,6 +612,12 @@ class ChatMomentServiceImplTest {
         return moment;
     }
 
+    private static ChatMoment privateMoment(Long id, Long userId, String content) {
+        ChatMoment moment = moment(id, userId, content);
+        moment.setVisibility(0);
+        return moment;
+    }
+
     private static ChatMomentLike activeLike(Long id, Long momentId, Long userId) {
         ChatMomentLike like = new ChatMomentLike();
         like.setId(id);
@@ -617,13 +704,15 @@ class ChatMomentServiceImplTest {
         }
 
         @Override
-        protected Page<ChatMoment> pageVisibleMoments(Set<Long> visibleAuthorIds, int current, int pageSize) {
+        protected Page<ChatMoment> pageVisibleMoments(Long viewerId, Set<Long> visibleAuthorIds, int current, int pageSize) {
             capturedVisibleAuthorIds = new LinkedHashSet<>(visibleAuthorIds);
             List<ChatMoment> records = moments.stream()
                     .filter(item -> visibleAuthorIds.contains(item.getUserId()))
                     .filter(item -> Integer.valueOf(0).equals(item.getStatus()))
                     .filter(item -> Integer.valueOf(1).equals(item.getAuditStatus()))
                     .filter(item -> Integer.valueOf(0).equals(item.getIsDelete()))
+                    .filter(item -> viewerId.equals(item.getUserId())
+                            || Integer.valueOf(1).equals(item.getVisibility()))
                     .toList();
             Page<ChatMoment> page = new Page<>(current, pageSize, records.size());
             page.setRecords(records);
@@ -646,6 +735,27 @@ class ChatMomentServiceImplTest {
                         if (commentCompare != 0) {
                             return commentCompare;
                         }
+                        int timeCompare = right.getCreateTime().compareTo(left.getCreateTime());
+                        if (timeCompare != 0) {
+                            return timeCompare;
+                        }
+                        return Long.compare(right.getId(), left.getId());
+                    })
+                    .toList();
+            Page<ChatMoment> page = new Page<>(current, pageSize, records.size());
+            page.setRecords(records);
+            return page;
+        }
+
+        @Override
+        protected Page<ChatMoment> pageUserMoments(Long userId, boolean includePrivate, int current, int pageSize) {
+            List<ChatMoment> records = moments.stream()
+                    .filter(item -> userId.equals(item.getUserId()))
+                    .filter(item -> Integer.valueOf(1).equals(item.getAuditStatus()))
+                    .filter(item -> Integer.valueOf(0).equals(item.getStatus()))
+                    .filter(item -> Integer.valueOf(0).equals(item.getIsDelete()))
+                    .filter(item -> includePrivate || Integer.valueOf(1).equals(item.getVisibility()))
+                    .sorted((left, right) -> {
                         int timeCompare = right.getCreateTime().compareTo(left.getCreateTime());
                         if (timeCompare != 0) {
                             return timeCompare;
