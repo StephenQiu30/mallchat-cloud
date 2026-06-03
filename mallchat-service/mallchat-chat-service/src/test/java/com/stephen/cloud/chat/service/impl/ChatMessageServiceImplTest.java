@@ -395,6 +395,31 @@ class ChatMessageServiceImplTest {
     }
 
     @Test
+    void shouldRejectRecallWhenMessageExceedsTwoMinuteWindow() {
+        ChatMessage stored = createStoredMessage(9L, 1L);
+        stored.setCreateTime(new Date(System.currentTimeMillis() - 3 * 60 * 1000));
+        chatMessageService.messageById = stored;
+
+        BusinessException exception = Assertions.assertThrows(BusinessException.class,
+                () -> chatMessageService.recallMessage(9L, 1L));
+
+        Assertions.assertEquals(ErrorCode.OPERATION_ERROR.getCode(), exception.getCode());
+        Assertions.assertEquals("消息发送超过 2 分钟，无法撤回", exception.getMessage());
+    }
+
+    @Test
+    void shouldAllowRecallWithinTwoMinuteWindow() {
+        ChatMessage stored = createStoredMessage(9L, 1L);
+        stored.setCreateTime(new Date(System.currentTimeMillis() - 90 * 1000));
+        chatMessageService.messageById = stored;
+
+        boolean result = chatMessageService.recallMessage(9L, 1L);
+
+        Assertions.assertTrue(result);
+        Assertions.assertEquals(MessageStatusEnum.RECALL.getCode(), chatMessageService.messageById.getStatus());
+    }
+
+    @Test
     void shouldSendRoomMemberSnapshotWhenGroupMessageIsCreated() {
         room.setType(ChatRoomTypeEnum.GROUP.getCode());
         ChatRoomMember peerMember = new ChatRoomMember();
