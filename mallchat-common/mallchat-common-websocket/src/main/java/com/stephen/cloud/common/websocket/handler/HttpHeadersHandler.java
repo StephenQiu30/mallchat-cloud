@@ -16,6 +16,7 @@ import io.netty.util.ReferenceCountUtil;
 import lombok.extern.slf4j.Slf4j;
 
 import java.net.URI;
+import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -72,11 +73,14 @@ public class HttpHeadersHandler extends ChannelInboundHandlerAdapter {
                     token = token.substring(7);
                 }
 
+                // 通过 Token 获取用户ID，Token 无效、过期或多端踢下线时返回 null
                 Object loginId = StpUtil.getLoginIdByToken(token);
                 if (loginId == null) {
-                    reject(ctx, request, HttpResponseStatus.UNAUTHORIZED, "WebSocket 握手拒绝：Token 无效");
+                    rejectWithBody(ctx, request, HttpResponseStatus.UNAUTHORIZED,
+                            "WebSocket 握手拒绝：Token 无效或已过期", "Token 无效或已过期，请重新登录");
                     return;
                 }
+
                 String userId = String.valueOf(loginId);
                 // 将 userId 绑定到 Channel
                 ctx.channel().attr(ATTR_USER_ID).set(userId);
@@ -135,6 +139,19 @@ public class HttpHeadersHandler extends ChannelInboundHandlerAdapter {
         log.warn(reason);
         DefaultFullHttpResponse response = new DefaultFullHttpResponse(request.protocolVersion(), status);
         response.headers().set(HttpHeaderNames.CONTENT_LENGTH, 0);
+        response.headers().set(HttpHeaderNames.CONNECTION, HttpHeaderValues.CLOSE);
+        ctx.writeAndFlush(response).addListener(ChannelFutureListener.CLOSE);
+        ReferenceCountUtil.release(request);
+    }
+
+    private void rejectWithBody(ChannelHandlerContext ctx, FullHttpRequest request,
+                                HttpResponseStatus status, String reason, String body) {
+        log.warn(reason);
+        io.netty.buffer.ByteBuf buf = io.netty.buffer.Unpooled.buffer();
+        buf.writeCharSequence(body, StandardCharsets.UTF_8);
+        DefaultFullHttpResponse response = new DefaultFullHttpResponse(request.protocolVersion(), status, buf);
+        response.headers().set(HttpHeaderNames.CONTENT_TYPE, "text/plain; charset=UTF-8");
+        response.headers().set(HttpHeaderNames.CONTENT_LENGTH, buf.readableBytes());
         response.headers().set(HttpHeaderNames.CONNECTION, HttpHeaderValues.CLOSE);
         ctx.writeAndFlush(response).addListener(ChannelFutureListener.CLOSE);
         ReferenceCountUtil.release(request);
