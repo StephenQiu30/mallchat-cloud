@@ -24,6 +24,7 @@ class GatewayRateLimitBehaviorTest {
             "/api/chat/message/send",
             "/api/chat/friend/apply/add",
             "/api/chat/moment/publish",
+            "/api/moments",
             "/api/file/upload"
     })
     void shouldContinueRequestWhenRateLimiterAllowsCoreWriteApi(String path) {
@@ -46,6 +47,7 @@ class GatewayRateLimitBehaviorTest {
             "/api/chat/message/send",
             "/api/chat/friend/apply/add",
             "/api/chat/moment/publish",
+            "/api/moments",
             "/api/file/upload"
     })
     void shouldReturnTooManyRequestsWhenRateLimiterRejectsCoreWriteApi(String path) {

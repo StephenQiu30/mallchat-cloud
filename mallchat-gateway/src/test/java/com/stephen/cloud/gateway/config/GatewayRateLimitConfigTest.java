@@ -19,6 +19,7 @@ class GatewayRateLimitConfigTest {
                 "mallchat-chat-message-send-service", "Path=/api/chat/message/send",
                 "mallchat-chat-friend-apply-service", "Path=/api/chat/friend/apply/add",
                 "mallchat-chat-moment-publish-service", "Path=/api/chat/moment/publish",
+                "mallchat-moment-create-service", "Path=/api/moments",
                 "mallchat-file-upload-service", "Path=/api/file/upload"
         );
 
@@ -40,6 +41,7 @@ class GatewayRateLimitConfigTest {
         int sendRouteIndex = routeIndex(routes, "mallchat-chat-message-send-service");
         int friendApplyRouteIndex = routeIndex(routes, "mallchat-chat-friend-apply-service");
         int momentPublishRouteIndex = routeIndex(routes, "mallchat-chat-moment-publish-service");
+        int momentCreateRouteIndex = routeIndex(routes, "mallchat-moment-create-service");
         int chatRouteIndex = routeIndex(routes, "mallchat-chat-service");
         int fileUploadRouteIndex = routeIndex(routes, "mallchat-file-upload-service");
         int fileRouteIndex = routeIndex(routes, "mallchat-file-service");
@@ -47,6 +49,7 @@ class GatewayRateLimitConfigTest {
         Assertions.assertTrue(sendRouteIndex >= 0, "缺少消息发送专用路由");
         Assertions.assertTrue(friendApplyRouteIndex >= 0, "缺少好友申请专用路由");
         Assertions.assertTrue(momentPublishRouteIndex >= 0, "缺少动态发布专用路由");
+        Assertions.assertTrue(momentCreateRouteIndex >= 0, "缺少动态创建专用路由");
         Assertions.assertTrue(chatRouteIndex >= 0, "缺少聊天通用路由");
         Assertions.assertTrue(fileUploadRouteIndex >= 0, "缺少文件上传专用路由");
         Assertions.assertTrue(fileRouteIndex >= 0, "缺少文件通用路由");

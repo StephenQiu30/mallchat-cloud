@@ -134,6 +134,17 @@ spring:
                     redis-rate-limiter.burstCapacity: 10
                     key-resolver: "#{@userKeyResolver}"
 
+            - id: mallchat-moment-create-service
+              uri: lb://mallchat-chat-service
+              predicates:
+                - Path=/api/moments
+              filters:
+                - name: RequestRateLimiter
+                  args:
+                    redis-rate-limiter.replenishRate: 5
+                    redis-rate-limiter.burstCapacity: 10
+                    key-resolver: "#{@userKeyResolver}"
+
             - id: mallchat-chat-service
               uri: lb://mallchat-chat-service
               predicates:
