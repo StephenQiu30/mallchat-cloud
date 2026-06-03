@@ -50,8 +50,10 @@ class ChannelManagerTest {
         channelManager.addChannel("1", channel);
 
         Assertions.assertEquals(MqBizTypeEnum.WEBSOCKET_PUSH, rabbitMqSender.lastBizType);
+        Assertions.assertEquals("online_status:1:1", rabbitMqSender.lastMsgId);
         WebSocketMessage message = (WebSocketMessage) rabbitMqSender.lastPayload;
         Assertions.assertTrue(message.getUserIds().containsAll(Set.of(1L, 2L)));
+        Assertions.assertEquals("online_status:1:1", message.getDedupeId());
         ImWebSocketEvent event = (ImWebSocketEvent) message.getData();
         Map<?, ?> data = (Map<?, ?>) event.getData();
         Assertions.assertEquals(1L, data.get("userId"));
@@ -77,6 +79,30 @@ class ChannelManagerTest {
         ImWebSocketEvent event = (ImWebSocketEvent) message.getData();
         Map<?, ?> data = (Map<?, ?>) event.getData();
         Assertions.assertEquals(0, data.get("onlineStatus"));
+    }
+
+    @Test
+    void shouldSkipDuplicateOnlineStatusNotificationWithinDedupWindow() {
+        channelManager.setOnlineStatusPublishDedupeTtlMillis(60_000L);
+
+        ReflectionTestUtils.invokeMethod(channelManager, "notifyOnlineStatusChanged", "1", true);
+        ReflectionTestUtils.invokeMethod(channelManager, "notifyOnlineStatusChanged", "1", true);
+
+        Assertions.assertEquals(1, rabbitMqSender.sendCount);
+    }
+
+    @Test
+    void shouldBatchMergeFriendIdsIntoSingleMqMessage() {
+        channelManager.setFriendIdsResolver(userId -> Set.of(2L, 3L, 4L));
+        EmbeddedChannel channel = newChannel();
+
+        channelManager.addChannel("1", channel);
+
+        WebSocketMessage message = (WebSocketMessage) rabbitMqSender.lastPayload;
+        Assertions.assertEquals(4, message.getUserIds().size());
+        Assertions.assertEquals(Set.of(1L, 2L, 3L, 4L), new HashSet<>(message.getUserIds()));
+        Assertions.assertEquals(1, rabbitMqSender.sendCount);
+        channel.close();
     }
 
     @Test
@@ -206,17 +232,23 @@ class ChannelManagerTest {
 
     private static class RecordingRabbitMqSender extends RabbitMqSender {
         private MqBizTypeEnum lastBizType;
+        private String lastMsgId;
         private Object lastPayload;
+        private int sendCount;
 
         @Override
         public void send(MqBizTypeEnum bizTypeEnum, String msgId, Object payload) {
             this.lastBizType = bizTypeEnum;
+            this.lastMsgId = msgId;
             this.lastPayload = payload;
+            this.sendCount++;
         }
 
         void clear() {
             this.lastBizType = null;
+            this.lastMsgId = null;
             this.lastPayload = null;
+            this.sendCount = 0;
         }
     }
 
