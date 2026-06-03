@@ -152,6 +152,15 @@ class NotificationServiceImplTest {
         Assertions.assertTrue(result);
     }
 
+    @Test
+    void shouldThrowNotFoundWhenMarkReadMissingNotification() {
+        BusinessException exception = Assertions.assertThrows(BusinessException.class,
+                () -> service.markRead(999L, 1L, false));
+
+        Assertions.assertEquals(com.stephen.cloud.common.common.ErrorCode.NOT_FOUND_ERROR.getCode(),
+                exception.getCode());
+    }
+
     // ========== 批量已读 ==========
 
     @Test
