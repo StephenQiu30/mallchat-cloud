@@ -513,4 +513,14 @@ public class UserFriendServiceImpl extends ServiceImpl<UserFriendMapper, UserFri
                 .eq(UserFriendApply::getUserId, userId)
                 .eq(UserFriendApply::getTargetId, targetUserId)) > 0;
     }
+
+    /**
+     * 拒绝双方待处理好友申请（供子类覆盖用于测试）
+     *
+     * @param userId       用户 ID
+     * @param targetUserId 目标用户 ID
+     */
+    protected void rejectPendingApplies(Long userId, Long targetUserId) {
+        // TODO: STE-95 实现
+    }
 }
