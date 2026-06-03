@@ -3,6 +3,7 @@ package com.stephen.cloud.chat.service.impl;
 import com.baomidou.mybatisplus.core.conditions.Wrapper;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import com.stephen.cloud.api.chat.model.dto.ChatReportListRequest;
 import com.stephen.cloud.api.chat.model.dto.ChatReportSubmitRequest;
 import com.stephen.cloud.api.chat.model.enums.ChatReportTargetTypeEnum;
 import com.stephen.cloud.api.user.client.UserFeignClient;
@@ -208,7 +209,10 @@ class ChatReportServiceImplTest {
         chatReportService.pageResult.setRecords(List.of(report1, report2));
         chatReportService.pageResult.setTotal(2);
 
-        var result = chatReportService.listReports(1, 20);
+        ChatReportListRequest request = new ChatReportListRequest();
+        request.setCurrent(1);
+        request.setPageSize(20);
+        var result = chatReportService.listReports(request);
 
         Assertions.assertEquals(2, result.getTotal());
         Assertions.assertEquals(2, result.getRecords().size());
@@ -221,7 +225,10 @@ class ChatReportServiceImplTest {
         chatReportService.pageResult.setRecords(List.of());
         chatReportService.pageResult.setTotal(0);
 
-        var result = chatReportService.listReports(1, 20);
+        ChatReportListRequest request = new ChatReportListRequest();
+        request.setCurrent(1);
+        request.setPageSize(20);
+        var result = chatReportService.listReports(request);
 
         Assertions.assertEquals(0, result.getTotal());
         Assertions.assertTrue(result.getRecords().isEmpty());
