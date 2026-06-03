@@ -24,7 +24,11 @@ import com.stephen.cloud.chat.service.ChatRoomMemberService;
 import com.stephen.cloud.chat.service.ChatRoomService;
 import com.stephen.cloud.chat.service.ChatSessionService;
 import com.stephen.cloud.chat.service.UserFriendService;
+import com.stephen.cloud.chat.model.entity.ChatAuditEvent;
+import com.stephen.cloud.chat.support.ChatAuditEventRecorder;
 import com.stephen.cloud.chat.support.ChatBusinessMetricsRecorder;
+import com.stephen.cloud.common.cache.model.TimeModel;
+import com.stephen.cloud.common.cache.utils.ratelimit.RateLimitUtils;
 import com.stephen.cloud.common.common.ErrorCode;
 import com.stephen.cloud.common.common.ResultUtils;
 import com.stephen.cloud.common.exception.BusinessException;
@@ -108,6 +112,8 @@ class ChatMessageServiceImplTest {
                 });
         ReflectionTestUtils.setField(chatMessageService, "businessMetricsRecorder",
                 new ChatBusinessMetricsRecorder(meterRegistry));
+        ReflectionTestUtils.setField(chatMessageService, "rateLimitUtils", new NoOpRateLimitUtils());
+        ReflectionTestUtils.setField(chatMessageService, "auditEventRecorder", new NoOpChatAuditEventRecorder());
     }
 
     @Test
@@ -1152,5 +1158,31 @@ class ChatMessageServiceImplTest {
             return 0L;
         }
         return null;
+    }
+
+    /**
+     * No-op RateLimitUtils for existing tests (no rate limiting)
+     */
+    private static class NoOpRateLimitUtils extends RateLimitUtils {
+        @Override
+        public void doRateLimit(String key, TimeModel rateInterval, Long rate, Long permit) {
+            // no-op: no rate limiting in existing tests
+        }
+
+        @Override
+        public void doRateLimitAndExpire(String key, TimeModel rateInterval, Long rate, Long permit,
+                                         TimeModel expire) {
+            // no-op: no rate limiting in existing tests
+        }
+    }
+
+    /**
+     * No-op ChatAuditEventRecorder for existing tests (no audit recording)
+     */
+    private static class NoOpChatAuditEventRecorder extends ChatAuditEventRecorder {
+        @Override
+        public void record(ChatAuditEvent event) {
+            // no-op: no audit recording in existing tests
+        }
     }
 }

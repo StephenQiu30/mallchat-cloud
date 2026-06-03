@@ -51,6 +51,7 @@ class ChatRoomServiceImplTest {
     private List<String> sessionUpdateBizIds;
     private boolean sessionPushThrows;
     private ChatRoomMember targetMember;
+    private ChatRoomMember operatorMember;
     private Long leftRoomId;
     private Long leftUserId;
     private List<Long> leftUsers;
@@ -391,12 +392,13 @@ class ChatRoomServiceImplTest {
     void shouldRejectMemberRemovalForNonOwner() {
         chatRoomService.stubRoom = buildGroupRoom();
         currentUserIsOwner = false;
+        operatorMember = buildMember(90L, 3L, ChatRoomRoleEnum.MEMBER.getCode());
         targetMember = buildMember(90L, 2L, ChatRoomRoleEnum.MEMBER.getCode());
 
         BusinessException exception = Assertions.assertThrows(BusinessException.class,
                 () -> chatRoomService.removeMember(90L, 2L, 3L));
 
-        Assertions.assertEquals(ErrorCode.NO_AUTH_ERROR.getCode(), exception.getCode());
+        Assertions.assertEquals(ErrorCode.ADMIN_REQUIRED.getCode(), exception.getCode());
         assertNoRemovalSideEffects();
     }
 
@@ -404,6 +406,7 @@ class ChatRoomServiceImplTest {
     void shouldRejectMemberRemovalWhenTargetMissing() {
         chatRoomService.stubRoom = buildGroupRoom();
         currentUserIsOwner = true;
+        operatorMember = buildMember(90L, 1L, ChatRoomRoleEnum.OWNER.getCode());
         targetMember = null;
 
         BusinessException exception = Assertions.assertThrows(BusinessException.class,
@@ -456,6 +459,7 @@ class ChatRoomServiceImplTest {
     void shouldRemoveGroupMemberAndDeleteTargetSession() {
         chatRoomService.stubRoom = buildGroupRoom();
         currentUserIsOwner = true;
+        operatorMember = buildMember(90L, 1L, ChatRoomRoleEnum.OWNER.getCode());
         targetMember = buildMember(90L, 2L, ChatRoomRoleEnum.MEMBER.getCode());
 
         chatRoomService.removeMember(90L, 2L, 1L);
@@ -521,6 +525,7 @@ class ChatRoomServiceImplTest {
     void shouldNotFailMemberRemovalWhenSessionDeletePushThrows() {
         chatRoomService.stubRoom = buildGroupRoom();
         currentUserIsOwner = true;
+        operatorMember = buildMember(90L, 1L, ChatRoomRoleEnum.OWNER.getCode());
         targetMember = buildMember(90L, 2L, ChatRoomRoleEnum.MEMBER.getCode());
         sessionDeleteThrows = true;
 
@@ -536,6 +541,7 @@ class ChatRoomServiceImplTest {
     void shouldFailMemberRemovalWhenSessionDeletePersistenceThrows() {
         chatRoomService.stubRoom = buildGroupRoom();
         currentUserIsOwner = true;
+        operatorMember = buildMember(90L, 1L, ChatRoomRoleEnum.OWNER.getCode());
         targetMember = buildMember(90L, 2L, ChatRoomRoleEnum.MEMBER.getCode());
         sessionRemoveThrows = true;
 
@@ -673,6 +679,13 @@ class ChatRoomServiceImplTest {
                         return roomMembers;
                     }
                     if ("getMember".equals(method.getName())) {
+                        Long reqRoomId = (Long) args[0];
+                        Long reqUserId = (Long) args[1];
+                        // Return operator member if the requested userId matches the operator
+                        if (operatorMember != null && operatorMember.getUserId().equals(reqUserId)
+                                && operatorMember.getRoomId().equals(reqRoomId)) {
+                            return operatorMember;
+                        }
                         return targetMember;
                     }
                     if ("leaveRoom".equals(method.getName())) {
