@@ -8,9 +8,12 @@ import com.stephen.cloud.common.rabbitmq.enums.WebSocketMessageTypeEnum;
 import com.stephen.cloud.common.rabbitmq.model.WebSocketMessage;
 import com.stephen.cloud.common.rabbitmq.producer.RabbitMqSender;
 import com.stephen.cloud.common.websocket.manager.ChannelManager;
+import io.netty.channel.Channel;
 import io.netty.channel.embedded.EmbeddedChannel;
 import io.netty.handler.codec.http.websocketx.TextWebSocketFrame;
 import io.netty.handler.codec.http.websocketx.WebSocketServerProtocolHandler;
+import io.netty.handler.timeout.IdleState;
+import io.netty.handler.timeout.IdleStateEvent;
 import io.netty.util.AttributeKey;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
@@ -225,10 +228,100 @@ class TextWebSocketFrameHandlerTest {
         channel.finishAndReleaseAll();
     }
 
+    // ---- disconnect reason tests ----
+
+    @Test
+    void shouldMarkTimeoutReasonWhenReaderIdle() {
+        SpyChannelManager spy = new SpyChannelManager(cacheUtils, rabbitMqSender);
+        EmbeddedChannel channel = newAuthedChannelWithSpy("1001", spy);
+        channel.pipeline().fireUserEventTriggered(
+                new WebSocketServerProtocolHandler.HandshakeComplete(
+                        channel.id().asLongText(), null, "/websocket"));
+
+        // Fire READER_IDLE event → should set TIMEOUT reason and close
+        channel.pipeline().fireUserEventTriggered(
+                IdleStateEvent.FIRST_READER_IDLE_STATE_EVENT);
+
+        Assertions.assertEquals(DisconnectReason.TIMEOUT, spy.lastDisconnectReason);
+        channel.finishAndReleaseAll();
+    }
+
+    @Test
+    void shouldMarkExceptionReasonWhenExceptionCaught() {
+        SpyChannelManager spy = new SpyChannelManager(cacheUtils, rabbitMqSender);
+        EmbeddedChannel channel = newAuthedChannelWithSpy("1001", spy);
+        channel.pipeline().fireUserEventTriggered(
+                new WebSocketServerProtocolHandler.HandshakeComplete(
+                        channel.id().asLongText(), null, "/websocket"));
+
+        // Trigger exception → should set EXCEPTION reason and close
+        channel.pipeline().fireExceptionCaught(new RuntimeException("test error"));
+
+        Assertions.assertEquals(DisconnectReason.EXCEPTION, spy.lastDisconnectReason);
+        channel.finishAndReleaseAll();
+    }
+
+    @Test
+    void shouldMarkClientCloseReasonWhenChannelClosedByClient() {
+        SpyChannelManager spy = new SpyChannelManager(cacheUtils, rabbitMqSender);
+        EmbeddedChannel channel = newAuthedChannelWithSpy("1001", spy);
+        channel.pipeline().fireUserEventTriggered(
+                new WebSocketServerProtocolHandler.HandshakeComplete(
+                        channel.id().asLongText(), null, "/websocket"));
+
+        // Close channel directly → should default to CLIENT_CLOSE
+        channel.close();
+
+        Assertions.assertEquals(DisconnectReason.CLIENT_CLOSE, spy.lastDisconnectReason);
+        channel.finishAndReleaseAll();
+    }
+
+    @Test
+    void shouldMarkServerCloseReasonWhenAttributeSet() {
+        SpyChannelManager spy = new SpyChannelManager(cacheUtils, rabbitMqSender);
+        EmbeddedChannel channel = newAuthedChannelWithSpy("1001", spy);
+        channel.pipeline().fireUserEventTriggered(
+                new WebSocketServerProtocolHandler.HandshakeComplete(
+                        channel.id().asLongText(), null, "/websocket"));
+
+        // Simulate server-side close by setting reason attribute before closing
+        channel.attr(TextWebSocketFrameHandler.ATTR_DISCONNECT_REASON).set(DisconnectReason.SERVER_CLOSE);
+        channel.close();
+
+        Assertions.assertEquals(DisconnectReason.SERVER_CLOSE, spy.lastDisconnectReason);
+        channel.finishAndReleaseAll();
+    }
+
     private EmbeddedChannel newAuthedChannel(String userId) {
         EmbeddedChannel channel = new EmbeddedChannel(new TextWebSocketFrameHandler(channelManager));
         channel.attr(ATTR_USER_ID).set(userId);
         return channel;
+    }
+
+    private EmbeddedChannel newAuthedChannelWithSpy(String userId, SpyChannelManager spy) {
+        EmbeddedChannel channel = new EmbeddedChannel(new TextWebSocketFrameHandler(spy));
+        channel.attr(ATTR_USER_ID).set(userId);
+        return channel;
+    }
+
+    /**
+     * Spy that records the disconnect reason passed to removeChannel
+     */
+    private static class SpyChannelManager extends ChannelManager {
+        DisconnectReason lastDisconnectReason;
+
+        SpyChannelManager(FakeCacheUtils cacheUtils, RecordingRabbitMqSender sender) {
+            ReflectionTestUtils.setField(this, "cacheUtils", cacheUtils);
+            ReflectionTestUtils.setField(this, "rabbitMqSender", sender);
+            setServerId("test-server");
+            setFriendIdsResolver(userId -> Set.of());
+        }
+
+        @Override
+        public synchronized void removeChannel(Channel channel, DisconnectReason reason) {
+            this.lastDisconnectReason = reason;
+            super.removeChannel(channel, reason);
+        }
     }
 
     private static class FakeCacheUtils extends CacheUtils {
