@@ -59,6 +59,11 @@ public class WebSocketMessage implements Serializable {
     private String bizId;
 
     /**
+     * MQ 消费去重 ID（与 msgId / bizId 对齐时可复用同一稳定键）
+     */
+    private String dedupeId;
+
+    /**
      * 目标房间ID (用于房间广播)
      */
     private Long roomId;

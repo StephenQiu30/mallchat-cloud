@@ -36,6 +36,7 @@ import java.util.Set;
  * - 握手完成事件注册连接
  * - 连接断开清理
  * - 异常处理
+ * - 断线原因分类
  *
  * @author StephenQiu30
  */
