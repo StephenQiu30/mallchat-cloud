@@ -58,7 +58,7 @@ class ChatMomentServiceImplTest {
         ChatMomentPublishRequest request = new ChatMomentPublishRequest();
         request.setMediaList(new ArrayList<>());
         for (int i = 0; i < 10; i++) {
-            request.getMediaList().add(media("https://example.com/" + i + ".png", i));
+            request.getMediaList().add(media("https://butterfly-1318299170.cos.ap-shanghai.myqcloud.com/chat_image/" + i + ".png", i));
         }
 
         Assertions.assertThrows(RuntimeException.class, () -> chatMomentService.publish(1L, request));
@@ -115,8 +115,8 @@ class ChatMomentServiceImplTest {
         ChatMomentPublishRequest request = new ChatMomentPublishRequest();
         request.setContent("with images");
         request.setMediaList(List.of(
-                media("https://example.com/1.png", 0),
-                media("https://example.com/2.png", 1)));
+                media("https://butterfly-1318299170.cos.ap-shanghai.myqcloud.com/chat_image/1.png", 0),
+                media("https://butterfly-1318299170.cos.ap-shanghai.myqcloud.com/chat_image/2.png", 1)));
 
         Long momentId = chatMomentService.publish(1L, request);
 
@@ -124,7 +124,7 @@ class ChatMomentServiceImplTest {
         Assertions.assertEquals(2, chatMomentService.savedMoment.getMediaCount());
         Assertions.assertEquals(2, chatMomentService.savedMediaList.size());
         Assertions.assertEquals(100L, chatMomentService.savedMediaList.get(0).getMomentId());
-        Assertions.assertEquals("https://example.com/1.png", chatMomentService.savedMediaList.get(0).getUrl());
+        Assertions.assertEquals("https://butterfly-1318299170.cos.ap-shanghai.myqcloud.com/chat_image/1.png", chatMomentService.savedMediaList.get(0).getUrl());
         Assertions.assertEquals(0, chatMomentService.savedMediaList.get(0).getSortOrder());
         Assertions.assertEquals(1, chatMomentService.savedMediaList.get(1).getSortOrder());
     }
@@ -437,6 +437,40 @@ class ChatMomentServiceImplTest {
         Assertions.assertEquals(1, chatMomentService.savedLikes.size());
         Assertions.assertEquals(1, chatMomentService.savedComments.size());
         Assertions.assertTrue(chatMomentService.sentNotifications.isEmpty());
+    }
+
+    // ========== P1-06: 动态媒体引用闭环 ==========
+
+    @Test
+    void shouldRejectMomentMediaUrlNotFromCosBucket() {
+        ChatMomentPublishRequest request = new ChatMomentPublishRequest();
+        request.setContent("with foreign image");
+        request.setMediaList(List.of(media("https://evil.com/stolen.png", 0)));
+
+        Assertions.assertThrows(RuntimeException.class, () -> chatMomentService.publish(1L, request));
+    }
+
+    @Test
+    void shouldAcceptMomentMediaUrlFromCosBucket() {
+        ChatMomentPublishRequest request = new ChatMomentPublishRequest();
+        request.setContent("with valid image");
+        request.setMediaList(List.of(media("https://butterfly-1318299170.cos.ap-shanghai.myqcloud.com/chat_image/abc.png", 0)));
+
+        Long momentId = chatMomentService.publish(1L, request);
+
+        Assertions.assertEquals(100L, momentId);
+        Assertions.assertEquals(1, chatMomentService.savedMediaList.size());
+    }
+
+    @Test
+    void shouldRejectMomentMediaTypeInconsistency() {
+        ChatMomentPublishRequest request = new ChatMomentPublishRequest();
+        request.setContent("mixed media");
+        request.setMediaList(List.of(
+                media("https://butterfly-1318299170.cos.ap-shanghai.myqcloud.com/chat_image/a.png", 0),
+                media("https://butterfly-1318299170.cos.ap-shanghai.myqcloud.com/chat_video/b.mp4", 1)));
+
+        Assertions.assertThrows(RuntimeException.class, () -> chatMomentService.publish(1L, request));
     }
 
     private static ChatMomentMediaRequest media(String url, int sortOrder) {

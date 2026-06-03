@@ -30,6 +30,7 @@ import com.stephen.cloud.chat.service.UserFriendService;
 import com.stephen.cloud.chat.support.ChatBusinessMetricsRecorder;
 import com.stephen.cloud.common.common.ErrorCode;
 import com.stephen.cloud.common.common.ThrowUtils;
+import com.stephen.cloud.common.constants.FileConstant;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DuplicateKeyException;
@@ -415,13 +416,36 @@ public class ChatMomentServiceImpl extends ServiceImpl<ChatMomentMapper, ChatMom
             return Collections.emptyList();
         }
         ThrowUtils.throwIf(mediaList.size() > MAX_MEDIA_COUNT, ErrorCode.PARAMS_ERROR, "动态图片最多 9 张");
+        String firstBizType = null;
         for (ChatMomentMediaRequest media : mediaList) {
             ThrowUtils.throwIf(media == null || StrUtil.isBlank(media.getUrl()), ErrorCode.PARAMS_ERROR, "动态媒体 URL 不能为空");
             String url = media.getUrl().trim();
             ThrowUtils.throwIf(url.length() > MAX_MEDIA_URL_LENGTH, ErrorCode.PARAMS_ERROR, "动态媒体 URL 过长");
+            validateMediaUrlOwnership(url);
+            String bizType = extractBizType(url);
+            if (firstBizType == null) {
+                firstBizType = bizType;
+            } else if (bizType != null && !bizType.equals(firstBizType)) {
+                ThrowUtils.throwIf(true, ErrorCode.PARAMS_ERROR, "动态媒体类型不一致");
+            }
             media.setUrl(url);
         }
         return mediaList;
+    }
+
+    private static void validateMediaUrlOwnership(String url) {
+        ThrowUtils.throwIf(!url.startsWith(FileConstant.COS_HOST),
+                ErrorCode.PARAMS_ERROR, "动态媒体 URL 不合法");
+    }
+
+    private static String extractBizType(String url) {
+        String prefix = FileConstant.COS_HOST + "/";
+        if (!url.startsWith(prefix)) {
+            return null;
+        }
+        String remainder = url.substring(prefix.length());
+        int slashIdx = remainder.indexOf('/');
+        return slashIdx > 0 ? remainder.substring(0, slashIdx) : null;
     }
 
     private List<ChatMomentMedia> buildMomentMedia(Long momentId, List<ChatMomentMediaRequest> mediaRequests) {
