@@ -51,7 +51,7 @@ class ImPushMetricsRecorderTest {
         recorder.record("CHAT_MESSAGE_PUSH", "CHAT_MESSAGE", "success", 0);
         recorder.record("CHAT_MESSAGE_PUSH", "CHAT_MESSAGE", "success", -1);
 
-        Assertions.assertThrows(Exception.class, () -> registry.get("mallchat.im.push.total")
+        Assertions.assertNull(registry.find("mallchat.im.push.total")
                 .tag("bizType", "CHAT_MESSAGE_PUSH")
                 .tag("eventType", "CHAT_MESSAGE")
                 .tag("result", "success")
