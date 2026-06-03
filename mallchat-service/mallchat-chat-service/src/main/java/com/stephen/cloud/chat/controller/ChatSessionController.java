@@ -2,6 +2,7 @@ package com.stephen.cloud.chat.controller;
 
 import com.stephen.cloud.api.chat.model.dto.ChatSessionDeleteRequest;
 import com.stephen.cloud.api.chat.model.dto.ChatSessionMuteRequest;
+import com.stephen.cloud.api.chat.model.dto.ChatSessionReadRequest;
 import com.stephen.cloud.api.chat.model.dto.ChatSessionTopRequest;
 import com.stephen.cloud.api.chat.model.vo.ChatOperationResultVO;
 import com.stephen.cloud.api.chat.model.vo.ChatSessionVO;
@@ -50,6 +51,22 @@ public class ChatSessionController {
         Long userId = SecurityUtils.getLoginUserId();
         List<ChatSessionVO> list = chatSessionService.listMySessions(userId);
         return ResultUtils.success(list);
+    }
+
+    /**
+     * 打开会话并清除未读
+     *
+     * @param request 已读请求
+     * @return 操作结果
+     */
+    @PostMapping("/read")
+    @OperationLog(module = "会话管理", action = "会话已读")
+    @Operation(summary = "会话已读", description = "打开会话时清除未读数并推进读游标到最后一条消息")
+    public BaseResponse<ChatOperationResultVO> readSession(@Validated @RequestBody ChatSessionReadRequest request) {
+        ThrowUtils.throwIf(request == null || request.getRoomId() == null, ErrorCode.PARAMS_ERROR);
+        Long userId = SecurityUtils.getLoginUserId();
+        boolean result = chatSessionService.readSession(request.getRoomId(), userId);
+        return ResultUtils.success(ChatOperationResultVO.of(result));
     }
 
     /**

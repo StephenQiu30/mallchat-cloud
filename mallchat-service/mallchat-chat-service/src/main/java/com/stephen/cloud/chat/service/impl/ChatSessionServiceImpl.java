@@ -2,6 +2,7 @@ package com.stephen.cloud.chat.service.impl;
 
 import cn.hutool.core.collection.CollUtil;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.core.conditions.update.UpdateWrapper;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.stephen.cloud.api.chat.model.enums.MessageStatusEnum;
 import com.stephen.cloud.api.chat.model.vo.ChatSessionVO;
@@ -360,6 +361,69 @@ public class ChatSessionServiceImpl extends ServiceImpl<ChatSessionMapper, ChatS
 
         // 3. 批量保存或更新
         this.saveOrUpdateBatch(toUpdate);
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public boolean readSession(Long roomId, Long userId) {
+        ThrowUtils.throwIf(roomId == null || userId == null, ErrorCode.PARAMS_ERROR);
+        ThrowUtils.throwIf(!chatRoomMemberService.isMember(roomId, userId), ErrorCode.NO_AUTH_ERROR, "您不在此聊天室中");
+
+        ChatSession session = this.getOne(new LambdaQueryWrapper<ChatSession>()
+                .eq(ChatSession::getUserId, userId)
+                .eq(ChatSession::getRoomId, roomId));
+        if (session == null) {
+            return true;
+        }
+
+        Long lastMessageId = session.getLastMessageId();
+        if (lastMessageId == null) {
+            return true;
+        }
+
+        Long oldRead = session.getLastReadMessageId();
+        if (oldRead != null && lastMessageId <= oldRead) {
+            return true;
+        }
+
+        boolean sessionUpdated = this.update(new UpdateWrapper<ChatSession>()
+                .set("unread_count", 0)
+                .set("last_read_message_id", lastMessageId)
+                .eq("user_id", userId)
+                .eq("room_id", roomId)
+                .and(wrapper -> wrapper.isNull("last_read_message_id")
+                        .or()
+                        .lt("last_read_message_id", lastMessageId)));
+        if (!sessionUpdated) {
+            return true;
+        }
+
+        session.setUnreadCount(0);
+        session.setLastReadMessageId(lastMessageId);
+
+        ChatRoomMember member = chatRoomMemberService.getMember(roomId, userId);
+        if (member != null) {
+            chatRoomMemberService.update(new UpdateWrapper<ChatRoomMember>()
+                    .set("last_read_message_id", lastMessageId)
+                    .eq("room_id", roomId)
+                    .eq("user_id", userId)
+                    .and(wrapper -> wrapper.isNull("last_read_message_id")
+                            .or()
+                            .lt("last_read_message_id", lastMessageId)));
+            member.setLastReadMessageId(lastMessageId);
+        }
+
+        ChatSessionVO sessionVO = getSessionVO(roomId, userId);
+        if (sessionVO != null) {
+            try {
+                chatMqProducer.sendSessionUpdate(userId, roomId, sessionVO,
+                        "session_read:" + roomId + ":" + userId + ":" + lastMessageId);
+            } catch (Exception e) {
+                log.warn("[ChatSessionServiceImpl] 推送会话已读刷新失败, roomId={}, userId={}, reason={}",
+                        roomId, userId, e.toString());
+            }
+        }
+        return true;
     }
 
     @Override

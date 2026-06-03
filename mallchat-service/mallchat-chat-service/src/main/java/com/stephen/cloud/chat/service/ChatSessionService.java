@@ -99,6 +99,15 @@ public interface ChatSessionService extends IService<ChatSession> {
     void updateSessionBatch(List<Long> userIds, Long roomId, Long lastMessageId, Long senderId);
 
     /**
+     * 打开会话并清除未读（用户点击会话时调用）
+     *
+     * @param roomId 房间ID
+     * @param userId 当前用户ID
+     * @return 是否成功
+     */
+    boolean readSession(Long roomId, Long userId);
+
+    /**
      * 过滤实时聊天消息推送目标，免打扰接收者不接收 CHAT_MESSAGE 推送
      *
      * @param roomId   房间ID
