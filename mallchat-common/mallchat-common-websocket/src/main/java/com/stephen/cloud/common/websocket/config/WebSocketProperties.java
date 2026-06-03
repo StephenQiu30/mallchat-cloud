@@ -2,6 +2,7 @@ package com.stephen.cloud.common.websocket.config;
 
 import lombok.Data;
 import org.springframework.boot.context.properties.ConfigurationProperties;
+import org.springframework.cloud.context.config.annotation.RefreshScope;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
@@ -13,6 +14,7 @@ import java.util.List;
  */
 @Data
 @Component
+@RefreshScope
 @ConfigurationProperties(prefix = "websocket")
 public class WebSocketProperties {
 
@@ -55,5 +57,15 @@ public class WebSocketProperties {
      * 同用户最小连接间隔，0 表示不限制
      */
     private Long minConnectIntervalMillis = 0L;
+
+    /**
+     * 读空闲超时时间（秒），即多长时间没有读取到数据就触发读空闲事件
+     */
+    private Long heartbeatReaderIdle = 60L;
+
+    /**
+     * 写空闲超时时间（秒），即多长时间没有写数据就触发写空闲事件（服务器主动心跳）
+     */
+    private Long heartbeatWriterIdle = 30L;
 
 }

@@ -7,6 +7,7 @@ import lombok.EqualsAndHashCode;
 
 import java.io.Serial;
 import java.io.Serializable;
+import java.util.Date;
 
 /**
  * 文件上传记录查询请求
@@ -56,4 +57,16 @@ public class FileUploadRecordQueryRequest extends PageRequest implements Seriali
      */
     @Schema(description = "搜索文本")
     private String searchText;
+
+    /**
+     * 创建时间起始
+     */
+    @Schema(description = "创建时间起始")
+    private Date startTime;
+
+    /**
+     * 创建时间截止
+     */
+    @Schema(description = "创建时间截止")
+    private Date endTime;
 }

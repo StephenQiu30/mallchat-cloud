@@ -24,6 +24,7 @@ class ChatSessionListenerTest {
     private List<Long> batchUpdatedUsers;
     private Long batchUpdatedRoomId;
     private Long batchUpdatedMessageId;
+    private Long returnNullSessionVOForUserId;
 
     @BeforeEach
     void setUp() {
@@ -31,6 +32,7 @@ class ChatSessionListenerTest {
         chatMqProducer = new FakeChatMqProducer();
         roomMembers = new ArrayList<>();
         batchUpdatedUsers = new ArrayList<>();
+        returnNullSessionVOForUserId = null;
 
         ReflectionTestUtils.setField(listener, "chatRoomMemberService", createChatRoomMemberService());
         ReflectionTestUtils.setField(listener, "chatSessionService", createChatSessionService());
@@ -53,6 +55,56 @@ class ChatSessionListenerTest {
         Assertions.assertEquals(100L, batchUpdatedMessageId);
         Assertions.assertEquals(List.of(1L, 2L), chatMqProducer.sessionUpdateAttemptUsers);
         Assertions.assertEquals(2L, chatMqProducer.lastSessionUpdateUserId);
+    }
+
+    @Test
+    void shouldUpdateSessionAndPushToAllMembersOnHappyPath() {
+        roomMembers = List.of(buildMember(1L), buildMember(2L), buildMember(3L));
+        ChatMessage message = new ChatMessage();
+        message.setId(200L);
+        message.setRoomId(10L);
+
+        listener.onChatMessageSent(new ChatMessageSentEvent(this, message, 1L));
+
+        // batch update called with all 3 members
+        Assertions.assertEquals(List.of(1L, 2L, 3L), batchUpdatedUsers);
+        Assertions.assertEquals(10L, batchUpdatedRoomId);
+        Assertions.assertEquals(200L, batchUpdatedMessageId);
+        // session update pushed to all 3 members
+        Assertions.assertEquals(List.of(1L, 2L, 3L), chatMqProducer.sessionUpdateAttemptUsers);
+        Assertions.assertEquals(3L, chatMqProducer.lastSessionUpdateUserId);
+    }
+
+    @Test
+    void shouldReturnEarlyWhenRoomHasNoMembers() {
+        roomMembers = List.of();
+        ChatMessage message = new ChatMessage();
+        message.setId(300L);
+        message.setRoomId(10L);
+
+        listener.onChatMessageSent(new ChatMessageSentEvent(this, message, 1L));
+
+        // no batch update should have happened
+        Assertions.assertNull(batchUpdatedRoomId);
+        Assertions.assertTrue(chatMqProducer.sessionUpdateAttemptUsers.isEmpty());
+    }
+
+    @Test
+    void shouldSkipSessionPushWhenGetSessionVOReturnsNull() {
+        // member 2's getSessionVO will return null
+        returnNullSessionVOForUserId = 2L;
+        roomMembers = List.of(buildMember(1L), buildMember(2L));
+        ChatMessage message = new ChatMessage();
+        message.setId(400L);
+        message.setRoomId(10L);
+
+        listener.onChatMessageSent(new ChatMessageSentEvent(this, message, 1L));
+
+        // batch update still called for both
+        Assertions.assertEquals(List.of(1L, 2L), batchUpdatedUsers);
+        // only member 1 got session push (member 2 was skipped due to null VO)
+        Assertions.assertEquals(List.of(1L), chatMqProducer.sessionUpdateAttemptUsers);
+        Assertions.assertEquals(1L, chatMqProducer.lastSessionUpdateUserId);
     }
 
     private ChatRoomMember buildMember(Long userId) {
@@ -90,6 +142,11 @@ class ChatSessionListenerTest {
                             yield null;
                         }
                         case "getSessionVO" -> {
+                            Long targetUserId = (Long) args[1];
+                            if (returnNullSessionVOForUserId != null
+                                    && returnNullSessionVOForUserId.equals(targetUserId)) {
+                                yield null;
+                            }
                             ChatSessionVO vo = new ChatSessionVO();
                             vo.setRoomId((Long) args[0]);
                             yield vo;

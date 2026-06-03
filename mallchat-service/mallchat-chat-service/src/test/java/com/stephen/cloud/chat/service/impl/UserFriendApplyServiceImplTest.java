@@ -408,6 +408,146 @@ class UserFriendApplyServiceImplTest {
         Assertions.assertEquals("friend_approve:10", notifications.get(0).getBizId());
     }
 
+    // ---- RED: 边界测试补充 ----
+
+    @Test
+    void shouldRejectApplyWhenTargetIsSelf() {
+        UserFriendApply apply = new UserFriendApply();
+        apply.setTargetId(1L);
+        apply.setMsg("hello");
+
+        BusinessException exception = Assertions.assertThrows(BusinessException.class,
+                () -> userFriendApplyService.applyFriend(apply, 1L));
+
+        Assertions.assertEquals(ErrorCode.PARAMS_ERROR.getCode(), exception.getCode());
+        Assertions.assertNull(chatMqProducer.lastApplyUserId);
+    }
+
+    @Test
+    void shouldRejectApplyWhenAlreadyMutualFriend() {
+        UserVO targetUser = new UserVO();
+        targetUser.setId(2L);
+        users.put(2L, targetUser);
+        userFriendService.mutualFriend = true;
+
+        UserFriendApply apply = new UserFriendApply();
+        apply.setTargetId(2L);
+        apply.setMsg("hello");
+
+        BusinessException exception = Assertions.assertThrows(BusinessException.class,
+                () -> userFriendApplyService.applyFriend(apply, 1L));
+
+        Assertions.assertEquals(ErrorCode.OPERATION_ERROR.getCode(), exception.getCode());
+        Assertions.assertNull(chatMqProducer.lastApplyUserId);
+        Assertions.assertTrue(notifications.isEmpty());
+    }
+
+    @Test
+    void shouldRejectApproveWhenApplyNotFound() {
+        ChatFriendApproveRequest request = new ChatFriendApproveRequest();
+        request.setApplyId(999L);
+        request.setStatus(2);
+        userFriendApplyService.applyById = null;
+
+        BusinessException exception = Assertions.assertThrows(BusinessException.class,
+                () -> userFriendApplyService.approveFriend(request, 2L));
+
+        Assertions.assertEquals(ErrorCode.NOT_FOUND_ERROR.getCode(), exception.getCode());
+        Assertions.assertNull(userFriendService.lastAddUserId);
+    }
+
+    @Test
+    void shouldRejectApproveWhenNotTargetUser() {
+        ChatFriendApproveRequest request = new ChatFriendApproveRequest();
+        request.setApplyId(10L);
+        request.setStatus(2);
+
+        UserFriendApply apply = new UserFriendApply();
+        apply.setId(10L);
+        apply.setUserId(1L);
+        apply.setTargetId(2L);
+        apply.setStatus(1);
+        userFriendApplyService.applyById = apply;
+
+        // userId=3 不是申请的 targetId
+        BusinessException exception = Assertions.assertThrows(BusinessException.class,
+                () -> userFriendApplyService.approveFriend(request, 3L));
+
+        Assertions.assertEquals(ErrorCode.NO_AUTH_ERROR.getCode(), exception.getCode());
+        Assertions.assertNull(userFriendService.lastAddUserId);
+        Assertions.assertNull(chatMqProducer.lastApproveUserId);
+        Assertions.assertTrue(notifications.isEmpty());
+    }
+
+    @Test
+    void shouldRejectApproveWhenApplyAlreadyApproved() {
+        ChatFriendApproveRequest request = new ChatFriendApproveRequest();
+        request.setApplyId(10L);
+        request.setStatus(2);
+
+        UserFriendApply apply = new UserFriendApply();
+        apply.setId(10L);
+        apply.setUserId(1L);
+        apply.setTargetId(2L);
+        apply.setStatus(2); // 已同意
+        userFriendApplyService.applyById = apply;
+
+        BusinessException exception = Assertions.assertThrows(BusinessException.class,
+                () -> userFriendApplyService.approveFriend(request, 2L));
+
+        Assertions.assertEquals(ErrorCode.PARAMS_ERROR.getCode(), exception.getCode());
+        Assertions.assertNull(userFriendService.lastAddUserId);
+        Assertions.assertNull(chatMqProducer.lastApproveUserId);
+    }
+
+    @Test
+    void shouldRejectApproveWhenApplyAlreadyRejected() {
+        ChatFriendApproveRequest request = new ChatFriendApproveRequest();
+        request.setApplyId(10L);
+        request.setStatus(2);
+
+        UserFriendApply apply = new UserFriendApply();
+        apply.setId(10L);
+        apply.setUserId(1L);
+        apply.setTargetId(2L);
+        apply.setStatus(3); // 已拒绝
+        userFriendApplyService.applyById = apply;
+
+        BusinessException exception = Assertions.assertThrows(BusinessException.class,
+                () -> userFriendApplyService.approveFriend(request, 2L));
+
+        Assertions.assertEquals(ErrorCode.PARAMS_ERROR.getCode(), exception.getCode());
+        Assertions.assertNull(userFriendService.lastAddUserId);
+        Assertions.assertNull(chatMqProducer.lastApproveUserId);
+    }
+
+    @Test
+    void shouldRejectApproveWhenBlockedBetweenUsers() {
+        UserVO applyUser = new UserVO();
+        applyUser.setId(1L);
+        users.put(1L, applyUser);
+        userFriendService.blockedBetween = true;
+
+        ChatFriendApproveRequest request = new ChatFriendApproveRequest();
+        request.setApplyId(10L);
+        request.setStatus(2);
+
+        UserFriendApply apply = new UserFriendApply();
+        apply.setId(10L);
+        apply.setUserId(1L);
+        apply.setTargetId(2L);
+        apply.setStatus(1);
+        userFriendApplyService.applyById = apply;
+
+        BusinessException exception = Assertions.assertThrows(BusinessException.class,
+                () -> userFriendApplyService.approveFriend(request, 2L));
+
+        Assertions.assertEquals(ErrorCode.NO_AUTH_ERROR.getCode(), exception.getCode());
+        Assertions.assertNull(userFriendService.lastAddUserId);
+        Assertions.assertNull(chatMqProducer.lastApproveUserId);
+        Assertions.assertTrue(notifications.isEmpty());
+    }
+
     private UserFeignClient createUserFeignClient() {
         return (UserFeignClient) Proxy.newProxyInstance(
                 UserFeignClient.class.getClassLoader(),
