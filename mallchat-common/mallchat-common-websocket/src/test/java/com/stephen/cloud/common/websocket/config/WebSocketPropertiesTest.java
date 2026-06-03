@@ -43,6 +43,24 @@ class WebSocketPropertiesTest {
         );
     }
 
+    @Test
+    void shouldUseDefaultHeartbeatParameters() {
+        WebSocketProperties properties = new WebSocketProperties();
+
+        Assertions.assertEquals(60L, properties.getHeartbeatReaderIdle());
+        Assertions.assertEquals(30L, properties.getHeartbeatWriterIdle());
+    }
+
+    @Test
+    void shouldAcceptCustomHeartbeatParameters() {
+        WebSocketProperties properties = new WebSocketProperties();
+        properties.setHeartbeatReaderIdle(120L);
+        properties.setHeartbeatWriterIdle(60L);
+
+        Assertions.assertEquals(120L, properties.getHeartbeatReaderIdle());
+        Assertions.assertEquals(60L, properties.getHeartbeatWriterIdle());
+    }
+
     @SpringJUnitConfig(RefreshScopeTestConfig.class)
     static class RefreshScopeProxyTest {
 

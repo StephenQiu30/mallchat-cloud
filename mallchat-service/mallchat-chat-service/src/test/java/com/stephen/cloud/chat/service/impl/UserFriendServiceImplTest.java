@@ -10,6 +10,7 @@ import com.stephen.cloud.api.user.model.vo.UserVO;
 import com.stephen.cloud.common.common.BaseResponse;
 import com.stephen.cloud.chat.service.ChatOnlineStatusService;
 import com.stephen.cloud.chat.service.UserFriendApplyService;
+import com.stephen.cloud.chat.model.entity.UserFriendApply;
 import com.stephen.cloud.chat.model.entity.UserFriendBlock;
 import com.stephen.cloud.chat.model.entity.UserFriend;
 import com.stephen.cloud.common.cache.constants.ChatCacheConstant;
@@ -136,10 +137,16 @@ class UserFriendServiceImplTest {
     }
 
     @Test
-    void shouldNotInjectFriendApplyServiceToAvoidServiceCycle() {
+    void shouldInjectFriendApplyServiceWithLazyToAvoidServiceCycle() {
+        boolean found = false;
         for (Field field : UserFriendServiceImpl.class.getDeclaredFields()) {
-            Assertions.assertNotEquals(UserFriendApplyService.class, field.getType());
+            if (field.getType().equals(UserFriendApplyService.class)) {
+                found = true;
+                Assertions.assertNotNull(field.getAnnotation(org.springframework.context.annotation.Lazy.class),
+                        "UserFriendApplyService must be injected with @Lazy to avoid circular dependency");
+            }
         }
+        Assertions.assertTrue(found, "UserFriendApplyService should be injected");
     }
 
     @Test
@@ -293,6 +300,68 @@ class UserFriendServiceImplTest {
         Assertions.assertThrows(RuntimeException.class, () -> userFriendService.removeFriend(1L, null));
     }
 
+    // ===== STE-95 P1 增强测试 =====
+
+    @Test
+    void shouldRejectPendingAppliesWhenBlockingUser() {
+        userFriendService.setTargetUser(friend);
+        userFriendService.setSaveBlockResult(true);
+
+        userFriendService.blockUser(1L, 2L);
+
+        Assertions.assertEquals(1L, userFriendService.rejectedApplyUserId);
+        Assertions.assertEquals(2L, userFriendService.rejectedApplyTargetUserId);
+    }
+
+    @Test
+    void shouldRejectPendingAppliesWhenRemovingFriend() {
+        userFriendService.setRemoveResult(true);
+
+        userFriendService.removeFriend(1L, 2L);
+
+        Assertions.assertEquals(1L, userFriendService.rejectedApplyUserId);
+        Assertions.assertEquals(2L, userFriendService.rejectedApplyTargetUserId);
+    }
+
+    @Test
+    void shouldKeepBlockIdempotentWhenAlreadyBlocked() {
+        userFriendService.setTargetUser(friend);
+        // Simulate already blocked
+        userFriendService.setBlockAlreadyExists(1L, 2L);
+
+        userFriendService.blockUser(1L, 2L);
+
+        // Should still reject applies (defensive)
+        Assertions.assertEquals(1L, userFriendService.rejectedApplyUserId);
+        Assertions.assertEquals(2L, userFriendService.rejectedApplyTargetUserId);
+        // Should not attempt to save a new block
+        Assertions.assertNull(userFriendService.savedBlock);
+    }
+
+    @Test
+    void shouldKeepDeleteIdempotentWhenNotFriends() {
+        userFriendService.setRemoveResult(false);
+
+        userFriendService.removeFriend(1L, 2L);
+
+        // Should still reject applies (defensive)
+        Assertions.assertEquals(1L, userFriendService.rejectedApplyUserId);
+        Assertions.assertEquals(2L, userFriendService.rejectedApplyTargetUserId);
+    }
+
+    @Test
+    void shouldFilterBlockedFriendsFromWarmCache() {
+        cacheUtils.sAdd(ChatCacheConstant.getUserFriendKey(1L), "2");
+        cacheUtils.sAdd(ChatCacheConstant.getUserFriendKey(1L), "3");
+        cacheUtils.sIsMember(ChatCacheConstant.getUserFriendKey(1L), "2");
+        cacheUtils.sIsMember(ChatCacheConstant.getUserFriendKey(1L), "3");
+        userFriendService.setBlockBetween(1L, 2L, true);
+
+        Set<Long> friendIds = userFriendService.listMutualFriendIds(1L);
+
+        Assertions.assertEquals(new LinkedHashSet<>(Set.of(3L)), friendIds);
+    }
+
     private Page<UserVO> buildSearchUsersPage(Long total, List<UserVO> records) {
         Page<UserVO> page = new Page<>();
         page.setCurrent(1L);
@@ -382,6 +451,9 @@ class UserFriendServiceImplTest {
         private Page<UserVO> searchUsersPage = new Page<>();
         private UserQueryRequest capturedSearchRequest;
         private Map<Long, Integer> onlineStatusMap = new HashMap<>();
+        private Long rejectedApplyUserId;
+        private Long rejectedApplyTargetUserId;
+        private boolean blockAlreadyExists;
 
         @Override
         public List<UserFriend> list(Wrapper<UserFriend> queryWrapper) {
@@ -512,6 +584,19 @@ class UserFriendServiceImplTest {
 
         void setRemoveResult(boolean result) {
             this.removeResult = result;
+        }
+
+        void setBlockAlreadyExists(Long userId, Long targetUserId) {
+            this.blockAlreadyExists = true;
+            // Pre-populate so getBlock returns non-null
+            blockedBetween.put(key(userId, targetUserId), true);
+            blockedBetween.put(key(targetUserId, userId), true);
+        }
+
+        @Override
+        protected void rejectPendingApplies(Long userId, Long targetUserId) {
+            this.rejectedApplyUserId = userId;
+            this.rejectedApplyTargetUserId = targetUserId;
         }
 
         private static String key(Long userId, Long targetId) {

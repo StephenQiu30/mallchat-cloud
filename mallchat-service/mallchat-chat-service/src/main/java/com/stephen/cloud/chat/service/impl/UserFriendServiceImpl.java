@@ -18,6 +18,7 @@ import com.stephen.cloud.chat.model.entity.UserFriendApply;
 import com.stephen.cloud.chat.model.entity.UserFriendBlock;
 import com.stephen.cloud.chat.model.entity.UserFriend;
 import com.stephen.cloud.chat.service.ChatOnlineStatusService;
+import com.stephen.cloud.chat.service.UserFriendApplyService;
 import com.stephen.cloud.chat.service.UserFriendService;
 import com.stephen.cloud.common.cache.constants.ChatCacheConstant;
 import com.stephen.cloud.common.cache.utils.CacheUtils;
@@ -29,6 +30,7 @@ import com.stephen.cloud.common.mysql.utils.SqlUtils;
 import jakarta.annotation.Resource;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.annotation.Lazy;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -64,6 +66,10 @@ public class UserFriendServiceImpl extends ServiceImpl<UserFriendMapper, UserFri
 
     @Resource
     private UserFriendApplyMapper userFriendApplyMapper;
+
+    @Lazy
+    @Resource
+    private UserFriendApplyService userFriendApplyService;
 
     /**
      * 校验好友数据
@@ -245,6 +251,8 @@ public class UserFriendServiceImpl extends ServiceImpl<UserFriendMapper, UserFri
             cacheUtils.sRemove(ChatCacheConstant.getUserFriendKey(userId), String.valueOf(friendUserId));
             cacheUtils.sRemove(ChatCacheConstant.getUserFriendKey(friendUserId), String.valueOf(userId));
         }
+        // Always clean up pending applies (defensive, even if remove returned false)
+        rejectPendingApplies(userId, friendUserId);
     }
 
     @Override
@@ -284,6 +292,7 @@ public class UserFriendServiceImpl extends ServiceImpl<UserFriendMapper, UserFri
         ThrowUtils.throwIf(getUserById(targetUserId) == null, ErrorCode.NOT_FOUND_ERROR, "用户不存在");
         if (getBlock(userId, targetUserId) != null) {
             clearFriendCache(userId, targetUserId);
+            rejectPendingApplies(userId, targetUserId);
             return;
         }
         UserFriendBlock block = new UserFriendBlock();
@@ -291,6 +300,7 @@ public class UserFriendServiceImpl extends ServiceImpl<UserFriendMapper, UserFri
         block.setBlockedUserId(targetUserId);
         ThrowUtils.throwIf(!saveBlock(block), ErrorCode.OPERATION_ERROR, "拉黑用户失败");
         clearFriendCache(userId, targetUserId);
+        rejectPendingApplies(userId, targetUserId);
     }
 
     @Override
@@ -512,5 +522,30 @@ public class UserFriendServiceImpl extends ServiceImpl<UserFriendMapper, UserFri
                 .eq(UserFriendApply::getStatus, 1)
                 .eq(UserFriendApply::getUserId, userId)
                 .eq(UserFriendApply::getTargetId, targetUserId)) > 0;
+    }
+
+    /**
+     * 拒绝双方待处理好友申请（供子类覆盖用于测试）
+     *
+     * @param userId       用户 ID
+     * @param targetUserId 目标用户 ID
+     */
+    protected void rejectPendingApplies(Long userId, Long targetUserId) {
+        if (userFriendApplyService == null) {
+            return;
+        }
+        List<UserFriendApply> pendingApplies = userFriendApplyMapper.selectList(
+                new LambdaQueryWrapper<UserFriendApply>()
+                        .eq(UserFriendApply::getStatus, 1)
+                        .and(wrapper -> wrapper
+                                .and(w -> w.eq(UserFriendApply::getUserId, userId)
+                                        .eq(UserFriendApply::getTargetId, targetUserId))
+                                .or()
+                                .and(w -> w.eq(UserFriendApply::getUserId, targetUserId)
+                                        .eq(UserFriendApply::getTargetId, userId))));
+        for (UserFriendApply apply : pendingApplies) {
+            apply.setStatus(3); // 3-已忽略
+            userFriendApplyService.updateById(apply);
+        }
     }
 }

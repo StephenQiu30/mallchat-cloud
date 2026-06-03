@@ -58,4 +58,14 @@ public class WebSocketProperties {
      */
     private Long minConnectIntervalMillis = 0L;
 
+    /**
+     * 读空闲超时时间（秒），即多长时间没有读取到数据就触发读空闲事件
+     */
+    private Long heartbeatReaderIdle = 60L;
+
+    /**
+     * 写空闲超时时间（秒），即多长时间没有写数据就触发写空闲事件（服务器主动心跳）
+     */
+    private Long heartbeatWriterIdle = 30L;
+
 }
