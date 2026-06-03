@@ -2,6 +2,7 @@ package com.stephen.cloud.common.websocket.manager;
 
 import com.stephen.cloud.common.cache.utils.CacheUtils;
 import com.stephen.cloud.common.constants.WebSocketConstant;
+import com.stephen.cloud.common.websocket.handler.DisconnectReason;
 import com.stephen.cloud.common.rabbitmq.enums.MqBizTypeEnum;
 import com.stephen.cloud.common.rabbitmq.model.ImWebSocketEvent;
 import com.stephen.cloud.common.rabbitmq.model.WebSocketMessage;
@@ -228,6 +229,90 @@ class ChannelManagerTest {
         Assertions.assertEquals("1", cacheUtils.getHashField(WebSocketConstant.WS_CONNECTION_META_KEY + connectionId, "userId"));
         Assertions.assertEquals("server-a", cacheUtils.getHashField(WebSocketConstant.WS_CONNECTION_META_KEY + connectionId, "serverId"));
         channel.close();
+    }
+
+    // ---- disconnect reason metrics tests ----
+
+    @Test
+    void shouldTrackTimeoutDisconnect() {
+        EmbeddedChannel channel = newChannel();
+        channelManager.addChannel("1", channel);
+
+        channelManager.removeChannel(channel, DisconnectReason.TIMEOUT);
+
+        Assertions.assertEquals(1L, channelManager.getDisconnectCount(DisconnectReason.TIMEOUT));
+        Assertions.assertEquals(0L, channelManager.getDisconnectCount(DisconnectReason.EXCEPTION));
+        Assertions.assertEquals(0L, channelManager.getDisconnectCount(DisconnectReason.CLIENT_CLOSE));
+        Assertions.assertEquals(0L, channelManager.getDisconnectCount(DisconnectReason.SERVER_CLOSE));
+    }
+
+    @Test
+    void shouldTrackExceptionDisconnect() {
+        EmbeddedChannel channel = newChannel();
+        channelManager.addChannel("1", channel);
+
+        channelManager.removeChannel(channel, DisconnectReason.EXCEPTION);
+
+        Assertions.assertEquals(1L, channelManager.getDisconnectCount(DisconnectReason.EXCEPTION));
+        Assertions.assertEquals(0L, channelManager.getDisconnectCount(DisconnectReason.TIMEOUT));
+    }
+
+    @Test
+    void shouldTrackClientCloseDisconnect() {
+        EmbeddedChannel channel = newChannel();
+        channelManager.addChannel("1", channel);
+
+        channelManager.removeChannel(channel, DisconnectReason.CLIENT_CLOSE);
+
+        Assertions.assertEquals(1L, channelManager.getDisconnectCount(DisconnectReason.CLIENT_CLOSE));
+    }
+
+    @Test
+    void shouldTrackServerCloseDisconnect() {
+        EmbeddedChannel channel = newChannel();
+        channelManager.addChannel("1", channel);
+
+        channelManager.removeChannel(channel, DisconnectReason.SERVER_CLOSE);
+
+        Assertions.assertEquals(1L, channelManager.getDisconnectCount(DisconnectReason.SERVER_CLOSE));
+    }
+
+    @Test
+    void shouldReturnZeroForAllReasonsWhenNoDisconnects() {
+        Assertions.assertEquals(0L, channelManager.getDisconnectCount(DisconnectReason.TIMEOUT));
+        Assertions.assertEquals(0L, channelManager.getDisconnectCount(DisconnectReason.EXCEPTION));
+        Assertions.assertEquals(0L, channelManager.getDisconnectCount(DisconnectReason.CLIENT_CLOSE));
+        Assertions.assertEquals(0L, channelManager.getDisconnectCount(DisconnectReason.SERVER_CLOSE));
+    }
+
+    @Test
+    void shouldReturnDisconnectReasonMetricsSnapshot() {
+        EmbeddedChannel ch1 = newChannel();
+        EmbeddedChannel ch2 = newChannel();
+        channelManager.addChannel("1", ch1);
+        channelManager.addChannel("2", ch2);
+
+        channelManager.removeChannel(ch1, DisconnectReason.TIMEOUT);
+        channelManager.removeChannel(ch2, DisconnectReason.EXCEPTION);
+
+        Map<DisconnectReason, Long> metrics = channelManager.getDisconnectReasonMetrics();
+        Assertions.assertEquals(1L, metrics.get(DisconnectReason.TIMEOUT));
+        Assertions.assertEquals(1L, metrics.get(DisconnectReason.EXCEPTION));
+        Assertions.assertEquals(0L, metrics.get(DisconnectReason.CLIENT_CLOSE));
+        Assertions.assertEquals(0L, metrics.get(DisconnectReason.SERVER_CLOSE));
+    }
+
+    @Test
+    void shouldCountMultipleDisconnectsForSameReason() {
+        EmbeddedChannel ch1 = newChannel();
+        EmbeddedChannel ch2 = newChannel();
+        channelManager.addChannel("1", ch1);
+        channelManager.addChannel("2", ch2);
+
+        channelManager.removeChannel(ch1, DisconnectReason.TIMEOUT);
+        channelManager.removeChannel(ch2, DisconnectReason.TIMEOUT);
+
+        Assertions.assertEquals(2L, channelManager.getDisconnectCount(DisconnectReason.TIMEOUT));
     }
 
     private static class RecordingRabbitMqSender extends RabbitMqSender {

@@ -1,9 +1,7 @@
 package com.stephen.cloud.chat.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
-import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
-import com.stephen.cloud.api.chat.model.dto.ChatReportListRequest;
 import com.stephen.cloud.api.chat.model.dto.ChatReportSubmitRequest;
 import com.stephen.cloud.api.chat.model.enums.ChatReportTargetTypeEnum;
 import com.stephen.cloud.api.user.client.UserFeignClient;
@@ -87,11 +85,6 @@ public class ChatReportServiceImpl extends ServiceImpl<ChatReportMapper, ChatRep
             ThrowUtils.throwIf(duplicate == null, ErrorCode.OPERATION_ERROR, "提交举报失败");
             return duplicate.getId();
         }
-    }
-
-    @Override
-    public Page<ChatReport> listReports(ChatReportListRequest request) {
-        return this.page(new Page<>(request.getCurrent(), request.getPageSize()));
     }
 
     private Long resolveTargetOwnerId(Long reporterUserId, ChatReportTargetTypeEnum targetType, Long targetId) {

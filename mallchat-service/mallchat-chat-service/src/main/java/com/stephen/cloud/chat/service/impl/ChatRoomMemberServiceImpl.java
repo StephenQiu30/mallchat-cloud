@@ -138,6 +138,16 @@ public class ChatRoomMemberServiceImpl extends ServiceImpl<ChatRoomMemberMapper,
     }
 
     @Override
+    public boolean isAdmin(Long roomId, Long userId) {
+        ChatRoomMember member = getMember(roomId, userId);
+        if (member == null) {
+            return false;
+        }
+        return ChatRoomRoleEnum.ADMIN.getCode().equals(member.getRole())
+                || ChatRoomRoleEnum.OWNER.getCode().equals(member.getRole());
+    }
+
+    @Override
     public ChatRoomMemberVO getChatRoomMemberVO(ChatRoomMember chatRoomMember, HttpServletRequest request) {
         if (chatRoomMember == null) {
             return null;

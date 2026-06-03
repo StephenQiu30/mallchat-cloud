@@ -104,19 +104,24 @@ public enum ErrorCode {
     SERVICE_UNAVAILABLE(50002, "服务暂时不可用"),
 
     /**
-     * 被对方拉黑
+     * 非房间成员
      */
-    BLOCKED_BY_TARGET(40102, "被对方拉黑，无法发送消息"),
+    NOT_ROOM_MEMBER(40310, "非房间成员"),
 
     /**
-     * 撤回超时
+     * 用户已被拉黑
      */
-    RECALL_TIMEOUT(40103, "消息发送超过 2 分钟，无法撤回"),
+    USER_BLOCKED(40311, "用户已被拉黑"),
 
     /**
-     * 无操作权限
+     * 操作过于频繁
      */
-    NO_PERMISSION(40104, "无操作权限");
+    RATE_LIMITED(40312, "操作过于频繁"),
+
+    /**
+     * 需要管理员权限
+     */
+    ADMIN_REQUIRED(40313, "需要管理员权限");
 
     /**
      * 状态码

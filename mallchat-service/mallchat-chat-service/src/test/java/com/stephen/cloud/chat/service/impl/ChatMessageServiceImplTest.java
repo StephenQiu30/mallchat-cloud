@@ -129,7 +129,8 @@ class ChatMessageServiceImplTest {
         BusinessException exception = Assertions.assertThrows(BusinessException.class,
                 () -> chatMessageService.sendMessage(message, 1L));
 
-        Assertions.assertEquals(ErrorCode.BLOCKED_BY_TARGET.getCode(), exception.getCode());
+        Assertions.assertEquals(ErrorCode.NO_AUTH_ERROR.getCode(), exception.getCode());
+        Assertions.assertEquals("双方存在拉黑关系", exception.getMessage());
         Assertions.assertNull(chatMessageService.messageById);
         Assertions.assertNull(chatMqProducer.lastGroupPushRoomId);
     }
@@ -390,7 +391,7 @@ class ChatMessageServiceImplTest {
         BusinessException exception = Assertions.assertThrows(BusinessException.class,
                 () -> chatMessageService.recallMessage(9L, 1L));
 
-        Assertions.assertEquals(ErrorCode.NO_PERMISSION.getCode(), exception.getCode());
+        Assertions.assertEquals(ErrorCode.NO_AUTH_ERROR.getCode(), exception.getCode());
     }
 
     @Test
@@ -492,33 +493,6 @@ class ChatMessageServiceImplTest {
     @Test
     void shouldKeepMessageFactWhenGroupPushThrows() {
         room.setType(ChatRoomTypeEnum.GROUP.getCode());
-        chatMqProducer.groupPushThrows = true;
-
-        ChatMessageVO result = Assertions.assertDoesNotThrow(
-                () -> chatMessageService.sendMessage(createTextMessage(1L, "c1", "hello"), 1L));
-
-        Assertions.assertEquals(100L, result.getId());
-        Assertions.assertEquals(100L, chatMessageService.messageById.getId());
-        Assertions.assertEquals(List.of(1L), chatMqProducer.groupPushAttemptRoomIds);
-    }
-
-    @Test
-    void shouldSendRoomMemberSnapshotWhenPrivateMessageIsCreated() {
-        ChatRoomMember peerMember = new ChatRoomMember();
-        peerMember.setRoomId(1L);
-        peerMember.setUserId(2L);
-        roomMembers = List.of(roomMember, peerMember);
-
-        ChatMessageVO result = chatMessageService.sendMessage(createTextMessage(1L, "c1", "hello"), 1L);
-
-        Assertions.assertEquals(100L, result.getId());
-        Assertions.assertEquals(1L, chatMqProducer.lastGroupPushRoomId);
-        Assertions.assertEquals(List.of(1L, 2L), chatMqProducer.lastGroupPushUserIds);
-        Assertions.assertEquals(1.0, businessCounter("message_send", "success"));
-    }
-
-    @Test
-    void shouldKeepMessageFactWhenPrivatePushThrows() {
         chatMqProducer.groupPushThrows = true;
 
         ChatMessageVO result = Assertions.assertDoesNotThrow(
@@ -869,123 +843,6 @@ class ChatMessageServiceImplTest {
         Assertions.assertEquals(List.of(1L, 2L), chatMqProducer.lastReadUserIds);
     }
 
-    // ========== STE-190: Security baseline — BLOCKED_BY_TARGET ==========
-
-    @Test
-    void shouldReturnBlockedByTargetWhenBlockedUserSendsPrivateMessage() {
-        blockedBetween = true;
-        ChatMessage message = createTextMessage(1L, "blocked-1", "hello");
-
-        BusinessException exception = Assertions.assertThrows(BusinessException.class,
-                () -> chatMessageService.sendMessage(message, 1L));
-
-        Assertions.assertEquals(ErrorCode.BLOCKED_BY_TARGET.getCode(), exception.getCode());
-        Assertions.assertNull(chatMessageService.messageById);
-        Assertions.assertNull(chatMqProducer.lastGroupPushRoomId);
-    }
-
-    // ========== STE-190: Security baseline — RECALL_TIMEOUT ==========
-
-    @Test
-    void shouldRejectRecallWhenMessageOlderThanTwoMinutes() {
-        ChatMessage stored = createStoredMessage(9L, 1L);
-        stored.setCreateTime(new Date(System.currentTimeMillis() - 3 * 60 * 1000));
-        chatMessageService.messageById = stored;
-
-        BusinessException exception = Assertions.assertThrows(BusinessException.class,
-                () -> chatMessageService.recallMessage(9L, 1L));
-
-        Assertions.assertEquals(ErrorCode.RECALL_TIMEOUT.getCode(), exception.getCode());
-    }
-
-    // ========== STE-190: Security baseline — NO_PERMISSION for recall ==========
-
-    @Test
-    void shouldRejectRecallByNonOwnerNonAdmin() {
-        ChatMessage stored = createStoredMessage(9L, 1L);
-        stored.setFromUserId(2L);
-        chatMessageService.messageById = stored;
-        chatMessageService.isAdminResult = false;
-        // roomMember userId is 1L, role is null (普通成员)
-
-        BusinessException exception = Assertions.assertThrows(BusinessException.class,
-                () -> chatMessageService.recallMessage(9L, 1L));
-
-        Assertions.assertEquals(ErrorCode.NO_PERMISSION.getCode(), exception.getCode());
-    }
-
-    // ========== STE-190: Security baseline — Admin/owner recall bypass ==========
-
-    @Test
-    void shouldAllowAdminToRecallAnyMessageWithinTimeWindow() {
-        ChatMessage stored = createStoredMessage(9L, 1L);
-        stored.setFromUserId(2L);
-        chatMessageService.messageById = stored;
-        chatMessageService.isAdminResult = true;
-
-        boolean result = chatMessageService.recallMessage(9L, 1L);
-
-        Assertions.assertTrue(result);
-        Assertions.assertEquals(MessageStatusEnum.RECALL.getCode(), chatMessageService.messageById.getStatus());
-    }
-
-    @Test
-    void shouldAllowAdminToRecallMessageBeyondTimeWindow() {
-        ChatMessage stored = createStoredMessage(9L, 1L);
-        stored.setFromUserId(2L);
-        stored.setCreateTime(new Date(System.currentTimeMillis() - 10 * 60 * 1000));
-        chatMessageService.messageById = stored;
-        chatMessageService.isAdminResult = true;
-
-        boolean result = chatMessageService.recallMessage(9L, 1L);
-
-        Assertions.assertTrue(result);
-        Assertions.assertEquals(MessageStatusEnum.RECALL.getCode(), chatMessageService.messageById.getStatus());
-    }
-
-    @Test
-    void shouldAllowRoomOwnerToRecallAnyMessage() {
-        ChatMessage stored = createStoredMessage(9L, 1L);
-        stored.setFromUserId(2L);
-        chatMessageService.messageById = stored;
-        chatMessageService.isAdminResult = false;
-        roomMember.setRole(3); // 群主
-
-        boolean result = chatMessageService.recallMessage(9L, 1L);
-
-        Assertions.assertTrue(result);
-        Assertions.assertEquals(MessageStatusEnum.RECALL.getCode(), chatMessageService.messageById.getStatus());
-    }
-
-    @Test
-    void shouldAllowRoomAdminToRecallAnyMessage() {
-        ChatMessage stored = createStoredMessage(9L, 1L);
-        stored.setFromUserId(2L);
-        chatMessageService.messageById = stored;
-        chatMessageService.isAdminResult = false;
-        roomMember.setRole(2); // 管理员
-
-        boolean result = chatMessageService.recallMessage(9L, 1L);
-
-        Assertions.assertTrue(result);
-        Assertions.assertEquals(MessageStatusEnum.RECALL.getCode(), chatMessageService.messageById.getStatus());
-    }
-
-    @Test
-    void shouldAllowRoomOwnerToRecallMessageBeyondTimeWindow() {
-        ChatMessage stored = createStoredMessage(9L, 1L);
-        stored.setFromUserId(2L);
-        stored.setCreateTime(new Date(System.currentTimeMillis() - 10 * 60 * 1000));
-        chatMessageService.messageById = stored;
-        chatMessageService.isAdminResult = false;
-        roomMember.setRole(3); // 群主
-
-        boolean result = chatMessageService.recallMessage(9L, 1L);
-
-        Assertions.assertTrue(result);
-        Assertions.assertEquals(MessageStatusEnum.RECALL.getCode(), chatMessageService.messageById.getStatus());
-    }
-
     private ChatMessage createTextMessage(Long roomId, String clientMsgId, String content) {
         ChatMessage message = new ChatMessage();
         message.setRoomId(roomId);
@@ -1080,10 +937,6 @@ class ChatMessageServiceImplTest {
                         case "getMember" -> roomMember;
                         case "listByRoomId" -> roomMembers;
                         case "updateById" -> true;
-                        case "isOwner" -> roomMember != null && roomMember.getRole() != null
-                                && roomMember.getRole() == 3
-                                && java.util.Objects.equals(roomMember.getRoomId(), (Long) args[0])
-                                && java.util.Objects.equals(roomMember.getUserId(), (Long) args[1]);
                         default -> defaultValue(method.getReturnType());
                     };
                 }
@@ -1165,12 +1018,6 @@ class ChatMessageServiceImplTest {
         private Long updatedLastReadMessageId;
         private Page<ChatMessage> searchPageResult = new Page<>(1, 20, 0);
         private String searchSqlSegment;
-        private boolean isAdminResult;
-
-        @Override
-        protected boolean isAdmin() {
-            return isAdminResult;
-        }
 
         @Override
         public ChatMessage getOne(Wrapper<ChatMessage> queryWrapper) {

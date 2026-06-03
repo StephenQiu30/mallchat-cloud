@@ -41,6 +41,7 @@ class ChatRoomServiceImplTest {
     private List<Long> addedMembers;
     private boolean currentUserIsMember;
     private boolean currentUserIsOwner;
+    private boolean currentUserIsAdmin;
     private ChatGroupInfo stubGroupInfo;
     private ChatGroupInfo savedGroupInfo;
     private ChatGroupInfo updatedGroupInfo;
@@ -89,6 +90,7 @@ class ChatRoomServiceImplTest {
         sessionDeleteAttemptUsers = new ArrayList<>();
         leftUsers = new ArrayList<>();
         notifications = new ArrayList<>();
+        currentUserIsAdmin = false;
     }
 
     @Test
@@ -175,6 +177,7 @@ class ChatRoomServiceImplTest {
     void shouldRejectGroupProfileUpdateWithoutPayload() {
         chatRoomService.stubRoom = buildGroupRoom();
         currentUserIsOwner = true;
+        currentUserIsAdmin = true;
 
         BusinessException exception = Assertions.assertThrows(BusinessException.class,
                 () -> chatRoomService.updateGroupProfile(90L, null, null, null, 1L));
@@ -186,6 +189,7 @@ class ChatRoomServiceImplTest {
     void shouldUpdateGroupProfileForOwnerAndPushSessionRefresh() {
         chatRoomService.stubRoom = buildGroupRoom();
         currentUserIsOwner = true;
+        currentUserIsAdmin = true;
         stubGroupInfo = new ChatGroupInfo();
         stubGroupInfo.setId(30L);
         stubGroupInfo.setRoomId(90L);
@@ -214,6 +218,7 @@ class ChatRoomServiceImplTest {
     void shouldCreateGroupInfoWithRoomDefaultsWhenAnnouncementUpdatedWithoutExistingInfo() {
         chatRoomService.stubRoom = buildGroupRoom();
         currentUserIsOwner = true;
+        currentUserIsAdmin = true;
         stubGroupInfo = null;
 
         chatRoomService.updateGroupProfile(90L, null, null, "announcement-only", 1L);
@@ -231,6 +236,7 @@ class ChatRoomServiceImplTest {
     void shouldRepairBlankExistingGroupInfoWhenAnnouncementUpdated() {
         chatRoomService.stubRoom = buildGroupRoom();
         currentUserIsOwner = true;
+        currentUserIsAdmin = true;
         stubGroupInfo = new ChatGroupInfo();
         stubGroupInfo.setId(31L);
         stubGroupInfo.setRoomId(90L);
@@ -249,6 +255,7 @@ class ChatRoomServiceImplTest {
     void shouldRejectBlankGroupAvatar() {
         chatRoomService.stubRoom = buildGroupRoom();
         currentUserIsOwner = true;
+        currentUserIsAdmin = true;
 
         BusinessException exception = Assertions.assertThrows(BusinessException.class,
                 () -> chatRoomService.updateGroupProfile(90L, null, " ", null, 1L));
@@ -260,6 +267,7 @@ class ChatRoomServiceImplTest {
     void shouldNotFailGroupProfileUpdateWhenSessionPushThrows() {
         chatRoomService.stubRoom = buildGroupRoom();
         currentUserIsOwner = true;
+        currentUserIsAdmin = true;
         stubGroupInfo = new ChatGroupInfo();
         stubGroupInfo.setId(32L);
         stubGroupInfo.setRoomId(90L);
@@ -379,6 +387,7 @@ class ChatRoomServiceImplTest {
         chatRoomService.stubRoom.setId(90L);
         chatRoomService.stubRoom.setType(ChatRoomTypeEnum.PRIVATE.getCode());
         currentUserIsOwner = true;
+        currentUserIsAdmin = true;
 
         BusinessException exception = Assertions.assertThrows(BusinessException.class,
                 () -> chatRoomService.removeMember(90L, 2L, 1L));
@@ -388,22 +397,40 @@ class ChatRoomServiceImplTest {
     }
 
     @Test
-    void shouldRejectMemberRemovalForNonOwner() {
+    void shouldRejectMemberRemovalForNonAdmin() {
         chatRoomService.stubRoom = buildGroupRoom();
         currentUserIsOwner = false;
+        currentUserIsAdmin = false;
         targetMember = buildMember(90L, 2L, ChatRoomRoleEnum.MEMBER.getCode());
 
         BusinessException exception = Assertions.assertThrows(BusinessException.class,
                 () -> chatRoomService.removeMember(90L, 2L, 3L));
 
-        Assertions.assertEquals(ErrorCode.NO_AUTH_ERROR.getCode(), exception.getCode());
+        Assertions.assertEquals(ErrorCode.ADMIN_REQUIRED.getCode(), exception.getCode());
         assertNoRemovalSideEffects();
+    }
+
+    @Test
+    void shouldAllowAdminToRemoveMember() {
+        chatRoomService.stubRoom = buildGroupRoom();
+        currentUserIsOwner = false;
+        currentUserIsAdmin = true;
+        targetMember = buildMember(90L, 2L, ChatRoomRoleEnum.MEMBER.getCode());
+
+        chatRoomService.removeMember(90L, 2L, 3L);
+
+        Assertions.assertEquals(90L, leftRoomId);
+        Assertions.assertEquals(2L, leftUserId);
+        Assertions.assertEquals(90L, removedSessionRoomId);
+        Assertions.assertEquals(2L, removedSessionUserId);
+        Assertions.assertEquals(List.of(2L), sessionDeleteUsers);
     }
 
     @Test
     void shouldRejectMemberRemovalWhenTargetMissing() {
         chatRoomService.stubRoom = buildGroupRoom();
         currentUserIsOwner = true;
+        currentUserIsAdmin = true;
         targetMember = null;
 
         BusinessException exception = Assertions.assertThrows(BusinessException.class,
@@ -417,6 +444,7 @@ class ChatRoomServiceImplTest {
     void shouldRejectMemberRemovalForSelf() {
         chatRoomService.stubRoom = buildGroupRoom();
         currentUserIsOwner = true;
+        currentUserIsAdmin = true;
         targetMember = buildMember(90L, 1L, ChatRoomRoleEnum.OWNER.getCode());
 
         BusinessException exception = Assertions.assertThrows(BusinessException.class,
@@ -430,6 +458,7 @@ class ChatRoomServiceImplTest {
     void shouldRejectMemberRemovalForOwnerAccount() {
         chatRoomService.stubRoom = buildGroupRoom();
         currentUserIsOwner = true;
+        currentUserIsAdmin = true;
         targetMember = buildMember(90L, 2L, ChatRoomRoleEnum.OWNER.getCode());
 
         BusinessException exception = Assertions.assertThrows(BusinessException.class,
@@ -443,6 +472,7 @@ class ChatRoomServiceImplTest {
     void shouldRejectMemberRemovalForAdminRole() {
         chatRoomService.stubRoom = buildGroupRoom();
         currentUserIsOwner = true;
+        currentUserIsAdmin = true;
         targetMember = buildMember(90L, 2L, ChatRoomRoleEnum.ADMIN.getCode());
 
         BusinessException exception = Assertions.assertThrows(BusinessException.class,
@@ -456,6 +486,7 @@ class ChatRoomServiceImplTest {
     void shouldRemoveGroupMemberAndDeleteTargetSession() {
         chatRoomService.stubRoom = buildGroupRoom();
         currentUserIsOwner = true;
+        currentUserIsAdmin = true;
         targetMember = buildMember(90L, 2L, ChatRoomRoleEnum.MEMBER.getCode());
 
         chatRoomService.removeMember(90L, 2L, 1L);
@@ -471,6 +502,7 @@ class ChatRoomServiceImplTest {
     void shouldGrantAdminForOwnerAndMemberTarget() {
         chatRoomService.stubRoom = buildGroupRoom();
         currentUserIsOwner = true;
+        currentUserIsAdmin = true;
         targetMember = buildMember(90L, 2L, ChatRoomRoleEnum.MEMBER.getCode());
 
         chatRoomService.grantAdmin(90L, 2L, 1L);
@@ -483,6 +515,7 @@ class ChatRoomServiceImplTest {
     void shouldRevokeAdminForOwnerAndAdminTarget() {
         chatRoomService.stubRoom = buildGroupRoom();
         currentUserIsOwner = true;
+        currentUserIsAdmin = true;
         targetMember = buildMember(90L, 2L, ChatRoomRoleEnum.ADMIN.getCode());
 
         chatRoomService.revokeAdmin(90L, 2L, 1L);
@@ -508,6 +541,7 @@ class ChatRoomServiceImplTest {
     void shouldRejectAdminRoleChangeForOwnerTarget() {
         chatRoomService.stubRoom = buildGroupRoom();
         currentUserIsOwner = true;
+        currentUserIsAdmin = true;
         targetMember = buildMember(90L, 2L, ChatRoomRoleEnum.OWNER.getCode());
 
         BusinessException exception = Assertions.assertThrows(BusinessException.class,
@@ -521,6 +555,7 @@ class ChatRoomServiceImplTest {
     void shouldNotFailMemberRemovalWhenSessionDeletePushThrows() {
         chatRoomService.stubRoom = buildGroupRoom();
         currentUserIsOwner = true;
+        currentUserIsAdmin = true;
         targetMember = buildMember(90L, 2L, ChatRoomRoleEnum.MEMBER.getCode());
         sessionDeleteThrows = true;
 
@@ -536,6 +571,7 @@ class ChatRoomServiceImplTest {
     void shouldFailMemberRemovalWhenSessionDeletePersistenceThrows() {
         chatRoomService.stubRoom = buildGroupRoom();
         currentUserIsOwner = true;
+        currentUserIsAdmin = true;
         targetMember = buildMember(90L, 2L, ChatRoomRoleEnum.MEMBER.getCode());
         sessionRemoveThrows = true;
 
@@ -603,6 +639,7 @@ class ChatRoomServiceImplTest {
         chatRoomService.stubRoom = buildGroupRoom();
         currentUserIsMember = true;
         currentUserIsOwner = true;
+        currentUserIsAdmin = true;
         roomMembers.add(buildMember(90L, 1L, ChatRoomRoleEnum.OWNER.getCode()));
         roomMembers.add(buildMember(90L, 2L, ChatRoomRoleEnum.MEMBER.getCode()));
         sessionDeleteFailureUserId = 1L;
@@ -668,6 +705,9 @@ class ChatRoomServiceImplTest {
                     }
                     if ("isOwner".equals(method.getName())) {
                         return currentUserIsOwner;
+                    }
+                    if ("isAdmin".equals(method.getName())) {
+                        return currentUserIsAdmin;
                     }
                     if ("listByRoomId".equals(method.getName())) {
                         return roomMembers;
