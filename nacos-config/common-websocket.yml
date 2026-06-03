@@ -1,0 +1,6 @@
+# WebSocket 通用配置
+# 支持通过配置中心动态刷新（@RefreshScope）
+# 注意：allowedOrigins 为空表示"不限制 Origin（允许所有来源）"。
+# 生产环境务必在配置中心填入受信任的 Origin，避免跨站 WebSocket 劫持。
+websocket:
+  allowedOrigins: []
