@@ -525,15 +525,28 @@ public class ChatMessageServiceImpl extends ServiceImpl<ChatMessageMapper, ChatM
         if (replyMsg == null || !Objects.equals(replyMsg.getRoomId(), roomId)) {
             return null;
         }
-        String content = Objects.equals(replyMsg.getStatus(), MessageStatusEnum.RECALL.getCode())
+        boolean recalled = Objects.equals(replyMsg.getStatus(), MessageStatusEnum.RECALL.getCode());
+        String content = recalled
                 ? "该消息已被撤回"
                 : ChatMessageHelper.buildPreview(replyMsg.getType(), replyMsg.getContent());
+        String extra = null;
+        if (!recalled && isMediaType(replyMsg.getType()) && StringUtils.isNotBlank(replyMsg.getExtra())) {
+            extra = replyMsg.getExtra();
+        }
         UserVO sender = senderMap.get(replyMsg.getFromUserId());
         return ReplyMsgVO.builder()
                 .id(replyMsg.getId())
                 .userName(sender == null ? null : sender.getUserName())
                 .content(content)
                 .type(replyMsg.getType())
+                .extra(extra)
                 .build();
+    }
+
+    private static boolean isMediaType(Integer type) {
+        return ChatMessageTypeEnum.IMAGE.getCode().equals(type)
+                || ChatMessageTypeEnum.FILE.getCode().equals(type)
+                || ChatMessageTypeEnum.VOICE.getCode().equals(type)
+                || ChatMessageTypeEnum.VIDEO.getCode().equals(type);
     }
 }
