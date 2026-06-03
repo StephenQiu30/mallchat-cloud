@@ -24,6 +24,8 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.test.util.ReflectionTestUtils;
 
+import com.stephen.cloud.chat.model.entity.ChatRoomMember;
+
 import java.lang.reflect.Proxy;
 import java.util.ArrayList;
 import java.util.Date;
@@ -41,6 +43,7 @@ class ChatSessionServiceImplTest {
     private List<UserVO> users;
     private Map<Long, Integer> onlineStatusMap;
     private boolean member;
+    private ChatRoomMember roomMember;
 
     @BeforeEach
     void setUp() {
@@ -53,6 +56,9 @@ class ChatSessionServiceImplTest {
         users = new ArrayList<>();
         onlineStatusMap = Map.of();
         member = true;
+        roomMember = new ChatRoomMember();
+        roomMember.setRoomId(1L);
+        roomMember.setUserId(1L);
 
         ReflectionTestUtils.setField(chatSessionService, "chatRoomService", createChatRoomService());
         ReflectionTestUtils.setField(chatSessionService, "chatMessageService", createChatMessageService());
@@ -288,6 +294,87 @@ class ChatSessionServiceImplTest {
         Assertions.assertEquals(List.of(1L, 3L), result);
     }
 
+    @Test
+    void shouldClearUnreadAndAdvanceCursorWhenSessionRead() {
+        ChatSession session = createSession(1L, 10L, 5, 0);
+        session.setLastReadMessageId(5L);
+        chatSessionService.getOneResult = session;
+        rooms = List.of(createRoom(1L, ChatRoomTypeEnum.PRIVATE.getCode(), null));
+        privateRooms = List.of(createPrivateRoom(1L, 1L, 2L));
+        messages = List.of(createMessage(10L, 1L, "latest"));
+        users = List.of(createUser(2L, "peer", "avatar-2"));
+
+        boolean result = chatSessionService.readSession(1L, 1L);
+
+        Assertions.assertTrue(result);
+        Assertions.assertEquals(0, session.getUnreadCount());
+        Assertions.assertEquals(10L, session.getLastReadMessageId());
+        Assertions.assertEquals(10L, roomMember.getLastReadMessageId());
+        Assertions.assertEquals(1L, chatMqProducer.lastSessionUpdateUserId);
+        Assertions.assertEquals(1L, chatMqProducer.lastSessionUpdateRoomId);
+    }
+
+    @Test
+    void shouldNotRegressReadCursorWhenSessionReadWithStaleLastMessage() {
+        ChatSession session = createSession(1L, 8L, 0, 0);
+        session.setLastReadMessageId(10L);
+        chatSessionService.getOneResult = session;
+
+        boolean result = chatSessionService.readSession(1L, 1L);
+
+        Assertions.assertTrue(result);
+        Assertions.assertEquals(0, session.getUnreadCount());
+        Assertions.assertEquals(10L, session.getLastReadMessageId());
+        Assertions.assertNull(chatMqProducer.lastSessionUpdateUserId);
+    }
+
+    @Test
+    void shouldRejectSessionReadForNonMember() {
+        member = false;
+
+        com.stephen.cloud.common.exception.BusinessException exception = Assertions.assertThrows(
+                com.stephen.cloud.common.exception.BusinessException.class,
+                () -> chatSessionService.readSession(1L, 1L));
+
+        Assertions.assertEquals(com.stephen.cloud.common.common.ErrorCode.NO_AUTH_ERROR.getCode(), exception.getCode());
+    }
+
+    @Test
+    void shouldPushSessionUpdateAfterSessionRead() {
+        ChatSession session = createSession(1L, 10L, 3, 0);
+        session.setLastReadMessageId(5L);
+        chatSessionService.getOneResult = session;
+        rooms = List.of(createRoom(1L, ChatRoomTypeEnum.PRIVATE.getCode(), null));
+        privateRooms = List.of(createPrivateRoom(1L, 1L, 2L));
+        messages = List.of(createMessage(10L, 1L, "latest"));
+        users = List.of(createUser(2L, "peer", "avatar-2"));
+
+        chatSessionService.readSession(1L, 1L);
+
+        Assertions.assertEquals(1L, chatMqProducer.lastSessionUpdateUserId);
+        Assertions.assertEquals(1L, chatMqProducer.lastSessionUpdateRoomId);
+        Assertions.assertTrue(chatMqProducer.lastSessionUpdatePayload instanceof ChatSessionVO);
+    }
+
+    @Test
+    void shouldKeepSessionReadResultWhenPushThrows() {
+        ChatSession session = createSession(1L, 10L, 3, 0);
+        session.setLastReadMessageId(5L);
+        chatSessionService.getOneResult = session;
+        rooms = List.of(createRoom(1L, ChatRoomTypeEnum.PRIVATE.getCode(), null));
+        privateRooms = List.of(createPrivateRoom(1L, 1L, 2L));
+        messages = List.of(createMessage(10L, 1L, "latest"));
+        users = List.of(createUser(2L, "peer", "avatar-2"));
+        chatMqProducer.sessionUpdateThrows = true;
+
+        boolean result = Assertions.assertDoesNotThrow(() -> chatSessionService.readSession(1L, 1L));
+
+        Assertions.assertTrue(result);
+        Assertions.assertEquals(0, session.getUnreadCount());
+        Assertions.assertEquals(10L, session.getLastReadMessageId());
+        Assertions.assertEquals(List.of(1L), chatMqProducer.sessionUpdateAttemptUsers);
+    }
+
     private ChatSession createSession(Long roomId, Long lastMessageId, Integer unreadCount, Integer topStatus) {
         ChatSession session = new ChatSession();
         session.setRoomId(roomId);
@@ -422,10 +509,12 @@ class ChatSessionServiceImplTest {
                 com.stephen.cloud.chat.service.ChatRoomMemberService.class.getClassLoader(),
                 new Class[]{com.stephen.cloud.chat.service.ChatRoomMemberService.class},
                 (proxy, method, args) -> {
-                    if ("isMember".equals(method.getName())) {
-                        return member;
-                    }
-                    return defaultValue(method.getReturnType());
+                    return switch (method.getName()) {
+                        case "isMember" -> member;
+                        case "getMember" -> roomMember;
+                        case "updateById" -> true;
+                        default -> defaultValue(method.getReturnType());
+                    };
                 }
         );
     }
