@@ -1,6 +1,9 @@
 package com.stephen.cloud.chat.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.Wrapper;
+import com.baomidou.mybatisplus.core.metadata.IPage;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import com.stephen.cloud.api.chat.model.dto.ChatReportListRequest;
 import com.stephen.cloud.api.chat.model.dto.ChatReportSubmitRequest;
 import com.stephen.cloud.api.chat.model.enums.ChatReportTargetTypeEnum;
 import com.stephen.cloud.api.user.client.UserFeignClient;
@@ -21,6 +24,7 @@ import org.springframework.test.util.ReflectionTestUtils;
 
 import java.lang.reflect.Proxy;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -195,6 +199,53 @@ class ChatReportServiceImplTest {
         Assertions.assertEquals(77L, result);
     }
 
+    // ========== STE-190: Admin report list query ==========
+
+    @Test
+    void shouldReturnReportListForAdmin() {
+        ChatReport report1 = buildReport(1L, 1L, 2, 20L, 2L);
+        ChatReport report2 = buildReport(2L, 3L, 1, 5L, 5L);
+        chatReportService.pageResult.setRecords(List.of(report1, report2));
+        chatReportService.pageResult.setTotal(2);
+
+        ChatReportListRequest request = new ChatReportListRequest();
+        request.setCurrent(1);
+        request.setPageSize(20);
+        var result = chatReportService.listReports(request);
+
+        Assertions.assertEquals(2, result.getTotal());
+        Assertions.assertEquals(2, result.getRecords().size());
+        Assertions.assertEquals(1L, result.getRecords().get(0).getId());
+        Assertions.assertEquals(2L, result.getRecords().get(1).getId());
+    }
+
+    @Test
+    void shouldReturnEmptyReportListWhenNoReports() {
+        chatReportService.pageResult.setRecords(List.of());
+        chatReportService.pageResult.setTotal(0);
+
+        ChatReportListRequest request = new ChatReportListRequest();
+        request.setCurrent(1);
+        request.setPageSize(20);
+        var result = chatReportService.listReports(request);
+
+        Assertions.assertEquals(0, result.getTotal());
+        Assertions.assertTrue(result.getRecords().isEmpty());
+    }
+
+    private ChatReport buildReport(Long id, Long reporterUserId, Integer targetType, Long targetId, Long targetOwnerId) {
+        ChatReport report = new ChatReport();
+        report.setId(id);
+        report.setReporterUserId(reporterUserId);
+        report.setTargetType(targetType);
+        report.setTargetId(targetId);
+        report.setTargetOwnerId(targetOwnerId);
+        report.setReasonType("spam");
+        report.setReason("test reason");
+        report.setStatus(0);
+        return report;
+    }
+
     private UserFeignClient createUserFeignClient() {
         return (UserFeignClient) Proxy.newProxyInstance(
                 UserFeignClient.class.getClassLoader(),
@@ -254,6 +305,7 @@ class ChatReportServiceImplTest {
         private boolean saveResult;
         private boolean throwDuplicateOnSave;
         private boolean saveAttempted;
+        private Page<ChatReport> pageResult = new Page<>(1, 20, 0);
 
         @Override
         public ChatReport getOne(Wrapper<ChatReport> queryWrapper) {
@@ -284,6 +336,13 @@ class ChatReportServiceImplTest {
             }
             this.savedReport = entity;
             return saveResult;
+        }
+
+        @Override
+        public <E extends IPage<ChatReport>> E page(E page, Wrapper<ChatReport> queryWrapper) {
+            @SuppressWarnings("unchecked")
+            E result = (E) pageResult;
+            return result;
         }
     }
 
