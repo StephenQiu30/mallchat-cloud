@@ -74,9 +74,14 @@
   - 问题 3: CodeRabbit 建议清理 workpad.md 中的本地路径
     - 修复: 替换为通用占位符
   - 新增提交:
-    - impl: 补充 OnlineStatusPublishDeduper 和 OnlineStatusNotificationPlanner 缺失类
     - test: 增强 listUserChatRooms 测试断言并补充边界用例
     - docs: 清理 workpad 中的本地机器路径
+  - 注: impl commit (OnlineStatusPublishDeduper/OnlineStatusNotificationPlanner) 在 rebase 时被跳过，因为 github/main 已包含这些类
+- 2026-06-04 00:37: Rebase onto github/main 完成
+  - 解决了 ChatRoomServiceImplTest 中 stubRooms vs currentUserIsAdmin 冲突
+  - 跳过了 OnlineStatus 类的 impl commit（main 已有）
+  - 测试通过: 39 tests, 0 failures
+  - PR #111 状态: MERGEABLE, CI 运行中
 
 ### Confusions
 
