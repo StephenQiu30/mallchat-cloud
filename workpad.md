@@ -1,7 +1,7 @@
 ## Claude Workpad
 
 ```text
-StephenQius-MacBook-Air-2.local:/Users/stephenqiu/Desktop/StephenQiu30/Agents/symphony/workspaces/STE-130@7ec8afe
+[local workspace path redacted]
 ```
 
 ### Plan
