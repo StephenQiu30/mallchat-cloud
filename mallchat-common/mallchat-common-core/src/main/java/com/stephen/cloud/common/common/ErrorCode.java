@@ -101,7 +101,22 @@ public enum ErrorCode {
     /**
      * 服务暂时不可用
      */
-    SERVICE_UNAVAILABLE(50002, "服务暂时不可用");
+    SERVICE_UNAVAILABLE(50002, "服务暂时不可用"),
+
+    /**
+     * 被对方拉黑
+     */
+    BLOCKED_BY_TARGET(40102, "被对方拉黑，无法发送消息"),
+
+    /**
+     * 撤回超时
+     */
+    RECALL_TIMEOUT(40103, "消息发送超过 2 分钟，无法撤回"),
+
+    /**
+     * 无操作权限
+     */
+    NO_PERMISSION(40104, "无操作权限");
 
     /**
      * 状态码
