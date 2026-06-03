@@ -1,0 +1,4 @@
+# WebSocket 通用配置
+# 支持通过配置中心动态刷新（@RefreshScope）
+websocket:
+  allowedOrigins: []
