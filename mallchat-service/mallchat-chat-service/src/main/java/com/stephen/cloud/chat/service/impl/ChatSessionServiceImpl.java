@@ -2,6 +2,7 @@ package com.stephen.cloud.chat.service.impl;
 
 import cn.hutool.core.collection.CollUtil;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.core.conditions.update.UpdateWrapper;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.stephen.cloud.api.chat.model.enums.MessageStatusEnum;
 import com.stephen.cloud.api.chat.model.vo.ChatSessionVO;
@@ -334,7 +335,7 @@ public class ChatSessionServiceImpl extends ServiceImpl<ChatSessionMapper, ChatS
         List<ChatSession> toUpdate = new ArrayList<>();
         Date now = new Date();
 
-        // 2. 遍历用户，补全或更新会话
+        // 2. 遍历用户，补全或更新会话（跳过过期消息，避免无效写入）
         for (Long userId : userIds) {
             ChatSession session = sessionMap.get(userId);
             if (session == null) {
@@ -345,14 +346,15 @@ public class ChatSessionServiceImpl extends ServiceImpl<ChatSessionMapper, ChatS
                 session.setTopStatus(0);
                 session.setMuteStatus(0);
             }
-            if (!isDuplicateOrStaleMessage(session, lastMessageId)) {
-                session.setLastMessageId(lastMessageId);
-                session.setActiveTime(now);
-                // 发送者不增加未读数
-                if (!userId.equals(senderId)) {
-                    Integer currentUnread = session.getUnreadCount();
-                    session.setUnreadCount((currentUnread == null ? 0 : currentUnread) + 1);
-                }
+            if (isDuplicateOrStaleMessage(session, lastMessageId)) {
+                continue;
+            }
+            session.setLastMessageId(lastMessageId);
+            session.setActiveTime(now);
+            // 发送者不增加未读数
+            if (!userId.equals(senderId)) {
+                Integer currentUnread = session.getUnreadCount();
+                session.setUnreadCount((currentUnread == null ? 0 : currentUnread) + 1);
             }
             toUpdate.add(session);
         }
@@ -362,6 +364,7 @@ public class ChatSessionServiceImpl extends ServiceImpl<ChatSessionMapper, ChatS
     }
 
     @Override
+    @Transactional(rollbackFor = Exception.class)
     public boolean readSession(Long roomId, Long userId) {
         ThrowUtils.throwIf(roomId == null || userId == null, ErrorCode.PARAMS_ERROR);
         ThrowUtils.throwIf(!chatRoomMemberService.isMember(roomId, userId), ErrorCode.NO_AUTH_ERROR, "您不在此聊天室中");
@@ -383,17 +386,31 @@ public class ChatSessionServiceImpl extends ServiceImpl<ChatSessionMapper, ChatS
             return true;
         }
 
+        boolean sessionUpdated = this.update(new UpdateWrapper<ChatSession>()
+                .set("unread_count", 0)
+                .set("last_read_message_id", lastMessageId)
+                .eq("user_id", userId)
+                .eq("room_id", roomId)
+                .and(wrapper -> wrapper.isNull("last_read_message_id")
+                        .or()
+                        .lt("last_read_message_id", lastMessageId)));
+        if (!sessionUpdated) {
+            return true;
+        }
+
         session.setUnreadCount(0);
         session.setLastReadMessageId(lastMessageId);
-        this.updateById(session);
 
         ChatRoomMember member = chatRoomMemberService.getMember(roomId, userId);
         if (member != null) {
-            Long memberOldRead = member.getLastReadMessageId();
-            if (memberOldRead == null || lastMessageId > memberOldRead) {
-                member.setLastReadMessageId(lastMessageId);
-                chatRoomMemberService.updateById(member);
-            }
+            chatRoomMemberService.update(new UpdateWrapper<ChatRoomMember>()
+                    .set("last_read_message_id", lastMessageId)
+                    .eq("room_id", roomId)
+                    .eq("user_id", userId)
+                    .and(wrapper -> wrapper.isNull("last_read_message_id")
+                            .or()
+                            .lt("last_read_message_id", lastMessageId)));
+            member.setLastReadMessageId(lastMessageId);
         }
 
         ChatSessionVO sessionVO = getSessionVO(roomId, userId);

@@ -37,6 +37,11 @@ public class ChatRoom implements Serializable {
     private String avatar;
 
     /**
+     * 最大成员数，0 或 null 表示不限制
+     */
+    private Integer maxMembers;
+
+    /**
      * 创建者用户ID
      */
     private Long createUser;

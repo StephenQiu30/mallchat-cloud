@@ -65,4 +65,62 @@ class FileUploadRecordRecorderTest {
         Assertions.assertEquals("-", request.getObjectKey());
         Assertions.assertEquals("-", request.getUrl());
     }
+
+    // --- P0-02: 审计记录完整性增强 ---
+
+    @Test
+    void shouldRecordAllFiveBizTypes() {
+        LogFeignClient logFeignClient = Mockito.mock(LogFeignClient.class);
+        FileUploadRecordRecorder recorder = new FileUploadRecordRecorder();
+        ReflectionTestUtils.setField(recorder, "logFeignClient", logFeignClient);
+
+        FileUploadBizEnum[] allBizTypes = FileUploadBizEnum.values();
+        Assertions.assertEquals(5, allBizTypes.length, "应有 5 种 bizType");
+
+        for (FileUploadBizEnum bizType : allBizTypes) {
+            Mockito.reset(logFeignClient);
+            FileUploadRecordRecorder.FileUploadMetadata metadata = new FileUploadRecordRecorder.FileUploadMetadata(
+                    "test.file", 100L, "file", "application/octet-stream");
+            FileVO fileVO = FileVO.builder()
+                    .key(bizType.getCode() + "/test.file")
+                    .url("https://example.com/" + bizType.getCode() + "/test.file")
+                    .fileName("test.file")
+                    .size(100L)
+                    .build();
+
+            recorder.recordSuccess(metadata, bizType, fileVO, 1001L, "127.0.0.1");
+
+            ArgumentCaptor<FileUploadRecordAddRequest> captor = ArgumentCaptor.forClass(FileUploadRecordAddRequest.class);
+            Mockito.verify(logFeignClient).addFileUploadRecord(captor.capture());
+            Assertions.assertEquals(bizType.getCode(), captor.getValue().getBizType(),
+                    "bizType " + bizType.getCode() + " 应被正确记录");
+        }
+    }
+
+    @Test
+    void shouldSetBucketFromConfiguration() {
+        LogFeignClient logFeignClient = Mockito.mock(LogFeignClient.class);
+        com.stephen.cloud.file.config.FileStorageConfiguration config =
+                Mockito.mock(com.stephen.cloud.file.config.FileStorageConfiguration.class);
+        Mockito.when(config.getBucket()).thenReturn("test-bucket");
+
+        FileUploadRecordRecorder recorder = new FileUploadRecordRecorder();
+        ReflectionTestUtils.setField(recorder, "logFeignClient", logFeignClient);
+        ReflectionTestUtils.setField(recorder, "fileStorageConfiguration", config);
+
+        FileUploadRecordRecorder.FileUploadMetadata metadata = new FileUploadRecordRecorder.FileUploadMetadata(
+                "test.png", 100L, "png", "image/png");
+        FileVO fileVO = FileVO.builder()
+                .key("chat_image/test.png")
+                .url("https://example.com/chat_image/test.png")
+                .fileName("test.png")
+                .size(100L)
+                .build();
+
+        recorder.recordSuccess(metadata, FileUploadBizEnum.CHAT_IMAGE, fileVO, 1001L, "127.0.0.1");
+
+        ArgumentCaptor<FileUploadRecordAddRequest> captor = ArgumentCaptor.forClass(FileUploadRecordAddRequest.class);
+        Mockito.verify(logFeignClient).addFileUploadRecord(captor.capture());
+        Assertions.assertEquals("test-bucket", captor.getValue().getBucket());
+    }
 }

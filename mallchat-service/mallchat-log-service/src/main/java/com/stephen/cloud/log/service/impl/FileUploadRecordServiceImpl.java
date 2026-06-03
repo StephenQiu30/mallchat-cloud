@@ -15,6 +15,8 @@ import org.apache.commons.lang3.StringUtils;
 import org.springframework.beans.BeanUtils;
 import org.springframework.stereotype.Service;
 
+import java.util.Date;
+
 /**
  * 文件上传记录服务实现
  *
@@ -50,6 +52,8 @@ public class FileUploadRecordServiceImpl extends ServiceImpl<FileUploadRecordMap
         String bizType = queryRequest.getBizType();
         String fileName = queryRequest.getFileName();
         String status = queryRequest.getStatus();
+        Date startTime = queryRequest.getStartTime();
+        Date endTime = queryRequest.getEndTime();
         String sortField = queryRequest.getSortField();
         String sortOrder = queryRequest.getSortOrder();
 
@@ -58,6 +62,8 @@ public class FileUploadRecordServiceImpl extends ServiceImpl<FileUploadRecordMap
         queryWrapper.eq(StringUtils.isNotBlank(bizType), FileUploadRecord::getBizType, bizType);
         queryWrapper.like(StringUtils.isNotBlank(fileName), FileUploadRecord::getFileName, fileName);
         queryWrapper.eq(ObjectUtil.isNotNull(status), FileUploadRecord::getStatus, status);
+        queryWrapper.ge(ObjectUtil.isNotNull(startTime), FileUploadRecord::getCreateTime, startTime);
+        queryWrapper.le(ObjectUtil.isNotNull(endTime), FileUploadRecord::getCreateTime, endTime);
 
         if (SqlUtils.validSortField(sortField)) {
             boolean isAsc = CommonConstant.SORT_ORDER_ASC.equalsIgnoreCase(sortOrder);

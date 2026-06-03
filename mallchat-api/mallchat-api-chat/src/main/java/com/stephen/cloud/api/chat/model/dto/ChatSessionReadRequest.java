@@ -2,6 +2,7 @@ package com.stephen.cloud.api.chat.model.dto;
 
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Positive;
 import lombok.Data;
 
 import java.io.Serializable;
@@ -17,6 +18,7 @@ public class ChatSessionReadRequest implements Serializable {
 
     @Schema(description = "房间ID", requiredMode = Schema.RequiredMode.REQUIRED)
     @NotNull(message = "房间ID不能为空")
+    @Positive(message = "房间 ID 必须为正数")
     private Long roomId;
 
     private static final long serialVersionUID = 1L;

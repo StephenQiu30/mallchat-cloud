@@ -90,6 +90,9 @@ public class ChatRoomServiceImpl extends ServiceImpl<ChatRoomMapper, ChatRoom>
     @Resource
     private NotificationFeignClient notificationFeignClient;
 
+    @Resource
+    private GroupGovernanceServiceImpl groupGovernanceService;
+
     @Override
     public void validChatRoom(ChatRoom chatRoom) {
         if (chatRoom == null) {
@@ -127,9 +130,12 @@ public class ChatRoomServiceImpl extends ServiceImpl<ChatRoomMapper, ChatRoom>
         ThrowUtils.throwIf(!result, ErrorCode.OPERATION_ERROR, "创建聊天室失败");
 
         chatRoomMemberService.addMember(chatRoom.getId(), userId, ChatRoomRoleEnum.OWNER.getCode());
+        groupGovernanceService.recordAudit(chatRoom.getId(), userId, "JOIN", userId);
         for (Long memberId : sanitizeInviteMembers(memberIds, userId)) {
             ThrowUtils.throwIf(!userFriendService.isMutualFriend(userId, memberId), ErrorCode.NO_AUTH_ERROR, "仅支持邀请好友入群");
+            groupGovernanceService.enforceMaxMembers(chatRoom.getId());
             chatRoomMemberService.addMember(chatRoom.getId(), memberId, ChatRoomRoleEnum.MEMBER.getCode());
+            groupGovernanceService.recordAudit(chatRoom.getId(), memberId, "JOIN", userId);
             chatSessionService.updateSession(memberId, chatRoom.getId(), null, false);
             pushSessionUpdate(memberId, chatRoom.getId(), "session_join:" + chatRoom.getId() + ":" + memberId);
             trySendGroupInviteNotification(memberId, chatRoom);
@@ -220,7 +226,9 @@ public class ChatRoomServiceImpl extends ServiceImpl<ChatRoomMapper, ChatRoom>
 
         for (Long memberId : sanitizeInviteMembers(memberIds, userId)) {
             ThrowUtils.throwIf(!userFriendService.isMutualFriend(userId, memberId), ErrorCode.NO_AUTH_ERROR, "仅支持邀请好友入群");
+            groupGovernanceService.enforceMaxMembers(roomId);
             chatRoomMemberService.addMember(roomId, memberId, ChatRoomRoleEnum.MEMBER.getCode());
+            groupGovernanceService.recordAudit(roomId, memberId, "JOIN", userId);
             chatSessionService.updateSession(memberId, roomId, null, false);
             pushSessionUpdate(memberId, roomId, "session_invite:" + roomId + ":" + memberId);
             trySendGroupInviteNotification(memberId, room);
@@ -316,6 +324,7 @@ public class ChatRoomServiceImpl extends ServiceImpl<ChatRoomMapper, ChatRoom>
         chatSessionService.remove(new LambdaQueryWrapper<com.stephen.cloud.chat.model.entity.ChatSession>()
                 .eq(com.stephen.cloud.chat.model.entity.ChatSession::getUserId, memberId)
                 .eq(com.stephen.cloud.chat.model.entity.ChatSession::getRoomId, roomId));
+        groupGovernanceService.recordAudit(roomId, memberId, "KICK", userId);
         chatRoomMemberService.leaveRoom(roomId, memberId);
         try {
             chatMqProducer.sendSessionDelete(memberId, roomId, "session_member_remove:" + roomId + ":" + memberId);
@@ -344,6 +353,7 @@ public class ChatRoomServiceImpl extends ServiceImpl<ChatRoomMapper, ChatRoom>
         ThrowUtils.throwIf(!ChatRoomTypeEnum.GROUP.getCode().equals(room.getType()), ErrorCode.PARAMS_ERROR, "仅群聊支持退群");
         ThrowUtils.throwIf(chatRoomMemberService.isOwner(roomId, userId), ErrorCode.OPERATION_ERROR, "群主不能直接退群，请先解散群聊");
 
+        groupGovernanceService.recordAudit(roomId, userId, "LEAVE", userId);
         chatRoomMemberService.leaveRoom(roomId, userId);
         chatSessionService.remove(new LambdaQueryWrapper<com.stephen.cloud.chat.model.entity.ChatSession>()
                 .eq(com.stephen.cloud.chat.model.entity.ChatSession::getUserId, userId)
@@ -404,6 +414,8 @@ public class ChatRoomServiceImpl extends ServiceImpl<ChatRoomMapper, ChatRoom>
         targetMember.setRole(targetRole);
         boolean updated = chatRoomMemberService.updateById(targetMember);
         ThrowUtils.throwIf(!updated, ErrorCode.OPERATION_ERROR, "更新群成员角色失败");
+        String auditAction = ChatRoomRoleEnum.ADMIN.getCode().equals(targetRole) ? "GRANT_ADMIN" : "REVOKE_ADMIN";
+        groupGovernanceService.recordAudit(roomId, memberId, auditAction, userId);
     }
 
     private List<Long> sanitizeInviteMembers(List<Long> memberIds, Long currentUserId) {

@@ -43,6 +43,7 @@ class ChatSessionServiceImplTest {
     private List<UserVO> users;
     private Map<Long, Integer> onlineStatusMap;
     private boolean member;
+    private boolean nullMember;
     private ChatRoomMember roomMember;
 
     @BeforeEach
@@ -56,6 +57,7 @@ class ChatSessionServiceImplTest {
         users = new ArrayList<>();
         onlineStatusMap = Map.of();
         member = true;
+        nullMember = false;
         roomMember = new ChatRoomMember();
         roomMember.setRoomId(1L);
         roomMember.setUserId(1L);
@@ -202,7 +204,7 @@ class ChatSessionServiceImplTest {
     }
 
     @Test
-    void shouldNotIncrementUnreadWhenSameMessageBatchIsAppliedTwice() {
+    void shouldSkipBatchUpdateWhenSameMessageIsAppliedTwice() {
         ChatSession senderSession = createSession(1L, 11L, 3, 0);
         senderSession.setUserId(1L);
         ChatSession receiverSession = createSession(1L, 11L, 2, 0);
@@ -211,18 +213,11 @@ class ChatSessionServiceImplTest {
 
         chatSessionService.updateSessionBatch(List.of(1L, 2L), 1L, 11L, 1L);
 
-        ChatSession savedSender = chatSessionService.lastBatchSaved.stream()
-                .filter(item -> item.getUserId().equals(1L))
-                .findFirst()
-                .orElseThrow();
-        ChatSession savedReceiver = chatSessionService.lastBatchSaved.stream()
-                .filter(item -> item.getUserId().equals(2L))
-                .findFirst()
-                .orElseThrow();
-        Assertions.assertEquals(3, savedSender.getUnreadCount());
-        Assertions.assertEquals(2, savedReceiver.getUnreadCount());
-        Assertions.assertEquals(11L, savedSender.getLastMessageId());
-        Assertions.assertEquals(11L, savedReceiver.getLastMessageId());
+        // Stale/duplicate message (11 == 11) — both sessions skipped, no DB write
+        Assertions.assertEquals(0, chatSessionService.lastBatchSaved.size());
+        // Original values unchanged
+        Assertions.assertEquals(3, senderSession.getUnreadCount());
+        Assertions.assertEquals(2, receiverSession.getUnreadCount());
     }
 
     @Test
@@ -375,6 +370,140 @@ class ChatSessionServiceImplTest {
         Assertions.assertEquals(List.of(1L), chatMqProducer.sessionUpdateAttemptUsers);
     }
 
+    @Test
+    void shouldClearUnreadWhenRoomMemberCacheMisses() {
+        nullMember = true;
+        ChatSession session = createSession(1L, 10L, 5, 0);
+        session.setLastReadMessageId(5L);
+        chatSessionService.getOneResult = session;
+        rooms = List.of(createRoom(1L, ChatRoomTypeEnum.PRIVATE.getCode(), null));
+        privateRooms = List.of(createPrivateRoom(1L, 1L, 2L));
+        messages = List.of(createMessage(10L, 1L, "latest"));
+        users = List.of(createUser(2L, "peer", "avatar-2"));
+
+        boolean result = Assertions.assertDoesNotThrow(() -> chatSessionService.readSession(1L, 1L));
+
+        Assertions.assertTrue(result);
+        Assertions.assertEquals(0, session.getUnreadCount());
+        Assertions.assertEquals(10L, session.getLastReadMessageId());
+    }
+
+    // ========== STE-98: Pin only affects current user ==========
+
+    @Test
+    void shouldPinSessionOnlyForCurrentUser() {
+        // User 1 pins room 1 — should NOT affect user 2's session for same room
+        ChatSession user1Session = createSession(1L, 10L, 0, 0);
+        user1Session.setUserId(1L);
+        chatSessionService.getOneResult = user1Session;
+        rooms = List.of(createRoom(1L, ChatRoomTypeEnum.PRIVATE.getCode(), null));
+        privateRooms = List.of(createPrivateRoom(1L, 1L, 2L));
+        messages = List.of(createMessage(10L, 1L, "hello"));
+        users = List.of(createUser(2L, "peer", "avatar-2"));
+
+        boolean result = chatSessionService.topSession(1L, 1L, 1);
+
+        Assertions.assertTrue(result);
+        Assertions.assertEquals(1, user1Session.getTopStatus());
+        // MQ push targeted only at user 1
+        Assertions.assertEquals(1L, chatMqProducer.lastSessionUpdateUserId);
+        Assertions.assertEquals(1L, chatMqProducer.lastSessionUpdateRoomId);
+    }
+
+    @Test
+    void shouldUnpinSessionOnlyForCurrentUser() {
+        ChatSession user1Session = createSession(1L, 10L, 0, 1);
+        user1Session.setUserId(1L);
+        chatSessionService.getOneResult = user1Session;
+        rooms = List.of(createRoom(1L, ChatRoomTypeEnum.PRIVATE.getCode(), null));
+        privateRooms = List.of(createPrivateRoom(1L, 1L, 2L));
+        messages = List.of(createMessage(10L, 1L, "hello"));
+        users = List.of(createUser(2L, "peer", "avatar-2"));
+
+        boolean result = chatSessionService.topSession(1L, 1L, 0);
+
+        Assertions.assertTrue(result);
+        Assertions.assertEquals(0, user1Session.getTopStatus());
+        Assertions.assertEquals(1L, chatMqProducer.lastSessionUpdateUserId);
+    }
+
+    // ========== STE-98: Mute only affects current user ==========
+
+    @Test
+    void shouldMuteSessionOnlyForCurrentUser() {
+        // User 1 mutes room 1 — should NOT affect user 2's session for same room
+        ChatSession user1Session = createSession(1L, 10L, 1, 0);
+        user1Session.setUserId(1L);
+        chatSessionService.getOneResult = user1Session;
+        rooms = List.of(createRoom(1L, ChatRoomTypeEnum.GROUP.getCode(), "group"));
+
+        boolean result = chatSessionService.muteSession(1L, 1L, 1);
+
+        Assertions.assertTrue(result);
+        Assertions.assertEquals(1, user1Session.getMuteStatus());
+        // MQ push targeted only at user 1
+        Assertions.assertEquals(1L, chatMqProducer.lastSessionUpdateUserId);
+        ChatSessionVO vo = (ChatSessionVO) chatMqProducer.lastSessionUpdatePayload;
+        Assertions.assertEquals(1, vo.getMuteStatus());
+    }
+
+    @Test
+    void shouldUnmuteSessionOnlyForCurrentUser() {
+        ChatSession user1Session = createSession(1L, 10L, 1, 0);
+        user1Session.setUserId(1L);
+        user1Session.setMuteStatus(1);
+        chatSessionService.getOneResult = user1Session;
+        rooms = List.of(createRoom(1L, ChatRoomTypeEnum.GROUP.getCode(), "group"));
+
+        boolean result = chatSessionService.muteSession(1L, 1L, 0);
+
+        Assertions.assertTrue(result);
+        Assertions.assertEquals(0, user1Session.getMuteStatus());
+        Assertions.assertEquals(1L, chatMqProducer.lastSessionUpdateUserId);
+    }
+
+    // ========== STE-98: Stale message boundary ==========
+
+    @Test
+    void shouldNotUpdateSessionWhenStaleMessageAppliedInBatchUpdate() {
+        // Session already has lastMessageId=15; batch update tries to apply message 10
+        ChatSession existing = createSession(1L, 15L, 3, 0);
+        existing.setUserId(2L);
+        chatSessionService.listResult = List.of(existing);
+
+        chatSessionService.updateSessionBatch(List.of(2L), 1L, 10L, 1L);
+
+        // Stale message (10 < 15) should not update session — batch saved should be empty
+        Assertions.assertEquals(0, chatSessionService.lastBatchSaved.size());
+    }
+
+    @Test
+    void shouldNotIncrementUnreadWhenStaleMessageAppliedToSingleSession() {
+        ChatSession existing = createSession(1L, 15L, 3, 0);
+        existing.setUserId(2L);
+        chatSessionService.getOneResult = existing;
+
+        chatSessionService.updateSession(2L, 1L, 10L, true);
+
+        // Stale message should not save
+        Assertions.assertEquals(0, chatSessionService.saveOrUpdateCount);
+        Assertions.assertEquals(3, existing.getUnreadCount());
+    }
+
+    @Test
+    void shouldUpdateSessionWhenNewerMessageApplied() {
+        ChatSession existing = createSession(1L, 10L, 3, 0);
+        existing.setUserId(2L);
+        chatSessionService.getOneResult = existing;
+
+        chatSessionService.updateSession(2L, 1L, 15L, true);
+
+        // Newer message should update
+        Assertions.assertEquals(1, chatSessionService.saveOrUpdateCount);
+        Assertions.assertEquals(4, existing.getUnreadCount());
+        Assertions.assertEquals(15L, existing.getLastMessageId());
+    }
+
     private ChatSession createSession(Long roomId, Long lastMessageId, Integer unreadCount, Integer topStatus) {
         ChatSession session = new ChatSession();
         session.setRoomId(roomId);
@@ -511,8 +640,8 @@ class ChatSessionServiceImplTest {
                 (proxy, method, args) -> {
                     return switch (method.getName()) {
                         case "isMember" -> member;
-                        case "getMember" -> roomMember;
-                        case "updateById" -> true;
+                        case "getMember" -> nullMember ? null : roomMember;
+                        case "update", "updateById" -> true;
                         default -> defaultValue(method.getReturnType());
                     };
                 }
@@ -552,6 +681,19 @@ class ChatSessionServiceImplTest {
         @Override
         public boolean updateById(ChatSession entity) {
             this.getOneResult = entity;
+            return true;
+        }
+
+        @Override
+        public boolean update(Wrapper<ChatSession> updateWrapper) {
+            if (getOneResult != null) {
+                getOneResult.setUnreadCount(0);
+                Long lastMessageId = getOneResult.getLastMessageId();
+                Long oldRead = getOneResult.getLastReadMessageId();
+                if (lastMessageId != null && (oldRead == null || lastMessageId > oldRead)) {
+                    getOneResult.setLastReadMessageId(lastMessageId);
+                }
+            }
             return true;
         }
 
