@@ -4,8 +4,10 @@ import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.stephen.cloud.api.chat.model.dto.ChatMomentMediaRequest;
 import com.stephen.cloud.api.chat.model.dto.ChatMomentCommentRequest;
 import com.stephen.cloud.api.chat.model.dto.ChatMomentPublishRequest;
+import com.stephen.cloud.api.chat.model.dto.MomentCreateRequest;
 import com.stephen.cloud.api.chat.model.vo.ChatMomentCommentVO;
 import com.stephen.cloud.api.chat.model.vo.ChatMomentVO;
+import com.stephen.cloud.api.chat.model.vo.MomentVO;
 import com.stephen.cloud.chat.model.entity.ChatMoment;
 import com.stephen.cloud.chat.model.entity.ChatMomentComment;
 import com.stephen.cloud.chat.model.entity.ChatMomentLike;
@@ -439,6 +441,62 @@ class ChatMomentServiceImplTest {
         Assertions.assertTrue(chatMomentService.sentNotifications.isEmpty());
     }
 
+    // --- createMoment tests (STE-170) ---
+
+    @Test
+    void shouldCreateTextMomentWithDefaultPublicVisibility() {
+        MomentCreateRequest request = new MomentCreateRequest();
+        request.setContent("hello from createMoment");
+
+        MomentVO vo = chatMomentService.createMoment(1L, request);
+
+        Assertions.assertNotNull(vo);
+        Assertions.assertEquals(100L, vo.getId());
+        Assertions.assertEquals(1L, vo.getUserId());
+        Assertions.assertEquals("hello from createMoment", vo.getContent());
+        Assertions.assertEquals(0, vo.getMediaCount());
+        Assertions.assertEquals(0, vo.getLikeCount());
+        Assertions.assertEquals(0, vo.getCommentCount());
+        Assertions.assertEquals(1, vo.getVisibility());
+        Assertions.assertNotNull(vo.getMediaList());
+        Assertions.assertTrue(vo.getMediaList().isEmpty());
+    }
+
+    @Test
+    void shouldCreateMomentWithExplicitFriendVisibility() {
+        MomentCreateRequest request = new MomentCreateRequest();
+        request.setContent("friend only");
+        request.setVisibility(0);
+
+        MomentVO vo = chatMomentService.createMoment(1L, request);
+
+        Assertions.assertEquals(0, vo.getVisibility());
+    }
+
+    @Test
+    void shouldCreateImageMomentWithMedia() {
+        MomentCreateRequest request = new MomentCreateRequest();
+        request.setContent("with images");
+        request.setMediaList(List.of(
+                media("https://example.com/a.png", 0),
+                media("https://example.com/b.png", 1)));
+
+        MomentVO vo = chatMomentService.createMoment(1L, request);
+
+        Assertions.assertEquals(2, vo.getMediaCount());
+        Assertions.assertEquals(2, vo.getMediaList().size());
+        Assertions.assertEquals("https://example.com/a.png", vo.getMediaList().get(0).getUrl());
+        Assertions.assertEquals("https://example.com/b.png", vo.getMediaList().get(1).getUrl());
+        Assertions.assertEquals(1, vo.getVisibility());
+    }
+
+    @Test
+    void shouldRejectEmptyCreateMomentRequest() {
+        MomentCreateRequest request = new MomentCreateRequest();
+
+        Assertions.assertThrows(RuntimeException.class, () -> chatMomentService.createMoment(1L, request));
+    }
+
     private static ChatMomentMediaRequest media(String url, int sortOrder) {
         ChatMomentMediaRequest request = new ChatMomentMediaRequest();
         request.setUrl(url);
@@ -534,6 +592,10 @@ class ChatMomentServiceImplTest {
         protected boolean saveMoment(ChatMoment moment) {
             moment.setId(100L);
             this.savedMoment = moment;
+            // Auto-register so getMomentIncludingDeleted works in createMoment flow
+            Map<Long, ChatMoment> updated = new java.util.HashMap<>(momentById);
+            updated.put(100L, moment);
+            momentById = updated;
             return true;
         }
 
@@ -598,7 +660,31 @@ class ChatMomentServiceImplTest {
 
         @Override
         protected Map<Long, List<com.stephen.cloud.api.chat.model.vo.ChatMomentMediaVO>> listMomentMediaMap(List<Long> momentIds) {
-            return Map.of();
+            if (savedMediaList.isEmpty()) {
+                return Map.of();
+            }
+            // Build media VO map from saved media for createMoment flow
+            Map<Long, List<com.stephen.cloud.api.chat.model.vo.ChatMomentMediaVO>> result = new java.util.HashMap<>();
+            for (Long momentId : momentIds) {
+                List<com.stephen.cloud.api.chat.model.vo.ChatMomentMediaVO> vos = savedMediaList.stream()
+                        .filter(m -> momentId.equals(m.getMomentId()))
+                        .map(m -> {
+                            com.stephen.cloud.api.chat.model.vo.ChatMomentMediaVO vo = new com.stephen.cloud.api.chat.model.vo.ChatMomentMediaVO();
+                            vo.setId(m.getId() != null ? m.getId() : 1L);
+                            vo.setMomentId(m.getMomentId());
+                            vo.setUrl(m.getUrl());
+                            vo.setWidth(m.getWidth());
+                            vo.setHeight(m.getHeight());
+                            vo.setSize(m.getSize());
+                            vo.setSortOrder(m.getSortOrder());
+                            return vo;
+                        })
+                        .toList();
+                if (!vos.isEmpty()) {
+                    result.put(momentId, vos);
+                }
+            }
+            return result;
         }
 
         @Override
