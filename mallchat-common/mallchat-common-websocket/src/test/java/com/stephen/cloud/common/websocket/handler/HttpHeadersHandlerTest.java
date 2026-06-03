@@ -2,6 +2,7 @@ package com.stephen.cloud.common.websocket.handler;
 
 import cn.dev33.satoken.stp.StpUtil;
 import com.stephen.cloud.common.websocket.config.WebSocketProperties;
+import io.netty.buffer.ByteBuf;
 import io.netty.channel.embedded.EmbeddedChannel;
 import io.netty.handler.codec.http.DefaultFullHttpRequest;
 import io.netty.handler.codec.http.FullHttpRequest;
@@ -15,6 +16,7 @@ import org.junit.jupiter.api.Test;
 import org.mockito.MockedStatic;
 import org.mockito.Mockito;
 
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 
 class HttpHeadersHandlerTest {
@@ -116,6 +118,50 @@ class HttpHeadersHandlerTest {
 
         FullHttpResponse response = channel.readOutbound();
         Assertions.assertEquals(HttpResponseStatus.FORBIDDEN, response.status());
+        Assertions.assertNull(channel.attr(HttpHeadersHandler.ATTR_USER_ID).get());
+        response.release();
+        channel.finishAndReleaseAll();
+    }
+
+    @Test
+    void shouldRejectHandshakeWhenTokenExpired() {
+        EmbeddedChannel channel = new EmbeddedChannel(new HttpHeadersHandler());
+        FullHttpRequest request = newRequest("/websocket");
+        request.headers().set(HttpHeaderNames.AUTHORIZATION, "Bearer expired-token");
+
+        try (MockedStatic<StpUtil> stpUtil = Mockito.mockStatic(StpUtil.class)) {
+            stpUtil.when(() -> StpUtil.getLoginIdByToken("expired-token")).thenReturn(null);
+
+            Assertions.assertFalse(channel.writeInbound(request));
+        }
+
+        FullHttpResponse response = channel.readOutbound();
+        Assertions.assertEquals(HttpResponseStatus.UNAUTHORIZED, response.status());
+        ByteBuf content = response.content();
+        String body = content.toString(StandardCharsets.UTF_8);
+        Assertions.assertTrue(body.contains("过期"), "响应体应包含过期提示，实际: " + body);
+        Assertions.assertNull(channel.attr(HttpHeadersHandler.ATTR_USER_ID).get());
+        response.release();
+        channel.finishAndReleaseAll();
+    }
+
+    @Test
+    void shouldRejectHandshakeWhenTokenKickedByNewDevice() {
+        EmbeddedChannel channel = new EmbeddedChannel(new HttpHeadersHandler());
+        FullHttpRequest request = newRequest("/websocket");
+        request.headers().set(HttpHeaderNames.AUTHORIZATION, "Bearer kicked-token");
+
+        try (MockedStatic<StpUtil> stpUtil = Mockito.mockStatic(StpUtil.class)) {
+            stpUtil.when(() -> StpUtil.getLoginIdByToken("kicked-token")).thenReturn(null);
+
+            Assertions.assertFalse(channel.writeInbound(request));
+        }
+
+        FullHttpResponse response = channel.readOutbound();
+        Assertions.assertEquals(HttpResponseStatus.UNAUTHORIZED, response.status());
+        ByteBuf content = response.content();
+        String body = content.toString(StandardCharsets.UTF_8);
+        Assertions.assertTrue(body.contains("过期"), "响应体应包含过期提示，实际: " + body);
         Assertions.assertNull(channel.attr(HttpHeadersHandler.ATTR_USER_ID).get());
         response.release();
         channel.finishAndReleaseAll();
