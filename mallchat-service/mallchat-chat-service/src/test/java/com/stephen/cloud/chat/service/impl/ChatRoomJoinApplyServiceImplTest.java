@@ -245,6 +245,39 @@ class ChatRoomJoinApplyServiceImplTest {
         Assertions.assertEquals(2L, notifications.get(0).getUserId());
     }
 
+    @Test
+    void shouldRejectJoinApplyAndNotifyApplicant() {
+        storedApply = buildPendingApply();
+
+        ChatRoomJoinApproveRequest request = new ChatRoomJoinApproveRequest();
+        request.setApplyId(100L);
+        request.setStatus(3);
+
+        boolean result = service.approveJoinRoom(request, 1L);
+
+        Assertions.assertTrue(result);
+        Assertions.assertEquals(3, storedApply.getStatus());
+        Assertions.assertNull(storedApply.getActiveKey());
+        Assertions.assertTrue(addedMembers.isEmpty());
+        Assertions.assertTrue(updatedSessions.isEmpty());
+        Assertions.assertEquals(1, notifications.size());
+        Assertions.assertEquals(2L, notifications.get(0).getUserId());
+    }
+
+    @Test
+    void shouldNotifyManagersWhenNewJoinApplyCreated() {
+        ChatRoomJoinApplyRequest request = new ChatRoomJoinApplyRequest();
+        request.setRoomId(90L);
+        request.setMsg("please let me in");
+
+        Long applyId = service.applyJoinRoom(request, 2L);
+
+        Assertions.assertEquals(100L, applyId);
+        Assertions.assertEquals(1, notifications.size());
+        Assertions.assertEquals(1L, notifications.get(0).getUserId());
+        Assertions.assertEquals("入群申请", notifications.get(0).getTitle());
+    }
+
     private ChatRoomJoinApply buildPendingApply() {
         ChatRoomJoinApply apply = new ChatRoomJoinApply();
         apply.setId(100L);

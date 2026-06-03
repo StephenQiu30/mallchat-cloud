@@ -567,6 +567,38 @@ class ChatRoomServiceImplTest {
     }
 
     @Test
+    void shouldReturnExistingPrivateRoomWhenCalledTwiceForSameUserPair() {
+        mutualFriend = true;
+        existingRoom = new ChatPrivateRoom();
+        existingRoom.setRoomId(88L);
+
+        Long firstCall = chatRoomService.getOrCreatePrivateRoom(2L, 1L);
+        Long secondCall = chatRoomService.getOrCreatePrivateRoom(1L, 2L);
+
+        Assertions.assertEquals(88L, firstCall);
+        Assertions.assertEquals(88L, secondCall);
+        Assertions.assertFalse(privateRoomMappingSaved);
+    }
+
+    @Test
+    void shouldCreateGroupRoomWithOwnerAndInitialMembers() {
+        mutualFriend = true;
+
+        ChatRoom room = new ChatRoom();
+        room.setName("test-group");
+        room.setAvatar("group-avatar");
+
+        Long roomId = chatRoomService.addChatRoom(room, List.of(2L, 3L), "welcome", 1L);
+
+        Assertions.assertEquals(100L, roomId);
+        Assertions.assertEquals(ChatRoomTypeEnum.GROUP.getCode(), room.getType());
+        Assertions.assertEquals(1L, room.getCreateUser());
+        Assertions.assertTrue(addedMembers.contains(1L));
+        Assertions.assertTrue(addedMembers.contains(2L));
+        Assertions.assertTrue(addedMembers.contains(3L));
+    }
+
+    @Test
     void shouldDismissGroupWhenSessionDeletePushThrows() {
         chatRoomService.stubRoom = buildGroupRoom();
         currentUserIsMember = true;
