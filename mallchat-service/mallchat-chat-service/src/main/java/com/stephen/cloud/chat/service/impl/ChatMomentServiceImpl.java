@@ -9,9 +9,11 @@ import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.stephen.cloud.api.chat.model.dto.ChatMomentCommentRequest;
 import com.stephen.cloud.api.chat.model.dto.ChatMomentMediaRequest;
 import com.stephen.cloud.api.chat.model.dto.ChatMomentPublishRequest;
+import com.stephen.cloud.api.chat.model.dto.MomentCreateRequest;
 import com.stephen.cloud.api.chat.model.vo.ChatMomentCommentVO;
 import com.stephen.cloud.api.chat.model.vo.ChatMomentMediaVO;
 import com.stephen.cloud.api.chat.model.vo.ChatMomentVO;
+import com.stephen.cloud.api.chat.model.vo.MomentVO;
 import com.stephen.cloud.api.notification.client.NotificationFeignClient;
 import com.stephen.cloud.api.notification.model.dto.NotificationCreateRequest;
 import com.stephen.cloud.api.notification.model.enums.NotificationTypeEnum;
@@ -113,6 +115,21 @@ public class ChatMomentServiceImpl extends ServiceImpl<ChatMomentMapper, ChatMom
             ThrowUtils.throwIf(!mediaSaved, ErrorCode.OPERATION_ERROR, "保存动态媒体失败");
         }
         return moment.getId();
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public MomentVO createMoment(Long userId, MomentCreateRequest request) {
+        ThrowUtils.throwIf(userId == null || request == null, ErrorCode.PARAMS_ERROR);
+        ChatMomentPublishRequest publishRequest = new ChatMomentPublishRequest();
+        publishRequest.setContent(request.getContent());
+        publishRequest.setVisibility(request.getVisibility() != null ? request.getVisibility() : VISIBILITY_PUBLIC);
+        publishRequest.setMediaList(request.getMediaList());
+        Long momentId = publish(userId, publishRequest);
+        ChatMoment moment = getMomentIncludingDeleted(momentId);
+        Map<Long, List<ChatMomentMediaVO>> mediaMap = listMomentMediaMap(List.of(momentId));
+        List<ChatMomentMediaVO> mediaVOs = mediaMap.getOrDefault(momentId, Collections.emptyList());
+        return toMomentVO(moment, mediaVOs);
     }
 
     @Override
@@ -488,6 +505,20 @@ public class ChatMomentServiceImpl extends ServiceImpl<ChatMomentMapper, ChatMom
             log.warn("[ChatMomentServiceImpl] 发送动态互动通知失败, momentId: {}, actorUserId: {}, type: {}, reason: {}",
                     moment.getId(), actorUserId, type, e.getMessage());
         }
+    }
+
+    private MomentVO toMomentVO(ChatMoment moment, List<ChatMomentMediaVO> mediaList) {
+        MomentVO vo = new MomentVO();
+        vo.setId(moment.getId());
+        vo.setUserId(moment.getUserId());
+        vo.setContent(moment.getContent());
+        vo.setMediaCount(moment.getMediaCount());
+        vo.setLikeCount(moment.getLikeCount());
+        vo.setCommentCount(moment.getCommentCount());
+        vo.setVisibility(moment.getVisibility());
+        vo.setMediaList(mediaList);
+        vo.setCreateTime(moment.getCreateTime());
+        return vo;
     }
 
     private ChatMomentVO toVO(ChatMoment moment, List<ChatMomentMediaVO> mediaList) {
