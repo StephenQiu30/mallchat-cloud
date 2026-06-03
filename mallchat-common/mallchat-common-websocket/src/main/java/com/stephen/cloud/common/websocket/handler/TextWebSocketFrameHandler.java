@@ -33,6 +33,9 @@ public class TextWebSocketFrameHandler extends SimpleChannelInboundHandler<TextW
 
     private static final AttributeKey<String> ATTR_USER_ID = AttributeKey.valueOf("ws_user_id");
 
+    static final AttributeKey<DisconnectReason> ATTR_DISCONNECT_REASON =
+            AttributeKey.valueOf("ws_disconnect_reason");
+
     private final ChannelManager channelManager;
 
     /**
@@ -82,6 +85,7 @@ public class TextWebSocketFrameHandler extends SimpleChannelInboundHandler<TextW
 
             String authedUserId = ctx.channel().attr(ATTR_USER_ID).get();
             if (authedUserId == null) {
+                ctx.channel().attr(ATTR_DISCONNECT_REASON).set(DisconnectReason.SERVER_CLOSE);
                 sendErrorMessage(ctx, "未认证连接，禁止发送业务消息");
                 ctx.close();
                 return;
@@ -144,15 +148,20 @@ public class TextWebSocketFrameHandler extends SimpleChannelInboundHandler<TextW
 
     /**
      * 当客户端断开连接时被调用
-     * 从ChannelManager中移除该客户端
+     * 从ChannelManager中移除该客户端，记录断线原因
      *
      * @param ctx ChannelHandlerContext
      */
     @Override
     public void handlerRemoved(ChannelHandlerContext ctx) {
+        // 读取断线原因，未标记时默认为客户端主动关闭
+        DisconnectReason reason = ctx.channel().attr(ATTR_DISCONNECT_REASON).get();
+        if (reason == null) {
+            reason = DisconnectReason.CLIENT_CLOSE;
+        }
         // 从管理器中移除连接
-        channelManager.removeChannel(ctx.channel());
-        log.info("WebSocket 连接断开：{}", ctx.channel().id().asLongText());
+        channelManager.removeChannel(ctx.channel(), reason);
+        log.info("WebSocket 连接断开：{}, 原因：{}", ctx.channel().id().asLongText(), reason);
     }
 
     /**
@@ -165,6 +174,7 @@ public class TextWebSocketFrameHandler extends SimpleChannelInboundHandler<TextW
             if (event.state() == IdleState.READER_IDLE) {
                 // 读空闲，即客户端长时间没有发送数据
                 log.warn("连接 {} 读空闲，关闭连接", ctx.channel().id().asLongText());
+                ctx.channel().attr(ATTR_DISCONNECT_REASON).set(DisconnectReason.TIMEOUT);
                 ctx.close();
             } else if (event.state() == IdleState.WRITER_IDLE) {
                 // 写空闲，服务器主动发送心跳
@@ -200,10 +210,16 @@ public class TextWebSocketFrameHandler extends SimpleChannelInboundHandler<TextW
      */
     @Override
     public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) {
+        // 标记断线原因为异常
+        ctx.channel().attr(ATTR_DISCONNECT_REASON).set(DisconnectReason.EXCEPTION);
         // 记录异常信息
         log.error("WebSocket 连接发生异常：{}", cause.getMessage(), cause);
-        // 向客户端发送错误信息
-        sendErrorMessage(ctx, "服务器错误：" + cause.getMessage());
+        // 向客户端发送错误信息（保护：通道可能已关闭）
+        try {
+            sendErrorMessage(ctx, "服务器错误：" + cause.getMessage());
+        } catch (Exception e) {
+            log.debug("发送异常错误消息失败，通道可能已关闭：{}", e.getMessage());
+        }
         // 关闭当前的 Channel 连接
         ctx.close();
     }

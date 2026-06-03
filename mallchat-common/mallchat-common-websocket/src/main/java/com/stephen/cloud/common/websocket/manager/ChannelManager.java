@@ -1,7 +1,7 @@
 package com.stephen.cloud.common.websocket.manager;
 
-import com.stephen.cloud.common.cache.constants.ChatCacheConstant;
 import com.stephen.cloud.common.cache.utils.CacheUtils;
+import com.stephen.cloud.common.websocket.handler.DisconnectReason;
 import com.stephen.cloud.common.constants.WebSocketConstant;
 import com.stephen.cloud.common.rabbitmq.enums.ImWebSocketEventTypeEnum;
 import com.stephen.cloud.common.rabbitmq.enums.MqBizTypeEnum;
@@ -61,6 +61,15 @@ public class ChannelManager {
 
     private final AtomicLong abnormalDisconnectCount = new AtomicLong();
 
+    private final Map<DisconnectReason, AtomicLong> disconnectReasonCounters = new ConcurrentHashMap<>(
+            Map.of(
+                    DisconnectReason.TIMEOUT, new AtomicLong(),
+                    DisconnectReason.EXCEPTION, new AtomicLong(),
+                    DisconnectReason.CLIENT_CLOSE, new AtomicLong(),
+                    DisconnectReason.SERVER_CLOSE, new AtomicLong()
+            )
+    );
+
     /**
      * 本地连接映射：userId -> (channelId -> Channel)
      */
@@ -116,6 +125,14 @@ public class ChannelManager {
     }
 
     public synchronized void removeChannel(Channel channel) {
+        removeChannel(channel, null);
+    }
+
+    public synchronized void removeChannel(Channel channel, DisconnectReason reason) {
+        if (reason != null) {
+            disconnectReasonCounters.get(reason).incrementAndGet();
+        }
+
         String channelId = channel.id().asLongText();
         String userId = channelUserMap.remove(channelId);
         String connectionId = channelConnectionMap.remove(channelId);
@@ -127,7 +144,8 @@ public class ChannelManager {
             }
             abnormalDisconnectCount.incrementAndGet();
             channels.remove(channel);
-            log.warn("[ChannelManager] 未登记连接断开, channelId: {}", channel.id().asShortText());
+            log.warn("[ChannelManager] 未登记连接断开, channelId: {}, reason: {}",
+                    channel.id().asShortText(), reason);
             return;
         }
 
@@ -141,7 +159,8 @@ public class ChannelManager {
         channels.remove(channel);
 
         removePersistedConnection(userId, connectionId);
-        log.info("[ChannelManager] 用户断开连接, userId: {}, channelId: {}", userId, channel.id().asShortText());
+        log.info("[ChannelManager] 用户断开连接, userId: {}, channelId: {}, reason: {}",
+                userId, channel.id().asShortText(), reason);
 
         if (!isUserOnlineDistributed(userId)) {
             notifyOnlineStatusChanged(userId, false);
@@ -250,6 +269,16 @@ public class ChannelManager {
 
     public long getAbnormalDisconnectCount() {
         return abnormalDisconnectCount.get();
+    }
+
+    public long getDisconnectCount(DisconnectReason reason) {
+        return disconnectReasonCounters.getOrDefault(reason, new AtomicLong()).get();
+    }
+
+    public Map<DisconnectReason, Long> getDisconnectReasonMetrics() {
+        Map<DisconnectReason, Long> result = new HashMap<>();
+        disconnectReasonCounters.forEach((reason, counter) -> result.put(reason, counter.get()));
+        return result;
     }
 
     public String getUserServerId(String userId) {
