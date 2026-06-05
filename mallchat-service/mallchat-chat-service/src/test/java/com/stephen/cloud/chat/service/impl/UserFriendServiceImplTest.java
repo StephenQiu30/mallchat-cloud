@@ -241,6 +241,29 @@ class UserFriendServiceImplTest {
     }
 
     @Test
+    void shouldAddFriendIdempotently() {
+        userFriendService.setTargetUser(stranger);
+        userFriendService.setCountResult(1L);
+        cacheUtils.sAdd(ChatCacheConstant.getUserFriendKey(1L), "3");
+        cacheUtils.sAdd(ChatCacheConstant.getUserFriendKey(3L), "1");
+
+        userFriendService.addFriend(1L, 3L);
+
+        // Should not call save since it exists
+        Assertions.assertTrue(userFriendService.savedFriends.isEmpty());
+        // Should sync to cache anyway
+        Assertions.assertTrue(cacheUtils.sIsMember(ChatCacheConstant.getUserFriendKey(1L), "3"));
+        Assertions.assertTrue(cacheUtils.sIsMember(ChatCacheConstant.getUserFriendKey(3L), "1"));
+    }
+
+    @Test
+    void shouldRejectAddSelfAsFriend() {
+        BusinessException exception = Assertions.assertThrows(BusinessException.class,
+                () -> userFriendService.addFriend(1L, 1L));
+        Assertions.assertEquals(ErrorCode.PARAMS_ERROR.getCode(), exception.getCode());
+    }
+
+    @Test
     void shouldExcludeBlockedFriendsFromMutualFriendIds() {
         userFriendService.listResult = List.of(createFriend(1L, 2L), createFriend(1L, 3L));
         userFriendService.setBlockBetween(1L, 2L, true);
@@ -307,6 +330,16 @@ class UserFriendServiceImplTest {
                 UserFeignClient.class.getClassLoader(),
                 new Class[]{UserFeignClient.class},
                 (proxy, method, args) -> {
+                    if ("getUserVOById".equals(method.getName())) {
+                        Long id = (Long) args[0];
+                        UserVO user = null;
+                        if (friend.getId().equals(id)) {
+                            user = friend;
+                        } else if (stranger.getId().equals(id)) {
+                            user = stranger;
+                        }
+                        return new BaseResponse<>(ErrorCode.SUCCESS.getCode(), user, "ok");
+                    }
                     if ("listUserByPage".equals(method.getName())) {
                         userFriendService.setCapturedSearchRequest((UserQueryRequest) args[0]);
                         Page<UserVO> searchUsersPage = userFriendService.getSearchUsersPage();
@@ -382,10 +415,24 @@ class UserFriendServiceImplTest {
         private Page<UserVO> searchUsersPage = new Page<>();
         private UserQueryRequest capturedSearchRequest;
         private Map<Long, Integer> onlineStatusMap = new HashMap<>();
+        private long countResult;
+        private boolean saveResult;
+        private final List<UserFriend> savedFriends = new ArrayList<>();
 
         @Override
         public List<UserFriend> list(Wrapper<UserFriend> queryWrapper) {
             return new ArrayList<>(listResult);
+        }
+
+        @Override
+        public long count(Wrapper<UserFriend> queryWrapper) {
+            return countResult;
+        }
+
+        @Override
+        public boolean save(UserFriend entity) {
+            this.savedFriends.add(entity);
+            return saveResult;
         }
 
         @Override
@@ -512,6 +559,10 @@ class UserFriendServiceImplTest {
 
         void setRemoveResult(boolean result) {
             this.removeResult = result;
+        }
+
+        void setCountResult(long countResult) {
+            this.countResult = countResult;
         }
 
         private static String key(Long userId, Long targetId) {

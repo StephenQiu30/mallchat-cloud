@@ -74,6 +74,37 @@ class UserFriendApplyServiceImplTest {
     }
 
     @Test
+    void shouldRejectApplyToSelf() {
+        UserFriendApply apply = new UserFriendApply();
+        apply.setTargetId(1L);
+        apply.setMsg("hello");
+
+        BusinessException exception = Assertions.assertThrows(BusinessException.class,
+                () -> userFriendApplyService.applyFriend(apply, 1L));
+
+        Assertions.assertEquals(ErrorCode.PARAMS_ERROR.getCode(), exception.getCode());
+        Assertions.assertEquals("不能添加自己为好友", exception.getMessage());
+    }
+
+    @Test
+    void shouldRejectApplyToExistingFriend() {
+        UserVO targetUser = new UserVO();
+        targetUser.setId(2L);
+        users.put(2L, targetUser);
+        userFriendService.mutualFriend = true;
+
+        UserFriendApply apply = new UserFriendApply();
+        apply.setTargetId(2L);
+        apply.setMsg("hello");
+
+        BusinessException exception = Assertions.assertThrows(BusinessException.class,
+                () -> userFriendApplyService.applyFriend(apply, 1L));
+
+        Assertions.assertEquals(ErrorCode.OPERATION_ERROR.getCode(), exception.getCode());
+        Assertions.assertEquals("已经是好友了", exception.getMessage());
+    }
+
+    @Test
     void shouldRejectReverseDirectionPendingApplication() {
         UserVO targetUser = new UserVO();
         targetUser.setId(2L);
