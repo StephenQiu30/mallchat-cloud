@@ -370,7 +370,7 @@ CREATE TABLE `chat_message`
     `update_time`  datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
     `is_delete`    tinyint  NOT NULL DEFAULT 0 COMMENT '是否删除',
     PRIMARY KEY (`id`),
-    UNIQUE KEY `uk_from_user_client_msg` (`from_user_id`, `client_msg_id`),
+    UNIQUE KEY `uk_from_user_room_client_msg` (`from_user_id`, `room_id`, `client_msg_id`),
     KEY `idx_from_user_id` (`from_user_id`),
     KEY `idx_room_id_id` (`room_id`, `id` DESC),
     KEY `idx_reply_msg_id` (`reply_msg_id`)
