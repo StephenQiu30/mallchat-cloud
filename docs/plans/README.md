@@ -21,4 +21,6 @@
 
 ## 文档清单
 
-当前目录仅保留分类说明。新增长期计划文档后，再在本节补充文件链接和一句话说明。
+| 文档 | 说明 |
+|------|------|
+| [001-im-production-task-orchestration-plan.md](./001-im-production-task-orchestration-plan.md) | IM 生产化任务编排计划 |

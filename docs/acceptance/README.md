@@ -10,7 +10,9 @@
 
 ## 文档清单
 
-当前没有需要长期保留的独立验收文档。单次任务的测试记录、PR 验证命令和过程性结果写在 PR 或 Issue 中，不再沉淀到 `docs/acceptance/`。
+| 文档 | 说明 |
+|------|------|
+| [001-im-e2e-rag-acceptance.md](./001-im-e2e-rag-acceptance.md) | IM E2E 与 RAG 验收 |
 
 ## 不适合放入
 

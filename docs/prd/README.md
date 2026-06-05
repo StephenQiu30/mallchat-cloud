@@ -22,6 +22,12 @@ PRD 的核心目的不是堆叠描述，而是让需求更清楚，让代码更�
 
 使用 `序号-主题.md`，例如 `001-agent协作规范需求.md`。
 
+## 文档清单
+
+| 文档 | 说明 |
+|------|------|
+| [001-im-system-srd.md](./001-im-system-srd.md) | IM 系统生产化 SRD |
+
 ## 推荐结构
 
 PRD 应优先使用 `docs/TEMPLATE.md` 的 frontmatter，并按以下结构扩展：
