@@ -931,6 +931,54 @@ class ChatMessageServiceImplTest {
         );
     }
 
+    @Test
+    void shouldAllowSameClientMsgIdInDifferentRooms() {
+        roomsById.put(1L, createRoom(1L, ChatRoomTypeEnum.GROUP.getCode()));
+        roomsById.put(2L, createRoom(2L, ChatRoomTypeEnum.GROUP.getCode()));
+        roomMembership.put(1L, true);
+        roomMembership.put(2L, true);
+
+        // Use a distinct userId to avoid collision with roomId in mock's params.containsValue
+        Long testUserId = 999L;
+        usersById.put(testUserId, buildUser(testUserId, "Tester"));
+
+        // Send to room 1
+        ChatMessage message1 = createTextMessage(1L, "cross-room-1", "hello room 1");
+        ChatMessageVO result1 = chatMessageService.sendMessage(message1, testUserId);
+        Assertions.assertEquals(100L, result1.getId());
+
+        // Simulate message 1 is now in DB
+        ChatMessage existing = new ChatMessage();
+        existing.setId(100L);
+        existing.setRoomId(1L);
+        existing.setFromUserId(testUserId);
+        existing.setClientMsgId("cross-room-1");
+        chatMessageService.existingByClient = existing;
+
+        // Send same clientMsgId to room 2
+        // This should SUCCEED because it's a different room
+        ChatMessage message2 = createTextMessage(2L, "cross-room-1", "hello room 2");
+        ChatMessageVO result2 = chatMessageService.sendMessage(message2, testUserId);
+
+        Assertions.assertNotEquals(result1.getId(), result2.getId());
+        Assertions.assertEquals(101L, result2.getId());
+        Assertions.assertEquals(2L, chatMqProducer.lastGroupPushRoomId);
+    }
+
+    @Test
+    void shouldEnforceIdempotencyInSameRoomWithRoomId() {
+        ChatMessage existing = createStoredMessage(88L, 1L);
+        existing.setClientMsgId("same-room-1");
+        chatMessageService.existingByClient = existing;
+
+        ChatMessage message = createTextMessage(1L, "same-room-1", "hello again");
+        ChatMessageVO result = chatMessageService.sendMessage(message, 1L);
+
+        Assertions.assertEquals(88L, result.getId());
+        // Verify that the query included roomId
+        Assertions.assertTrue(chatMessageService.lastQuerySql.contains("room_id"));
+    }
+
     private class TestableChatMessageServiceImpl extends ChatMessageServiceImpl {
         private ChatMessage existingByClient;
         private ChatMessage messageById;
@@ -945,10 +993,29 @@ class ChatMessageServiceImplTest {
         private Long updatedLastReadMessageId;
         private Page<ChatMessage> searchPageResult = new Page<>(1, 20, 0);
         private String searchSqlSegment;
+        private String lastQuerySql;
+        private long idCounter = 100L;
 
         @Override
         public ChatMessage getOne(Wrapper<ChatMessage> queryWrapper) {
+            lastQuerySql = queryWrapper.getSqlSegment();
             if (existingByClient != null) {
+                // LambdaQueryWrapper SQL segment for eq(ChatMessage::getRoomId, roomId)
+                // usually contains "room_id = ?"
+                if (lastQuerySql.contains("room_id")) {
+                    // Check if the roomId matches. 
+                    if (queryWrapper instanceof com.baomidou.mybatisplus.core.conditions.AbstractWrapper<?, ?, ?> abstractWrapper) {
+                        Map<String, Object> params = abstractWrapper.getParamNameValuePairs();
+                        // We check if the params contains the correct roomId.
+                        // To avoid false positives with userId, we should be careful.
+                        // But in our test, we use testUserId = 999L, and roomId = 1L or 2L.
+                        if (params.containsValue(existingByClient.getRoomId())) {
+                            return existingByClient;
+                        }
+                    }
+                    return null;
+                }
+                // Buggy behavior: no room_id in query, return existing regardless
                 return existingByClient;
             }
             return messageByRoomQuery;
@@ -966,7 +1033,7 @@ class ChatMessageServiceImplTest {
                 throw new org.springframework.dao.DuplicateKeyException("duplicate client msg id");
             }
             if (saveResult && entity.getId() == null) {
-                entity.setId(100L);
+                entity.setId(idCounter++);
                 entity.setCreateTime(new Date());
             }
             this.messageById = entity;
