@@ -12,4 +12,6 @@
 
 1. 本项目内的角色配置放在 `.claude/agents/` 目录。
 2. 本项目内的可复用流程放在 `.claude/skills/` 目录。
-3. 本项目不再维护额外规格配置；`docs/` 目录保留分类结构和 README 骨架。
+3. 本项目按 `StephenQiu30/stephen-cladue` 接入 Claude 规范资产，包括角色、skills、Workpad、TDD、提交、PR 和 Linear 协作流程。
+4. 项目级 IM 生产化、接口契约、CI focused tests、docs 分类和数据库事实源规则以本仓库 `AGENTS.md`、`CLAUDE.md`、`WORKFLOW.md`、`scripts/validate-repository.sh` 和 `.github/` 配置为准，不用模板覆盖本地增强。
+5. 本项目不再维护额外规格配置；`docs/` 目录保留分类结构和 README 骨架。
