@@ -29,6 +29,7 @@ required_files=(
   "docs/plans/README.md"
   "docs/design/README.md"
   "docs/acceptance/README.md"
+  "docs/acceptance/001-im-e2e-rag-acceptance.md"
   "docs/operations/README.md"
 )
 
