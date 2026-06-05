@@ -87,6 +87,9 @@ require_text .github/pull_request_template.md "Readonly review result" "PR 模�
 
 require_text WORKFLOW.md "tracker:" "WORKFLOW.md 缺少 tracker 配置"
 require_text WORKFLOW.md "kind: linear" "WORKFLOW.md 缺少 Linear tracker 配置"
+require_text WORKFLOW.md "default_runtime: gemini" "WORKFLOW.md 缺少 Gemini 默认运行时"
+require_text WORKFLOW.md "agent:gemini: gemini" "WORKFLOW.md 缺少 Gemini 标签路由"
+require_text WORKFLOW.md "command: gemini" "WORKFLOW.md 缺少 Gemini 命令配置"
 require_text WORKFLOW.md "## Claude Workpad" "WORKFLOW.md 缺少 Claude Workpad 约定"
 require_text WORKFLOW.md "command: claude" "WORKFLOW.md 缺少 Claude 命令配置"
 

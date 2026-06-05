@@ -27,10 +27,16 @@ hooks:
   before_remove: |
     git status --short || true
 agent:
+  default_runtime: gemini
   max_concurrent_agents: 10
   max_turns: 20
+  runtime_by_label:
+    agent:gemini: gemini
+    agent:claude: claude
+gemini:
+  command: gemini
 claude:
-  command: claude -p --dangerously-skip-permissions
+  command: claude -p --dangerously-skip-permissions --output-format stream-json --include-partial-messages --verbose
 ---
 
 You are working on a Linear ticket `{{ issue.identifier }}`
@@ -66,9 +72,10 @@ Instructions:
 
 Work only in the provided repository copy. Do not touch any other path.
 
-This Claude template runs Claude by default. Use the `claude:` configuration
-key, `.claude/` paths, and the `## Claude Workpad` marker throughout this
-workflow.
+This workflow follows the Claude governance files and uses Gemini as the
+default runtime. Use the `gemini:` configuration key for default execution,
+the `agent:gemini` Linear label for explicit Gemini routing, and keep
+`.claude/` paths plus the `## Claude Workpad` marker throughout this workflow.
 
 ## Prerequisite: Linear MCP or `linear_graphql` tool is available
 
