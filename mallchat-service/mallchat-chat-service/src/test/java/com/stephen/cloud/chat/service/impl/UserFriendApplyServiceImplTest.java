@@ -439,6 +439,25 @@ class UserFriendApplyServiceImplTest {
         Assertions.assertEquals("friend_approve:10", notifications.get(0).getBizId());
     }
 
+    @Test
+    void shouldBeIdempotentForRepeatedApproval() {
+        ChatFriendApproveRequest request = new ChatFriendApproveRequest();
+        request.setApplyId(10L);
+        request.setStatus(2);
+
+        UserFriendApply apply = new UserFriendApply();
+        apply.setId(10L);
+        apply.setUserId(1L);
+        apply.setTargetId(2L);
+        apply.setStatus(2); // Already approved
+        userFriendApplyService.applyById = apply;
+
+        boolean result = userFriendApplyService.approveFriend(request, 2L);
+
+        Assertions.assertTrue(result);
+        Assertions.assertNull(userFriendService.lastAddUserId); // Should not add friend again
+    }
+
     private UserFeignClient createUserFeignClient() {
         return (UserFeignClient) Proxy.newProxyInstance(
                 UserFeignClient.class.getClassLoader(),

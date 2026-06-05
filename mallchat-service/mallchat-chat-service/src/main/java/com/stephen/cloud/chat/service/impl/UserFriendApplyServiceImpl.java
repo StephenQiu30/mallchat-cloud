@@ -221,8 +221,15 @@ public class UserFriendApplyServiceImpl extends ServiceImpl<UserFriendApplyMappe
         UserFriendApply apply = this.getById(applyId);
         ThrowUtils.throwIf(apply == null, ErrorCode.NOT_FOUND_ERROR, "申请记录不存在");
 
-        // 权限与状态校验
+        // 权限校验
         ThrowUtils.throwIf(!apply.getTargetId().equals(userId), ErrorCode.NO_AUTH_ERROR);
+
+        // 幂等校验：如果状态已是目标状态，直接返回成功
+        if (apply.getStatus().equals(status)) {
+            return true;
+        }
+
+        // 状态校验：只能处理待处理的申请
         ThrowUtils.throwIf(apply.getStatus() != 1, ErrorCode.PARAMS_ERROR, "已处理过该申请");
 
         if (status == 3) {
