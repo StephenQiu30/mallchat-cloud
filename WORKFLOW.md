@@ -28,13 +28,13 @@ hooks:
     git status --short || true
 agent:
   default_runtime: gemini
-  max_concurrent_agents: 10
+  max_concurrent_agents: 4
   max_turns: 20
   runtime_by_label:
     agent:gemini: gemini
     agent:claude: claude
 gemini:
-  command: gemini
+  command: gemini --skip-trust --approval-mode yolo
 claude:
   command: claude -p --dangerously-skip-permissions --output-format stream-json --include-partial-messages --verbose
 ---
@@ -77,9 +77,26 @@ default runtime. Use the `gemini:` configuration key for default execution,
 the `agent:gemini` Linear label for explicit Gemini routing, and keep
 `.claude/` paths plus the `## Claude Workpad` marker throughout this workflow.
 
-## Prerequisite: Linear MCP or `linear_graphql` tool is available
+## Gemini vs Antigravity runtime
 
-The agent should be able to talk to Linear, either via a configured Linear MCP server or injected `linear_graphql` tool. If none are present, stop and ask the user to configure Linear.
+`gemini.command` runs the Gemini CLI headless `stream-json` protocol. It does
+not automatically use Antigravity configuration from `~/.gemini/antigravity`.
+If the intended runtime is Antigravity, verify the Agent API from the same shell
+before starting Symphony:
+
+```sh
+ANTIGRAVITY_LS_ADDRESS=127.0.0.1:<grpc-port> \
+  ~/.gemini/antigravity/bin/agentapi new-conversation --model=flash "health check"
+```
+
+If that command reports missing CSRF token, model fetch failure, or
+`state syncing error: key not found`, the Antigravity login/session is not
+usable for unattended orchestration yet. Stop Symphony retries and fix the
+Antigravity session first, or keep using the Gemini CLI command above.
+
+## Prerequisite: Linear access is available
+
+The agent should be able to talk to Linear, either via a configured Linear MCP server, an injected `linear_graphql` tool, or the `LINEAR_API_KEY` environment variable with direct GraphQL HTTP requests to `https://api.linear.app/graphql`. If none are present, record the missing Linear access in the workpad and move the issue to `Blocked`.
 
 ## Default posture
 
