@@ -7,6 +7,7 @@ import com.stephen.cloud.api.chat.model.enums.MessageStatusEnum;
 import com.stephen.cloud.api.chat.model.vo.ChatSessionVO;
 import com.stephen.cloud.api.user.client.UserFeignClient;
 import com.stephen.cloud.api.user.model.vo.UserVO;
+import com.stephen.cloud.chat.mapper.ChatSessionMapper;
 import com.stephen.cloud.chat.model.entity.ChatGroupInfo;
 import com.stephen.cloud.chat.model.entity.ChatMessage;
 import com.stephen.cloud.chat.model.entity.ChatPrivateRoom;
@@ -288,6 +289,183 @@ class ChatSessionServiceImplTest {
         Assertions.assertEquals(List.of(1L, 3L), result);
     }
 
+    // ========== RED Tests for Session Consistency ==========
+
+    /**
+     * RED Test: Duplicate message should NOT increase unread count
+     *
+     * Scenario: Same message (same lastMessageId) is applied twice to a session.
+     * Expected: Unread count should NOT increase on second application.
+     *
+     * Current behavior may fail if: read-modify-write race condition exists
+     */
+    @Test
+    void shouldNotIncrementUnreadOnDuplicateMessageApplication() {
+        // Session already has lastMessageId = 11 and unreadCount = 2
+        ChatSession session = createSession(1L, 11L, 2, 0);
+        session.setUserId(2L);
+        chatSessionService.getOneResult = session;
+
+        // Apply same message again (duplicate)
+        chatSessionService.updateSession(2L, 1L, 11L, true);
+
+        // Should NOT increment unread - should remain 2
+        Assertions.assertEquals(2, session.getUnreadCount(),
+            "Duplicate message should NOT increment unread count");
+    }
+
+    /**
+     * RED Test: Out-of-order message should NOT overwrite newer lastMessageId
+     *
+     * Scenario: Older message (lower ID) arrives after newer message (higher ID).
+     * Expected: lastMessageId should NOT be downgraded to older message.
+     *
+     * Current behavior: Should be protected by isDuplicateOrStaleMessage check.
+     * This test ensures that protection works correctly.
+     */
+    @Test
+    void shouldNotDowngradeLastMessageIdWithOutOfOrderMessage() {
+        // Session already has lastMessageId = 15 (newer message)
+        ChatSession session = createSession(1L, 15L, 3, 0);
+        session.setUserId(2L);
+        chatSessionService.getOneResult = session;
+
+        // Try to apply older message (messageId = 10)
+        chatSessionService.updateSession(2L, 1L, 10L, true);
+
+        // Should NOT change lastMessageId - should remain 15
+        Assertions.assertEquals(15L, session.getLastMessageId(),
+            "Out-of-order (older) message should NOT overwrite newer lastMessageId");
+    }
+
+    /**
+     * RED Test: Stale message (same ID) should not trigger any update
+     *
+     * Scenario: Same message ID is applied to session that already has it as lastMessage.
+     * Expected: No changes to unread count or lastMessageId.
+     */
+    @Test
+    void shouldNotModifySessionForStaleSameIdMessage() {
+        ChatSession session = createSession(1L, 20L, 5, 0);
+        session.setUserId(2L);
+        chatSessionService.getOneResult = session;
+
+        // Reset tracking to verify no saves happen
+        chatSessionService.saveOrUpdateCount = 0;
+
+        // Apply exact same messageId
+        chatSessionService.updateSession(2L, 1L, 20L, true);
+
+        // saveOrUpdate should NOT be called for stale message
+        Assertions.assertEquals(0, chatSessionService.saveOrUpdateCount,
+            "Stale message (same ID) should not trigger saveOrUpdate");
+    }
+
+    /**
+     * RED Test: Batch update should handle duplicate message correctly
+     *
+     * Scenario: Batch update with messageId that matches current lastMessageId.
+     * Expected: Only update lastMessageId (same value is fine), but don't increment unread.
+     */
+    @Test
+    void batchUpdateShouldNotIncrementUnreadForDuplicateMessage() {
+        // Receiver already has messageId = 11 as lastMessage
+        ChatSession receiverSession = createSession(1L, 11L, 2, 0);
+        receiverSession.setUserId(2L);
+
+        chatSessionService.listResult = List.of(receiverSession);
+
+        // Batch update with same messageId - this is a duplicate/redundant update
+        chatSessionService.updateSessionBatch(List.of(2L), 1L, 11L, 1L);
+
+        ChatSession savedReceiver = chatSessionService.lastBatchSaved.stream()
+                .filter(item -> item.getUserId().equals(2L))
+                .findFirst()
+                .orElseThrow();
+
+        // Unread should remain 2, not become 3
+        Assertions.assertEquals(2, savedReceiver.getUnreadCount(),
+            "Batch duplicate should NOT increment receiver unread count");
+    }
+
+    /**
+     * RED Test: Concurrent-like batch update should be idempotent
+     *
+     * Scenario: Simulate what would happen if batch update is called twice rapidly.
+     * The second call with same messageId should not cause issues.
+     */
+    @Test
+    void batchUpdateShouldBeIdempotentForSameMessageId() {
+        ChatSession receiverSession = createSession(1L, 11L, 2, 0);
+        receiverSession.setUserId(2L);
+        chatSessionService.listResult = List.of(receiverSession);
+
+        // First batch update
+        chatSessionService.updateSessionBatch(List.of(2L), 1L, 11L, 1L);
+
+        // Get the saved state
+        ChatSession firstSaved = chatSessionService.lastBatchSaved.stream()
+                .filter(item -> item.getUserId().equals(2L))
+                .findFirst()
+                .orElseThrow();
+
+        // Simulate second batch update with same messageId
+        chatSessionService.listResult = List.of(firstSaved); // Use saved state
+        chatSessionService.updateSessionBatch(List.of(2L), 1L, 11L, 1L);
+
+        ChatSession secondSaved = chatSessionService.lastBatchSaved.stream()
+                .filter(item -> item.getUserId().equals(2L))
+                .findFirst()
+                .orElseThrow();
+
+        // Unread count should be the same, not double incremented
+        Assertions.assertEquals(firstSaved.getUnreadCount(), secondSaved.getUnreadCount(),
+            "Double batch update should be idempotent - unread should not double");
+    }
+
+    /**
+     * RED Test: Verify isDuplicateOrStaleMessage logic is correct
+     *
+     * Test the edge case: lastMessageId = null should allow any message update
+     */
+    @Test
+    void shouldAllowUpdateWhenLastMessageIdIsNull() {
+        ChatSession session = new ChatSession();
+        session.setRoomId(1L);
+        session.setUserId(2L);
+        session.setLastMessageId(null); // No previous message
+        session.setUnreadCount(0);
+        session.setTopStatus(0);
+        session.setMuteStatus(0);
+        chatSessionService.getOneResult = session;
+        chatSessionService.saveOrUpdateCount = 0;
+
+        // Apply a new message
+        chatSessionService.updateSession(2L, 1L, 100L, true);
+
+        // Atomic update succeeds when lastMessageId is null — no fallback saveOrUpdate needed
+        Assertions.assertEquals(0, chatSessionService.saveOrUpdateCount,
+            "Atomic update should handle null lastMessageId without fallback saveOrUpdate");
+        Assertions.assertEquals(100L, session.getLastMessageId(),
+            "lastMessageId should be updated to new message");
+        Assertions.assertEquals(1, session.getUnreadCount(),
+            "Unread should be incremented for new message");
+    }
+
+    /**
+     * RED Test: Batch update should not break when messageId is null
+     */
+    @Test
+    void batchUpdateShouldHandleNullMessageIdGracefully() {
+        ChatSession receiverSession = createSession(1L, null, 0, 0);
+        receiverSession.setUserId(2L);
+        chatSessionService.listResult = List.of(receiverSession);
+
+        // Batch update with null messageId - should not crash
+        Assertions.assertDoesNotThrow(() ->
+            chatSessionService.updateSessionBatch(List.of(2L), 1L, null, 1L));
+    }
+
     private ChatSession createSession(Long roomId, Long lastMessageId, Integer unreadCount, Integer topStatus) {
         ChatSession session = new ChatSession();
         session.setRoomId(roomId);
@@ -449,6 +627,9 @@ class ChatSessionServiceImplTest {
         private List<ChatSession> lastBatchSaved = new ArrayList<>();
         private boolean removeResult;
         private int saveOrUpdateCount;
+        private int saveBatchCalls = 0;
+        private int saveCalls = 0;
+        private ChatSessionMapper mockMapper;
 
         @Override
         public List<ChatSession> list(Wrapper<ChatSession> queryWrapper) {
@@ -482,6 +663,72 @@ class ChatSessionServiceImplTest {
             this.getOneResult = entity;
             this.saveOrUpdateCount++;
             return true;
+        }
+
+        @Override
+        public boolean saveBatch(java.util.Collection<ChatSession> entityList) {
+            this.lastBatchSaved = new ArrayList<>(entityList);
+            this.saveBatchCalls++;
+            return true;
+        }
+
+        @Override
+        public boolean save(ChatSession entity) {
+            this.getOneResult = entity;
+            this.saveCalls++;
+            return true;
+        }
+
+        @Override
+        public ChatSessionMapper getBaseMapper() {
+            if (mockMapper == null) {
+                mockMapper = (ChatSessionMapper) Proxy.newProxyInstance(
+                        ChatSessionMapper.class.getClassLoader(),
+                        new Class[]{ChatSessionMapper.class},
+                        (proxy, method, args) -> {
+                            if ("atomicUpdateSession".equals(method.getName())) {
+                                Long lastMessageId = (Long) args[2];
+                                boolean incrementUnread = (boolean) args[3];
+                                if (getOneResult != null
+                                        && (getOneResult.getLastMessageId() == null
+                                            || getOneResult.getLastMessageId() < lastMessageId)) {
+                                    getOneResult.setLastMessageId(lastMessageId);
+                                    getOneResult.setActiveTime(new Date());
+                                    if (incrementUnread) {
+                                        Integer cur = getOneResult.getUnreadCount();
+                                        getOneResult.setUnreadCount((cur == null ? 0 : cur) + 1);
+                                    }
+                                    return 1;
+                                }
+                                return 0;
+                            }
+                            if ("atomicUpdateSessionBatch".equals(method.getName())) {
+                                Long lastMessageId = (Long) args[1];
+                                Long senderId = (Long) args[2];
+                                int affected = 0;
+                                for (ChatSession s : listResult) {
+                                    if (s.getLastMessageId() == null || s.getLastMessageId() < lastMessageId) {
+                                        s.setLastMessageId(lastMessageId);
+                                        s.setActiveTime(new Date());
+                                        if (!s.getUserId().equals(senderId)) {
+                                            Integer cur = s.getUnreadCount();
+                                            s.setUnreadCount((cur == null ? 0 : cur) + 1);
+                                        }
+                                        affected++;
+                                    }
+                                }
+                                lastBatchSaved = new ArrayList<>(listResult);
+                                return affected;
+                            }
+                            // Return default value for other methods
+                            Class<?> returnType = method.getReturnType();
+                            if (returnType == boolean.class) return false;
+                            if (returnType == int.class) return 0;
+                            if (returnType == long.class) return 0L;
+                            return null;
+                        });
+            }
+            return mockMapper;
         }
     }
 
