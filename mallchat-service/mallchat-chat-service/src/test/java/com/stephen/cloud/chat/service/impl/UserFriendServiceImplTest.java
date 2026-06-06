@@ -84,6 +84,30 @@ class UserFriendServiceImplTest {
     }
 
     @Test
+    void shouldDenyMutualFriendWhenCacheIsColdAndNoFriendsInDatabase() {
+        // 缓存降级场景：缓存为空，数据库也无好友记录
+        ActualCacheRecoveryUserFriendServiceImpl service = new ActualCacheRecoveryUserFriendServiceImpl();
+        FakeCacheUtils localCacheUtils = new FakeCacheUtils();
+        ReflectionTestUtils.setField(service, "cacheUtils", localCacheUtils);
+        service.listResult = List.of(); // 数据库无好友
+
+        Assertions.assertFalse(service.isMutualFriend(1L, 2L));
+        Assertions.assertTrue(localCacheUtils.exists(ChatCacheConstant.getUserFriendKey(1L)));
+    }
+
+    @Test
+    void shouldDenyMutualFriendWhenBlockedEvenIfFriendRowsExist() {
+        // 拉黑后即使好友关系行仍存在，isMutualFriend 也返回 false
+        TestableUserFriendServiceImpl service = new TestableUserFriendServiceImpl();
+        FakeCacheUtils localCacheUtils = new FakeCacheUtils();
+        ReflectionTestUtils.setField(service, "cacheUtils", localCacheUtils);
+        service.setBlockBetween(1L, 2L, true);
+
+        // isMutualFriend 先检查 isBlockedBetween，被拉黑直接返回 false
+        Assertions.assertFalse(service.isMutualFriend(1L, 2L));
+    }
+
+    @Test
     void shouldReturnEmptySetForUserWithoutFriends() {
         userFriendService.listResult = List.of();
 

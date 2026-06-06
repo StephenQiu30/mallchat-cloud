@@ -1,0 +1,64 @@
+# E2E Test Configuration - uses H2 in-memory database
+
+spring:
+  application:
+    name: mallchat-chat-service-test
+
+  # Disable Nacos config import for E2E tests
+  config:
+    import: ""
+
+  # H2 in-memory database for E2E tests
+  datasource:
+    url: jdbc:h2:mem:mallchat_test;DB_CLOSE_DELAY=-1;MODE=MySQL;DATABASE_TO_LOWER=TRUE;INIT=RUNSCRIPT FROM 'classpath:schema-e2e-h2.sql'
+    username: sa
+    password:
+    driver-class-name: org.h2.Driver
+
+  # RabbitMQ - disable for E2E tests
+  rabbitmq:
+    host: localhost
+    port: 5672
+    username: guest
+    password: guest
+    listener:
+      simple:
+        auto-startup: false
+
+  # Redis - disable for E2E tests
+  data:
+    redis:
+      host: localhost
+      port: 6379
+
+  # H2 Console for debugging
+  h2:
+    console:
+      enabled: true
+      path: /h2-console
+
+  # Disable Nacos cloud config for E2E tests
+  cloud:
+    nacos:
+      discovery:
+        enabled: false
+      config:
+        enabled: false
+
+# MyBatis Plus
+mybatis-plus:
+  mapper-locations: classpath*:/mapper/**/*.xml
+  type-aliases-package: com.stephen.cloud.chat.model.entity
+  configuration:
+    map-underscore-to-camel-case: true
+    log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
+
+# Sa-Token - disable for E2E tests
+sa-token:
+  enabled: false
+
+# Logging
+logging:
+  level:
+    com.stephen.cloud.chat: DEBUG
+    org.springframework.test: INFO
