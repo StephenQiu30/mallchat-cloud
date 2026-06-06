@@ -396,6 +396,65 @@ class ChatMomentServiceImplTest {
     }
 
     @Test
+    void shouldProduceOnlyOneLikeFactOnMultipleLikeRequests() {
+        chatMomentService.visibleFriendIds = new LinkedHashSet<>(Set.of(2L));
+        chatMomentService.momentById = Map.of(10L, moment(10L, 2L, "friend"));
+
+        // Simulate 5 rapid like requests (idempotency test)
+        chatMomentService.likeMoment(1L, 10L);
+        chatMomentService.likeMoment(1L, 10L);
+        chatMomentService.likeMoment(1L, 10L);
+        chatMomentService.likeMoment(1L, 10L);
+        chatMomentService.likeMoment(1L, 10L);
+
+        // Should only produce ONE like fact, not 5
+        Assertions.assertEquals(1, chatMomentService.savedLikes.size());
+        Assertions.assertEquals(1, chatMomentService.likeIncrementMomentIds.size());
+        Assertions.assertEquals(10L, chatMomentService.savedLikes.get(0).getMomentId());
+        Assertions.assertEquals(1L, chatMomentService.savedLikes.get(0).getUserId());
+    }
+
+    @Test
+    void shouldWriteCommentToIndependentFactTable() {
+        chatMomentService.visibleFriendIds = new LinkedHashSet<>(Set.of(2L));
+        chatMomentService.momentById = Map.of(10L, moment(10L, 2L, "friend"));
+
+        Long commentId = chatMomentService.commentMoment(1L, commentRequest(10L, "great post!"));
+
+        // Verify comment was saved
+        Assertions.assertNotNull(commentId);
+        Assertions.assertEquals(200L, commentId);
+        Assertions.assertEquals(1, chatMomentService.savedComments.size());
+        ChatMomentComment savedComment = chatMomentService.savedComments.get(0);
+        // Verify it's written to comment table, not reused from chat_message
+        Assertions.assertEquals(10L, savedComment.getMomentId());
+        Assertions.assertEquals(1L, savedComment.getUserId());
+        Assertions.assertEquals("great post!", savedComment.getContent());
+        Assertions.assertEquals(0, savedComment.getIsDelete());
+        Assertions.assertNotNull(savedComment.getId()); // ID should be set by mapper
+    }
+
+    @Test
+    void shouldEnforceVisibilityBoundaryForLike() {
+        chatMomentService.visibleFriendIds = new LinkedHashSet<>(); // No friends
+        chatMomentService.momentById = Map.of(10L, moment(10L, 2L, "private")); // Private moment from stranger
+
+        // Should reject like on invisible moment
+        Assertions.assertThrows(RuntimeException.class, () -> chatMomentService.likeMoment(1L, 10L));
+        Assertions.assertTrue(chatMomentService.savedLikes.isEmpty());
+    }
+
+    @Test
+    void shouldEnforceVisibilityBoundaryForComment() {
+        chatMomentService.visibleFriendIds = new LinkedHashSet<>(); // No friends
+        chatMomentService.momentById = Map.of(10L, moment(10L, 2L, "private")); // Private moment from stranger
+
+        // Should reject comment on invisible moment
+        Assertions.assertThrows(RuntimeException.class, () -> chatMomentService.commentMoment(1L, commentRequest(10L, "hi")));
+        Assertions.assertTrue(chatMomentService.savedComments.isEmpty());
+    }
+
+    @Test
     void shouldFilterDeletedCommentsInList() {
         ChatMomentComment deletedComment = comment(102L, 10L, 3L, "deleted");
         deletedComment.setIsDelete(1);
@@ -529,6 +588,8 @@ class ChatMomentServiceImplTest {
         private final List<String> sentNotifications = new ArrayList<>();
         private boolean failNotification;
         private boolean duplicateLikeOnSave;
+        // Track saved like keys for idempotency simulation
+        private final Set<String> savedLikeKeys = new LinkedHashSet<>();
 
         @Override
         protected boolean saveMoment(ChatMoment moment) {
@@ -622,6 +683,12 @@ class ChatMomentServiceImplTest {
             if (duplicateLikeOnSave) {
                 throw new DuplicateKeyException("duplicate moment like");
             }
+            // Simulate idempotency: track by momentId:userId
+            String likeKey = like.getMomentId() + ":" + like.getUserId();
+            if (savedLikeKeys.contains(likeKey)) {
+                return false; // Already saved, idempotent
+            }
+            savedLikeKeys.add(likeKey);
             savedLikes.add(like);
             return true;
         }
