@@ -491,6 +491,33 @@ class ChatMessageServiceImplTest {
     }
 
     @Test
+    void shouldAllowSameClientMsgIdInDifferentRooms() {
+        room.setType(ChatRoomTypeEnum.GROUP.getCode());
+        roomsById.put(2L, createRoom(2L, ChatRoomTypeEnum.GROUP.getCode()));
+        roomMembership.put(2L, true);
+        chatMessageService.existingByClient = createStoredMessage(88L, 1L);
+        chatMessageService.existingByClient.setClientMsgId("msg-1");
+        chatMessageService.existingByClientRoomId = 1L;
+
+        ChatMessageVO result = chatMessageService.sendMessage(createTextMessage(2L, "msg-1", "hello"), 1L);
+
+        Assertions.assertNotEquals(88L, result.getId());
+    }
+
+    @Test
+    void shouldReturnExistingMessageForSameClientMsgIdAndRoom() {
+        room.setType(ChatRoomTypeEnum.GROUP.getCode());
+        chatMessageService.existingByClient = createStoredMessage(88L, 1L);
+        chatMessageService.existingByClient.setClientMsgId("msg-1");
+        chatMessageService.existingByClientRoomId = 1L;
+
+        ChatMessageVO result = chatMessageService.sendMessage(createTextMessage(1L, "msg-1", "hello"), 1L);
+
+        Assertions.assertEquals(88L, result.getId());
+        Assertions.assertEquals(1.0, businessCounter("message_send", "duplicate"));
+    }
+
+    @Test
     void shouldKeepMessageFactWhenGroupPushThrows() {
         room.setType(ChatRoomTypeEnum.GROUP.getCode());
         chatMqProducer.groupPushThrows = true;
@@ -933,6 +960,7 @@ class ChatMessageServiceImplTest {
 
     private class TestableChatMessageServiceImpl extends ChatMessageServiceImpl {
         private ChatMessage existingByClient;
+        private Long existingByClientRoomId;
         private ChatMessage messageById;
         private ChatMessage messageByRoomQuery;
         private List<ChatMessage> listResult = new ArrayList<>();
@@ -945,10 +973,27 @@ class ChatMessageServiceImplTest {
         private Long updatedLastReadMessageId;
         private Page<ChatMessage> searchPageResult = new Page<>(1, 20, 0);
         private String searchSqlSegment;
+        private long nextId = 100L;
 
         @Override
         public ChatMessage getOne(Wrapper<ChatMessage> queryWrapper) {
             if (existingByClient != null) {
+                String sql = queryWrapper.getSqlSegment();
+                if (sql.contains("room_id") && existingByClientRoomId != null) {
+                    com.baomidou.mybatisplus.core.conditions.AbstractWrapper<?, ?, ?> abstractWrapper =
+                            (com.baomidou.mybatisplus.core.conditions.AbstractWrapper<?, ?, ?>) queryWrapper;
+                    Map<String, Object> params = abstractWrapper.getParamNameValuePairs();
+                    java.util.regex.Matcher matcher = java.util.regex.Pattern
+                            .compile("room_id = #\\{ew\\.paramNameValuePairs\\.(MPGENVAL\\d+)}")
+                            .matcher(sql);
+                    if (matcher.find()) {
+                        String roomIdParamKey = matcher.group(1);
+                        Object roomIdValue = params.get(roomIdParamKey);
+                        if (!existingByClientRoomId.equals(roomIdValue)) {
+                            return null;
+                        }
+                    }
+                }
                 return existingByClient;
             }
             return messageByRoomQuery;
@@ -966,7 +1011,7 @@ class ChatMessageServiceImplTest {
                 throw new org.springframework.dao.DuplicateKeyException("duplicate client msg id");
             }
             if (saveResult && entity.getId() == null) {
-                entity.setId(100L);
+                entity.setId(nextId++);
                 entity.setCreateTime(new Date());
             }
             this.messageById = entity;
