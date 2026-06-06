@@ -466,6 +466,31 @@ class ChatSessionServiceImplTest {
             chatSessionService.updateSessionBatch(List.of(2L), 1L, null, 1L));
     }
 
+    /**
+     * RED Test: updateSessionBatch should be transactional - saveBatch failure propagates as RuntimeException
+     *
+     * Scenario: Atomic UPDATE succeeds for existing user, but saveBatch fails
+     * when creating a new user's session. The DataAccessException is caught
+     * and rethrown as RuntimeException, preventing silent failure.
+     */
+    @Test
+    void shouldPropagateExceptionWhenSaveBatchFails() {
+        // Existing session for user 2
+        ChatSession receiverSession = createSession(1L, 9L, 2, 0);
+        receiverSession.setUserId(2L);
+        chatSessionService.listResult = List.of(receiverSession);
+        chatSessionService.saveBatchShouldThrow = true;
+
+        // Batch update with existing user (2L) and new user (3L)
+        // Atomic update succeeds for user 2, saveBatch fails for new user 3
+        Assertions.assertThrows(RuntimeException.class, () ->
+            chatSessionService.updateSessionBatch(List.of(2L, 3L), 1L, 11L, 1L));
+
+        // Existing user's atomic update still applied (proxy simulates SQL behavior)
+        Assertions.assertEquals(11L, receiverSession.getLastMessageId(),
+            "Existing session should have updated lastMessageId from atomic update");
+    }
+
     private ChatSession createSession(Long roomId, Long lastMessageId, Integer unreadCount, Integer topStatus) {
         ChatSession session = new ChatSession();
         session.setRoomId(roomId);
@@ -629,11 +654,12 @@ class ChatSessionServiceImplTest {
         private int saveOrUpdateCount;
         private int saveBatchCalls = 0;
         private int saveCalls = 0;
+        private boolean saveBatchShouldThrow = false;
         private ChatSessionMapper mockMapper;
 
         @Override
         public List<ChatSession> list(Wrapper<ChatSession> queryWrapper) {
-            return new ArrayList<>(listResult);
+            return listResult;
         }
 
         @Override
@@ -667,6 +693,9 @@ class ChatSessionServiceImplTest {
 
         @Override
         public boolean saveBatch(java.util.Collection<ChatSession> entityList) {
+            if (saveBatchShouldThrow) {
+                throw new RuntimeException("Simulated saveBatch failure for rollback test");
+            }
             this.lastBatchSaved = new ArrayList<>(entityList);
             this.saveBatchCalls++;
             return true;

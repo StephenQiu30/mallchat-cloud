@@ -41,22 +41,19 @@ public interface ChatSessionMapper extends BaseMapper<ChatSession> {
 
     /**
      * 原子批量更新会话 - 使用条件更新防止重复和乱序
+     * 使用 CASE WHEN 在 SQL 层面按行区分发送者和接收者，避免 MyBatis if 标签只求值一次的问题
      *
      * @param roomId        房间ID
      * @param lastMessageId 最后一条消息ID
      * @param senderId      发送者ID（不增加未读数）
      * @return 影响行数
      */
-    @Update("<script>" +
-            "UPDATE chat_session SET " +
+    @Update("UPDATE chat_session SET " +
             "  last_message_id = #{lastMessageId}, " +
-            "  active_time = NOW()" +
-            "  <if test='!isSender'>" +
-            "    , unread_count = unread_count + 1" +
-            "  </if>" +
+            "  active_time = NOW(), " +
+            "  unread_count = unread_count + CASE WHEN user_id != #{senderId} THEN 1 ELSE 0 END " +
             "WHERE room_id = #{roomId} " +
-            "  AND (last_message_id IS NULL OR last_message_id &lt; #{lastMessageId})" +
-            "</script>")
+            "  AND (last_message_id IS NULL OR last_message_id < #{lastMessageId})")
     int atomicUpdateSessionBatch(@Param("roomId") Long roomId,
                                   @Param("lastMessageId") Long lastMessageId,
                                   @Param("senderId") Long senderId);
