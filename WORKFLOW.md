@@ -35,7 +35,7 @@ agent:
     agent:codex: codex
     agent:claude: claude
     agent:cursor: cursor
-    agent:gemini: gemini
+    agent:gemini: claude
 codex:
   command: codex --config shell_environment_policy.inherit=all --config 'model="gpt-5.5"' --config model_reasoning_effort=xhigh app-server
   approval_policy: never
