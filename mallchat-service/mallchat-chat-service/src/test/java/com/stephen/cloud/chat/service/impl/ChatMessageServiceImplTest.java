@@ -152,6 +152,63 @@ class ChatMessageServiceImplTest {
     }
 
     @Test
+    void shouldNotPersistMessageWhenNonFriendSendIsRejected() {
+        mutualFriend = false;
+        ChatMessage message = createTextMessage(1L, "no-persist-1", "hello");
+
+        Assertions.assertThrows(BusinessException.class,
+                () -> chatMessageService.sendMessage(message, 1L));
+
+        // 权限失败不写入 chat_message
+        Assertions.assertNull(chatMessageService.messageById);
+        Assertions.assertNull(chatMqProducer.lastGroupPushRoomId);
+    }
+
+    @Test
+    void shouldNotPersistMessageWhenBlockedSendIsRejected() {
+        blockedBetween = true;
+        ChatMessage message = createTextMessage(1L, "no-persist-2", "hello");
+
+        Assertions.assertThrows(BusinessException.class,
+                () -> chatMessageService.sendMessage(message, 1L));
+
+        // 权限失败不写入 chat_message
+        Assertions.assertNull(chatMessageService.messageById);
+        Assertions.assertNull(chatMqProducer.lastGroupPushRoomId);
+    }
+
+    @Test
+    void shouldRejectPrivateMessageFromNonFriendEvenWhenCacheIsCold() {
+        // 缓存降级场景：缓存为空，isMutualFriend 回退到数据库查询
+        // 模拟 UserFriendService 在缓存冷启动时返回 false（数据库无好友记录）
+        mutualFriend = false;
+        ChatMessage message = createTextMessage(1L, "cache-cold-1", "hello");
+
+        BusinessException exception = Assertions.assertThrows(BusinessException.class,
+                () -> chatMessageService.sendMessage(message, 1L));
+
+        Assertions.assertEquals(ErrorCode.NO_AUTH_ERROR.getCode(), exception.getCode());
+        Assertions.assertNull(chatMessageService.messageById);
+    }
+
+    @Test
+    void shouldPreserveHistoricalMessagesAfterBlocking() {
+        // 好友发送消息成功
+        ChatMessageVO sent = chatMessageService.sendMessage(createTextMessage(1L, "hist-1", "before block"), 1L);
+        Assertions.assertNotNull(sent);
+        Long savedMessageId = chatMessageService.messageById.getId();
+
+        // 拉黑后发送失败
+        blockedBetween = true;
+        Assertions.assertThrows(BusinessException.class,
+                () -> chatMessageService.sendMessage(createTextMessage(1L, "hist-2", "after block"), 1L));
+
+        // 历史消息不因后续拉黑被删除
+        Assertions.assertNotNull(chatMessageService.messageById);
+        Assertions.assertEquals(savedMessageId, chatMessageService.messageById.getId());
+    }
+
+    @Test
     void shouldReturnHistoryMessagesInChronologicalOrder() {
         chatMessageService.listResult = List.of(createStoredMessage(5L, 1L), createStoredMessage(4L, 1L));
 
