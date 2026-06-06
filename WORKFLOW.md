@@ -28,7 +28,7 @@ hooks:
   before_remove: |
     git status --short || true
 agent:
-  default_runtime: claude
+  default_runtime: gemini
   max_concurrent_agents: 4
   max_turns: 20
   runtime_by_label:
