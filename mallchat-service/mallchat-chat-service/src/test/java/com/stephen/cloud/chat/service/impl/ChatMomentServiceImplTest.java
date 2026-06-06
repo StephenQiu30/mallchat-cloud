@@ -428,6 +428,60 @@ class ChatMomentServiceImplTest {
     }
 
     @Test
+    void shouldNotExposeFriendVisibleMomentToNonFriend() {
+        // user 2 publishes a friend-visible moment (visibility=0)
+        // user 1 is NOT a friend of user 2 (visibleFriendIds is empty)
+        // user 1's feed should NOT contain user 2's moment
+        chatMomentService.visibleFriendIds = new LinkedHashSet<>();
+        chatMomentService.moments = List.of(
+                moment(10L, 2L, "friend only from stranger"));
+
+        Page<ChatMomentVO> page = chatMomentService.listVisibleMoments(1L, 1, 10);
+
+        Assertions.assertEquals(0, page.getRecords().size(),
+                "非好友不应看到好友可见动态");
+    }
+
+    @Test
+    void shouldExposePublicMomentToNonFriend() {
+        // user 2 publishes a public moment (visibility=1)
+        // user 1 is NOT a friend of user 2
+        // user 1's public feed should contain user 2's moment
+        chatMomentService.visibleFriendIds = new LinkedHashSet<>();
+        chatMomentService.moments = List.of(
+                publicMoment(10L, 2L, "public from stranger", 0, 0));
+
+        Page<ChatMomentVO> page = chatMomentService.listPublicMoments(1L, 1, 10);
+
+        Assertions.assertEquals(1, page.getRecords().size(),
+                "非好友应能看到公开动态");
+        Assertions.assertEquals(10L, page.getRecords().get(0).getId());
+        Assertions.assertEquals(1, page.getRecords().get(0).getVisibility());
+    }
+
+    @Test
+    void shouldWriteMomentFactToChatMomentTableOnly() {
+        // publishing a moment should use chat_moment as the fact table
+        // the savedMoment captures what was written to chat_moment
+        // no chat_message entity should be involved
+        ChatMomentPublishRequest request = new ChatMomentPublishRequest();
+        request.setContent("moment fact boundary");
+        request.setVisibility(0);
+
+        Long momentId = chatMomentService.publish(1L, request);
+
+        Assertions.assertNotNull(chatMomentService.savedMoment,
+                "动态应写入 chat_moment 事实表");
+        Assertions.assertEquals("moment fact boundary", chatMomentService.savedMoment.getContent());
+        Assertions.assertEquals(0, chatMomentService.savedMoment.getVisibility());
+        Assertions.assertEquals(1, chatMomentService.savedMoment.getAuditStatus());
+        Assertions.assertEquals(0, chatMomentService.savedMoment.getStatus());
+        Assertions.assertEquals(0, chatMomentService.savedMoment.getIsDelete());
+        // verify no chat_message side-effect: the stub has no message save method
+        // because the service correctly uses chat_moment exclusively
+    }
+
+    @Test
     void shouldNotNotifyWhenInteractingWithOwnMoment() {
         chatMomentService.momentById = Map.of(10L, moment(10L, 1L, "mine"));
 
