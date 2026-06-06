@@ -24,6 +24,10 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 
 class ChatMomentServiceImplTest {
 
@@ -415,6 +419,38 @@ class ChatMomentServiceImplTest {
     }
 
     @Test
+    void shouldKeepLikeIdempotentUnderConcurrentRequests() throws Exception {
+        chatMomentService.visibleFriendIds = new LinkedHashSet<>(Set.of(2L));
+        chatMomentService.momentById = Map.of(10L, moment(10L, 2L, "friend"));
+
+        int n = 8;
+        ExecutorService pool = Executors.newFixedThreadPool(n);
+        CountDownLatch ready = new CountDownLatch(n);
+        CountDownLatch start = new CountDownLatch(1);
+        CountDownLatch done = new CountDownLatch(n);
+        for (int i = 0; i < n; i++) {
+            pool.submit(() -> {
+                ready.countDown();
+                start.await();
+                chatMomentService.likeMoment(1L, 10L);
+                done.countDown();
+                return null;
+            });
+        }
+        ready.await();
+        start.countDown();
+        done.await();
+        pool.shutdown();
+        Assertions.assertTrue(pool.awaitTermination(5, TimeUnit.SECONDS));
+
+        Assertions.assertEquals(1, chatMomentService.savedLikes.size());
+        Assertions.assertEquals(1, chatMomentService.likeIncrementMomentIds.size());
+        Assertions.assertEquals(1, chatMomentService.sentNotifications.size());
+        Assertions.assertEquals(10L, chatMomentService.savedLikes.get(0).getMomentId());
+        Assertions.assertEquals(1L, chatMomentService.savedLikes.get(0).getUserId());
+    }
+
+    @Test
     void shouldWriteCommentToIndependentFactTable() {
         chatMomentService.visibleFriendIds = new LinkedHashSet<>(Set.of(2L));
         chatMomentService.momentById = Map.of(10L, moment(10L, 2L, "friend"));
@@ -683,12 +719,14 @@ class ChatMomentServiceImplTest {
             if (duplicateLikeOnSave) {
                 throw new DuplicateKeyException("duplicate moment like");
             }
-            // Simulate idempotency: track by momentId:userId
+            // Simulate idempotency with synchronization (mirrors DB unique constraint)
             String likeKey = like.getMomentId() + ":" + like.getUserId();
-            if (savedLikeKeys.contains(likeKey)) {
-                return false; // Already saved, idempotent
+            synchronized (savedLikeKeys) {
+                if (savedLikeKeys.contains(likeKey)) {
+                    return false; // Already saved, idempotent
+                }
+                savedLikeKeys.add(likeKey);
             }
-            savedLikeKeys.add(likeKey);
             savedLikes.add(like);
             return true;
         }
