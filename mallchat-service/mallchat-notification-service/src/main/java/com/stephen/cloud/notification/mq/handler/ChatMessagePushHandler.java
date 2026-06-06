@@ -106,20 +106,33 @@ public class ChatMessagePushHandler implements RabbitMqHandler<WebSocketMessage>
         int dedupSkippedCount = 0;
 
         for (Long userId : userIds) {
+            String userIdStr = String.valueOf(userId);
             // 幂等去重：同一 bizId + userId 只处理一次
-            if (bizId != null && !cacheUtils.trySetDedupKey(bizId, String.valueOf(userId))) {
-                log.debug("[ChatMessagePushHandler] 幂等跳过, bizId={}, userId={}", bizId, userId);
-                dedupSkippedCount++;
-                continue;
+            boolean dedupSet = false;
+            if (bizId != null) {
+                try {
+                    dedupSet = cacheUtils.trySetDedupKey(bizId, userIdStr);
+                    if (!dedupSet) {
+                        log.debug("[ChatMessagePushHandler] 幂等跳过, bizId={}, userId={}", bizId, userId);
+                        dedupSkippedCount++;
+                        continue;
+                    }
+                } catch (Exception dedupEx) {
+                    log.warn("[ChatMessagePushHandler] 幂等检查失败，降级继续投递, bizId={}, userId={}", bizId, userId, dedupEx);
+                }
             }
             try {
-                int writeCount = channelManager.writeToUser(String.valueOf(userId), messageJson);
+                int writeCount = channelManager.writeToUser(userIdStr, messageJson);
                 if (writeCount > 0) {
                     successCount += writeCount;
                 } else {
                     offlineCount++;
                 }
             } catch (Exception e) {
+                // 投递失败时回滚幂等键，允许重试
+                if (dedupSet && bizId != null) {
+                    cacheUtils.remove("dedup:" + bizId + ":" + userIdStr);
+                }
                 metricsRecorder.record(getBizType(), resolveEventType(wsMessage), "failure");
                 throw e;
             }
@@ -176,10 +189,18 @@ public class ChatMessagePushHandler implements RabbitMqHandler<WebSocketMessage>
         int dedupSkippedCount = 0;
         for (String userIdStr : memberIds) {
             // 幂等去重：同一 bizId + userId 只处理一次
-            if (bizId != null && !cacheUtils.trySetDedupKey(bizId, userIdStr)) {
-                log.debug("[ChatMessagePushHandler] 幂等跳过, bizId={}, userId={}", bizId, userIdStr);
-                dedupSkippedCount++;
-                continue;
+            boolean dedupSet = false;
+            if (bizId != null) {
+                try {
+                    dedupSet = cacheUtils.trySetDedupKey(bizId, userIdStr);
+                    if (!dedupSet) {
+                        log.debug("[ChatMessagePushHandler] 幂等跳过, bizId={}, userId={}", bizId, userIdStr);
+                        dedupSkippedCount++;
+                        continue;
+                    }
+                } catch (Exception dedupEx) {
+                    log.warn("[ChatMessagePushHandler] 幂等检查失败，降级继续投递, bizId={}, userId={}", bizId, userIdStr, dedupEx);
+                }
             }
             try {
                 int writeCount = channelManager.writeToUser(userIdStr, messageJson);
@@ -189,6 +210,10 @@ public class ChatMessagePushHandler implements RabbitMqHandler<WebSocketMessage>
                     offlineCount++;
                 }
             } catch (Exception e) {
+                // 投递失败时回滚幂等键，允许重试
+                if (dedupSet && bizId != null) {
+                    cacheUtils.remove("dedup:" + bizId + ":" + userIdStr);
+                }
                 metricsRecorder.record(getBizType(), resolveEventType(wsMessage), "failure");
                 throw e;
             }
@@ -231,22 +256,27 @@ public class ChatMessagePushHandler implements RabbitMqHandler<WebSocketMessage>
      * <p>
      * 优先使用 WebSocketMessage.bizId，其次使用 ImWebSocketEvent.bizId。
      * bizId 用于幂等去重，确保同一消息不会重复投递。
+     * 空白的 bizId 会视为无效，返回 null 以避免跨消息的幂等冲突。
      * </p>
      *
      * @param wsMessage WebSocket 包装消息
-     * @return 业务幂等键，或 null 如果无法解析
+     * @return 业务幂等键，或 null 如果无法解析或值为空白
      */
     private String resolveBizId(WebSocketMessage wsMessage) {
         // 优先使用外层 bizId
-        if (wsMessage.getBizId() != null) {
-            return wsMessage.getBizId();
+        String bizId = wsMessage.getBizId();
+        if (bizId == null || bizId.isBlank()) {
+            // 降级使用内层 ImWebSocketEvent.bizId
+            Object data = wsMessage.getData();
+            if (data instanceof ImWebSocketEvent event) {
+                bizId = event.getBizId();
+            }
         }
-        // 降级使用内层 ImWebSocketEvent.bizId
-        Object data = wsMessage.getData();
-        if (data instanceof ImWebSocketEvent event) {
-            return event.getBizId();
+        // 空白值视为无效，避免跨消息的幂等冲突
+        if (bizId == null || bizId.isBlank()) {
+            return null;
         }
-        return null;
+        return bizId;
     }
 
     /**
