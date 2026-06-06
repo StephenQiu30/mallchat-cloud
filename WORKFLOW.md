@@ -27,14 +27,11 @@ hooks:
   before_remove: |
     git status --short || true
 agent:
-  default_runtime: gemini
+  default_runtime: claude
   max_concurrent_agents: 4
   max_turns: 20
   runtime_by_label:
-    agent:gemini: gemini
     agent:claude: claude
-gemini:
-  command: gemini --skip-trust --approval-mode yolo
 claude:
   command: claude -p --dangerously-skip-permissions --output-format stream-json --include-partial-messages --verbose
 ---
@@ -72,27 +69,10 @@ Instructions:
 
 Work only in the provided repository copy. Do not touch any other path.
 
-This workflow follows the Claude governance files and uses Gemini as the
-default runtime. Use the `gemini:` configuration key for default execution,
-the `agent:gemini` Linear label for explicit Gemini routing, and keep
-`.claude/` paths plus the `## Claude Workpad` marker throughout this workflow.
-
-## Gemini vs Antigravity runtime
-
-`gemini.command` runs the Gemini CLI headless `stream-json` protocol. It does
-not automatically use Antigravity configuration from `~/.gemini/antigravity`.
-If the intended runtime is Antigravity, verify the Agent API from the same shell
-before starting Symphony:
-
-```sh
-ANTIGRAVITY_LS_ADDRESS=127.0.0.1:<grpc-port> \
-  ~/.gemini/antigravity/bin/agentapi new-conversation --model=flash "health check"
-```
-
-If that command reports missing CSRF token, model fetch failure, or
-`state syncing error: key not found`, the Antigravity login/session is not
-usable for unattended orchestration yet. Stop Symphony retries and fix the
-Antigravity session first, or keep using the Gemini CLI command above.
+This workflow follows the Claude governance files and uses Claude as the
+default runtime. Use the `claude:` configuration key for default execution,
+the `agent:claude` Linear label for explicit Claude routing, and keep `.claude/`
+paths plus the `## Claude Workpad` marker throughout this workflow.
 
 ## Prerequisite: Linear access is available
 
