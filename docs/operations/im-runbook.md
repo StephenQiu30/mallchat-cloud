@@ -113,7 +113,8 @@ Then 能定位问题根因并完成恢复，且每一步有可执行验证命令
    # RabbitMQ 管理界面（默认端口 15672）
    # 检查交换机 mallchat.websocket.exchange 是否存在
    # 检查队列 mallchat.chat.message.push.queue 是否有堆积
-   curl -s -u admin:admin http://localhost:15672/api/queues | jq '.[] | {name, messages, consumers}'
+   # 注意：生产环境必须使用最小权限账号，禁止使用默认 admin 凭据
+   curl -s -u "${RABBITMQ_USER}:${RABBITMQ_PASS}" http://localhost:15672/api/queues | jq '.[] | {name, messages, consumers}'
    ```
 
 5. **检查 Micrometer 指标**
@@ -152,7 +153,7 @@ Then 能定位问题根因并完成恢复，且每一步有可执行验证命令
 
    ```bash
    # 检查消费者数量和未确认消息
-   curl -s -u admin:admin http://localhost:15672/api/queues \
+   curl -s -u "${RABBITMQ_USER}:${RABBITMQ_PASS}" http://localhost:15672/api/queues \
      | jq '.[] | select(.name | contains("chat.message")) | {name, messages, consumers, message_stats}'
    ```
 
@@ -255,7 +256,7 @@ bash scripts/backup-im-core-tables.sh --print-tables
 
 #### 4.2.2 数据恢复验证
 
-使用 `scripts/verify-im-core-data-recovery.sh` 将备份恢复到临时数据库并运行 19 条孤儿检测断言。
+使用 `scripts/verify-im-core-data-recovery.sh` 将备份恢复到临时数据库并运行 20 条孤儿检测断言。
 
 ```bash
 # 执行恢复验证（自动创建临时数据库，验证后清理）
@@ -276,7 +277,7 @@ KEEP_RECOVERY_DB=true BACKUP_FILE=backups/im-core-20260606120000.sql bash script
 | `RECOVERY_DATABASE` | `mallchat_recovery_smoke_$$` | 临时数据库名 |
 | `KEEP_RECOVERY_DB` | `false` | 是否保留临时数据库 |
 
-**验证断言覆盖（19 条）：**
+**验证断言覆盖（20 条）：**
 
 - `user_friend` → `user` 双向外键完整
 - `user_friend_apply` → `user` 双向外键完整
@@ -305,7 +306,8 @@ mysql -h ${MYSQL_HOST} -P ${MYSQL_PORT} -u ${MYSQL_USER} -p${MYSQL_PASSWORD} \
 BACKUP_FILE=backups/im-core-{timestamp}.sql bash scripts/verify-im-core-data-recovery.sh
 
 # 5. 清除 Redis 缓存（可选：强制回源）
-redis-cli KEYS "mallchat:*" | xargs -r redis-cli DEL
+# 注意：使用 SCAN 替代 KEYS 避免阻塞 Redis；--scan 自动分批迭代
+redis-cli --scan --pattern "mallchat:*" | xargs -r redis-cli DEL
 ```
 
 ### 4.3 回滚流程
@@ -412,11 +414,11 @@ redis-cli PING
 redis-cli INFO clients
 
 # RabbitMQ 队列状态
-curl -s -u admin:admin http://localhost:15672/api/queues \
+curl -s -u "${RABBITMQ_USER}:${RABBITMQ_PASS}" http://localhost:15672/api/queues \
   | jq '.[] | {name, messages, consumers, state}'
 
 # RabbitMQ 连接数
-curl -s -u admin:admin http://localhost:15672/api/connections \
+curl -s -u "${RABBITMQ_USER}:${RABBITMQ_PASS}" http://localhost:15672/api/connections \
   | jq 'length'
 ```
 
@@ -445,7 +447,7 @@ HAVING cnt > 1;
 **排查：**
 
 ```bash
-curl -s -u admin:admin http://localhost:15672/api/queues \
+curl -s -u "${RABBITMQ_USER}:${RABBITMQ_PASS}" http://localhost:15672/api/queues \
   | jq '.[] | select(.messages > 100) | {name, messages, consumers}'
 ```
 
@@ -518,7 +520,7 @@ grep -r "caffeine" nacos-config/
 ## 6. 验收门禁
 
 - `scripts/backup-im-core-tables.sh` 可执行，覆盖 13 张核心 IM 表。
-- `scripts/verify-im-core-data-recovery.sh` 可执行，19 条孤儿检测断言全部通过。
+- `scripts/verify-im-core-data-recovery.sh` 可执行，20 条孤儿检测断言全部通过。
 - 健康检查端点与 Nacos 配置一致（readiness 包含 `ping,db,redis,rabbit`）。
 - 消息链路排查路径覆盖发送、投递、会话、好友权限四个维度。
 - 回滚流程包含风险边界说明和缓解措施。
