@@ -470,6 +470,7 @@ class ChatMomentServiceImplTest {
 
         Long momentId = chatMomentService.publish(1L, request);
 
+        Assertions.assertEquals(100L, momentId);
         Assertions.assertNotNull(chatMomentService.savedMoment,
                 "动态应写入 chat_moment 事实表");
         Assertions.assertEquals("moment fact boundary", chatMomentService.savedMoment.getContent());
@@ -477,8 +478,9 @@ class ChatMomentServiceImplTest {
         Assertions.assertEquals(1, chatMomentService.savedMoment.getAuditStatus());
         Assertions.assertEquals(0, chatMomentService.savedMoment.getStatus());
         Assertions.assertEquals(0, chatMomentService.savedMoment.getIsDelete());
-        // verify no chat_message side-effect: the stub has no message save method
-        // because the service correctly uses chat_moment exclusively
+        Assertions.assertTrue(chatMomentService.savedLikes.isEmpty());
+        Assertions.assertTrue(chatMomentService.savedComments.isEmpty());
+        Assertions.assertTrue(chatMomentService.sentNotifications.isEmpty());
     }
 
     @Test
