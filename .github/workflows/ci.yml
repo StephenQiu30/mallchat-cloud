@@ -59,8 +59,15 @@ jobs:
           mvn -B -pl mallchat-common/mallchat-common-websocket -am -Dtest=ChannelManagerTest -Dsurefire.failIfNoSpecifiedTests=false test
           mvn -B -pl mallchat-service/mallchat-chat-service -am -Dtest=ChatRoomMemberServiceImplTest,UserFriendServiceImplTest -Dsurefire.failIfNoSpecifiedTests=false test
           mvn -B -pl mallchat-service/mallchat-chat-service,mallchat-service/mallchat-notification-service -am -Dtest=ChatRoomServiceImplTest,ChatRoomJoinApplyServiceImplTest,ChatMessageHelperTest,ChatMessageServiceImplTest,ChatSessionServiceImplTest,ChatMomentServiceImplTest,ChatReportServiceImplTest,ChatMessagePushHandlerTest -Dsurefire.failIfNoSpecifiedTests=false test
+          mvn -B -pl mallchat-service/mallchat-chat-service -am -Dtest=ChatMqProducerTest,ChatSessionListenerTest -Dsurefire.failIfNoSpecifiedTests=false test
           mvn -B -pl mallchat-service/mallchat-file-service -am -Dtest=FileUploadValidatorTest,FileUploadRecordRecorderTest,FileServiceApplicationTest -Dsurefire.failIfNoSpecifiedTests=false test
           mvn -B -pl mallchat-service/mallchat-log-service -am -Dtest=OperationLogServiceImplTest -Dsurefire.failIfNoSpecifiedTests=false test
+
+      - name: Run IM E2E smoke tests
+        run: |
+          # IM E2E smoke tests for message reliability
+          # Validates: message send idempotency, session consistency, delivery reliability
+          mvn -B -pl mallchat-service/mallchat-chat-service -am -Dtest=ChatMessageServiceImplTest#testMessageIdempotency,ChatMessageServiceImplTest#testSessionLastMessageUpdate -Dsurefire.failIfNoSpecifiedTests=false test
 
       - name: Compile backend modules
         run: mvn -B -DskipTests compile
