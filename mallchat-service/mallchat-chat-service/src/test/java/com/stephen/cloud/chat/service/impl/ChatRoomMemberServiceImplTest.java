@@ -248,7 +248,10 @@ class ChatRoomMemberServiceImplTest {
                         case "contains" -> setMap.getOrDefault(key, Set.of()).contains(setArgs[0]);
                         case "readAll" -> new HashSet<>(setMap.getOrDefault(key, Set.of()));
                         case "removeAll" -> {
-                            Set<String> members = setMap.getOrDefault(key, Set.of());
+                            Set<String> members = setMap.get(key);
+                            if (members == null) {
+                                yield false;
+                            }
                             yield members.removeAll((Collection<?>) setArgs[0]);
                         }
                         default -> defaultValue(setMethod.getReturnType());
