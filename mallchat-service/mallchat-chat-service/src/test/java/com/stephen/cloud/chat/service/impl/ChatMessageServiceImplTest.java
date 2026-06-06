@@ -762,6 +762,64 @@ class ChatMessageServiceImplTest {
     }
 
     @Test
+    void shouldRejectGroupMessageFromNonMember() {
+        room.setType(ChatRoomTypeEnum.GROUP.getCode());
+        roomMembership.put(1L, false);
+        ChatMessage message = createTextMessage(1L, "group-non-member", "hello");
+
+        BusinessException exception = Assertions.assertThrows(BusinessException.class,
+                () -> chatMessageService.sendMessage(message, 1L));
+
+        Assertions.assertEquals(ErrorCode.NO_AUTH_ERROR.getCode(), exception.getCode());
+        Assertions.assertEquals("您不在此聊天室中", exception.getMessage());
+        Assertions.assertNull(chatMessageService.messageById);
+        Assertions.assertNull(chatMqProducer.lastGroupPushRoomId);
+    }
+
+    @Test
+    void shouldRejectGroupMessageFromExitedMember() {
+        room.setType(ChatRoomTypeEnum.GROUP.getCode());
+        roomMembership.put(1L, false);
+        ChatMessage message = createTextMessage(1L, "group-exited-member", "hello");
+
+        BusinessException exception = Assertions.assertThrows(BusinessException.class,
+                () -> chatMessageService.sendMessage(message, 1L));
+
+        Assertions.assertEquals(ErrorCode.NO_AUTH_ERROR.getCode(), exception.getCode());
+        Assertions.assertEquals("您不在此聊天室中", exception.getMessage());
+        Assertions.assertNull(chatMessageService.messageById);
+        Assertions.assertNull(chatMqProducer.lastGroupPushRoomId);
+    }
+
+    @Test
+    void shouldRejectGroupMessageFromKickedMember() {
+        room.setType(ChatRoomTypeEnum.GROUP.getCode());
+        roomMembership.put(1L, false);
+        ChatMessage message = createTextMessage(1L, "group-kicked-member", "hello");
+
+        BusinessException exception = Assertions.assertThrows(BusinessException.class,
+                () -> chatMessageService.sendMessage(message, 1L));
+
+        Assertions.assertEquals(ErrorCode.NO_AUTH_ERROR.getCode(), exception.getCode());
+        Assertions.assertEquals("您不在此聊天室中", exception.getMessage());
+        Assertions.assertNull(chatMessageService.messageById);
+        Assertions.assertNull(chatMqProducer.lastGroupPushRoomId);
+    }
+
+    @Test
+    void shouldSendGroupMessageFromMemberSuccessfully() {
+        room.setType(ChatRoomTypeEnum.GROUP.getCode());
+        roomMembership.put(1L, true);
+        ChatMessage message = createTextMessage(1L, "group-member-msg", "hello");
+
+        ChatMessageVO result = chatMessageService.sendMessage(message, 1L);
+
+        Assertions.assertNotNull(result);
+        Assertions.assertNotNull(chatMessageService.messageById);
+        Assertions.assertEquals(1L, chatMqProducer.lastGroupPushRoomId);
+    }
+
+    @Test
     void shouldForwardVisibleNormalMessageToTargetRoomThroughSendFlow() {
         ChatRoom sourceRoom = createRoom(1L, ChatRoomTypeEnum.GROUP.getCode());
         ChatRoom targetRoom = createRoom(2L, ChatRoomTypeEnum.GROUP.getCode());

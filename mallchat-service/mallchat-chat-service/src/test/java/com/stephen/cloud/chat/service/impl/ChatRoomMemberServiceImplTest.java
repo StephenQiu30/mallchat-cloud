@@ -16,6 +16,7 @@ import org.redisson.api.RedissonClient;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.lang.reflect.Proxy;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -102,6 +103,60 @@ class ChatRoomMemberServiceImplTest {
         Assertions.assertTrue(cacheUtils.sIsMember(ChatCacheConstant.getRoomMemberKey(10L), "2"));
     }
 
+    @Test
+    void shouldRemoveFromCacheWhenMemberLeavesRoom() {
+        TestableCacheRecoveryChatRoomMemberServiceImpl service = new TestableCacheRecoveryChatRoomMemberServiceImpl();
+        FakeCacheUtils cacheUtils = new FakeCacheUtils();
+        ReflectionTestUtils.setField(service, "cacheUtils", cacheUtils);
+
+        // Pre-populate cache with a member
+        String key = ChatCacheConstant.getRoomMemberKey(10L);
+        cacheUtils.sAdd(key, "2");
+        Assertions.assertTrue(cacheUtils.sIsMember(key, "2"));
+
+        service.leaveRoom(10L, 2L);
+
+        Assertions.assertFalse(cacheUtils.sIsMember(key, "2"));
+    }
+
+    @Test
+    void shouldReportNonMemberAfterLeave() {
+        TestableCacheRecoveryChatRoomMemberServiceImpl service = new TestableCacheRecoveryChatRoomMemberServiceImpl();
+        FakeCacheUtils cacheUtils = new FakeCacheUtils();
+        ReflectionTestUtils.setField(service, "cacheUtils", cacheUtils);
+
+        // Pre-populate cache with a member
+        String key = ChatCacheConstant.getRoomMemberKey(10L);
+        cacheUtils.sAdd(key, "2");
+        Assertions.assertTrue(service.isMember(10L, 2L));
+
+        service.leaveRoom(10L, 2L);
+
+        Assertions.assertFalse(service.isMember(10L, 2L));
+    }
+
+    @Test
+    void shouldNotCreateDuplicateMemberOnRepeatedAdd() {
+        TestableCacheRecoveryChatRoomMemberServiceImpl service = new TestableCacheRecoveryChatRoomMemberServiceImpl();
+        FakeCacheUtils cacheUtils = new FakeCacheUtils();
+        ReflectionTestUtils.setField(service, "cacheUtils", cacheUtils);
+
+        // First add: member not in DB
+        service.listResult = List.of();
+        service.savedMembers.clear();
+        service.addMember(10L, 2L, ChatRoomRoleEnum.MEMBER.getCode());
+
+        Assertions.assertEquals(1, service.savedMembers.size());
+
+        // Second add: member now in DB (getMember returns existing)
+        ChatRoomMember existing = buildMember(ChatRoomRoleEnum.MEMBER.getCode());
+        service.existingMember = existing;
+        service.savedMembers.clear();
+        service.addMember(10L, 2L, ChatRoomRoleEnum.MEMBER.getCode());
+
+        Assertions.assertTrue(service.savedMembers.isEmpty(), "duplicate add should not save again");
+    }
+
     private ChatRoomMember buildMember(Integer role) {
         ChatRoomMember member = new ChatRoomMember();
         member.setId(1L);
@@ -126,10 +181,28 @@ class ChatRoomMemberServiceImplTest {
 
     private static class TestableCacheRecoveryChatRoomMemberServiceImpl extends ChatRoomMemberServiceImpl {
         private List<ChatRoomMember> listResult = List.of();
+        private final List<ChatRoomMember> savedMembers = new ArrayList<>();
+        private ChatRoomMember existingMember;
 
         @Override
         public List<ChatRoomMember> list(Wrapper<ChatRoomMember> queryWrapper) {
             return listResult;
+        }
+
+        @Override
+        public ChatRoomMember getMember(Long roomId, Long userId) {
+            return existingMember;
+        }
+
+        @Override
+        public boolean save(ChatRoomMember entity) {
+            savedMembers.add(entity);
+            return true;
+        }
+
+        @Override
+        public boolean remove(Wrapper<ChatRoomMember> queryWrapper) {
+            return true;
         }
     }
 
@@ -174,6 +247,13 @@ class ChatRoomMemberServiceImplTest {
                         }
                         case "contains" -> setMap.getOrDefault(key, Set.of()).contains(setArgs[0]);
                         case "readAll" -> new HashSet<>(setMap.getOrDefault(key, Set.of()));
+                        case "removeAll" -> {
+                            Set<String> members = setMap.get(key);
+                            if (members == null) {
+                                yield false;
+                            }
+                            yield members.removeAll((Collection<?>) setArgs[0]);
+                        }
                         default -> defaultValue(setMethod.getReturnType());
                     });
         }
