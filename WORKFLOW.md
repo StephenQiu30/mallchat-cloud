@@ -28,7 +28,7 @@ hooks:
   before_remove: |
     git status --short || true
 agent:
-  default_runtime: claude
+  default_runtime: gemini
   max_concurrent_agents: 4
   max_turns: 20
   runtime_by_label:
@@ -85,9 +85,11 @@ Instructions:
 
 Work only in the provided repository copy. Do not touch any other path.
 
-This Claude template runs Claude by default. Use the `claude:` configuration
-key, `.claude/` paths, and the `## Claude Workpad` marker throughout this
-workflow.
+This Gemini-default template routes to Gemini by default. Use the `gemini:`
+configuration key, `.claude/` paths (shared across runtimes), and the
+`## Claude Workpad` marker throughout this workflow. The template keeps
+"Claude" naming for backward compatibility while runtime routing uses Gemini
+(`agent.default_runtime: gemini`; enforced by `scripts/validate-repository.sh`).
 
 ## Prerequisite: Linear access is available
 
