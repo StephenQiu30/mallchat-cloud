@@ -73,6 +73,7 @@ application-*.yml
 application-*.properties
 !application-example.yml
 !application-example.properties
+!application-e2e.yml
 
 # Logs
 logs/
