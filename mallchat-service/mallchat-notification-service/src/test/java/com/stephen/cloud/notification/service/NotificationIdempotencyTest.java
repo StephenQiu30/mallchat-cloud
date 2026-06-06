@@ -10,6 +10,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * 通知幂等性测试
@@ -32,7 +33,7 @@ class NotificationIdempotencyTest {
     }
 
     @Test
-    @DisplayName("RED: 相同 bizId 的通知应返回已有 ID，不创建重复记录")
+    @DisplayName("相同 bizId 的通知应返回已有 ID，不创建重复记录")
     void shouldReturnExistingNotificationIdForDuplicateBizId() {
         // Given: 首次创建通知
         Notification firstNotification = new Notification();
@@ -63,7 +64,7 @@ class NotificationIdempotencyTest {
     }
 
     @Test
-    @DisplayName("RED: 不同 bizId 的通知应创建新记录")
+    @DisplayName("不同 bizId 的通知应创建新记录")
     void shouldCreateNewNotificationForDifferentBizId() {
         // Given: 首次创建通知
         Notification firstNotification = new Notification();
@@ -93,7 +94,7 @@ class NotificationIdempotencyTest {
     }
 
     @Test
-    @DisplayName("RED: 相同 bizId 但不同用户应各自创建记录")
+    @DisplayName("相同 bizId 但不同用户应各自创建记录")
     void shouldCreateSeparateNotificationsForDifferentUsersWithSameBizId() {
         // Given: 用户1的通知
         Notification notification1 = new Notification();
@@ -123,7 +124,7 @@ class NotificationIdempotencyTest {
     }
 
     @Test
-    @DisplayName("RED: 缺少 bizId 时自动生成并保证唯一性")
+    @DisplayName("缺少 bizId 时自动生成并保证唯一性")
     void shouldAutoGenerateBizIdWhenMissing() {
         // Given: 缺少 bizId 的通知
         Notification notification1 = new Notification();
@@ -155,6 +156,37 @@ class NotificationIdempotencyTest {
                 "应创建两条通知记录");
     }
 
+    @Test
+    @DisplayName("参数校验：通知对象为空应抛出异常")
+    void shouldThrowExceptionWhenNotificationIsNull() {
+        // When & Then: 传入 null 应抛出 IllegalArgumentException
+        IllegalArgumentException exception = Assertions.assertThrows(
+                IllegalArgumentException.class,
+                () -> notificationService.addNotification(null)
+        );
+        Assertions.assertTrue(exception.getMessage().contains("通知和用户ID不能为空"),
+                "异常信息应包含校验提示");
+    }
+
+    @Test
+    @DisplayName("参数校验：用户ID为空应抛出异常")
+    void shouldThrowExceptionWhenUserIdIsNull() {
+        // Given: userId 为 null 的通知
+        Notification notification = new Notification();
+        notification.setTitle("测试");
+        notification.setContent("内容");
+        notification.setType("USER");
+        // userId 未设置，默认为 null
+
+        // When & Then: 应抛出 IllegalArgumentException
+        IllegalArgumentException exception = Assertions.assertThrows(
+                IllegalArgumentException.class,
+                () -> notificationService.addNotification(notification)
+        );
+        Assertions.assertTrue(exception.getMessage().contains("通知和用户ID不能为空"),
+                "异常信息应包含校验提示");
+    }
+
     /**
      * 模拟的通知幂等性服务
      * <p>
@@ -168,6 +200,7 @@ class NotificationIdempotencyTest {
         private final List<Notification> savedNotifications = new ArrayList<>();
         private final Map<String, Notification> notificationByBizIdAndUser = new HashMap<>();
         private long nextId = 1L;
+        private final AtomicLong autoIdCounter = new AtomicLong(1L);
 
         public int getSavedNotificationsCount() {
             return savedNotifications.size();
@@ -182,7 +215,7 @@ class NotificationIdempotencyTest {
             // 生成或使用传入的 bizId
             String bizId = notification.getBizId();
             if (bizId == null || bizId.isEmpty()) {
-                bizId = "auto_" + System.nanoTime();
+                bizId = "auto_" + autoIdCounter.getAndIncrement();
                 notification.setBizId(bizId);
             }
 
