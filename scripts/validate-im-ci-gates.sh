@@ -47,7 +47,7 @@ E2E_SMOKE_CHECKS=(
 
 HAS_E2E=false
 for pattern in "${E2E_SMOKE_CHECKS[@]}"; do
-  if grep -qiE "$pattern" "$CI_FILE" || grep -qiE "$pattern" ".github/pull_request_template.md"; then
+  if grep -qiE "$pattern" "$CI_FILE"; then
     HAS_E2E=true
     echo "  ✓ 找到 E2E smoke 入口: $pattern"
     break
@@ -72,6 +72,9 @@ IM_VALIDATE_CHECKS=(
   "ChatRoomServiceImplTest"
   "ChatSessionServiceImplTest"
   "ChatMomentServiceImplTest"
+  "ChatMqProducerTest"
+  "ChatSessionListenerTest"
+  "Run IM E2E smoke tests"
   "IM focused tests"
 )
 

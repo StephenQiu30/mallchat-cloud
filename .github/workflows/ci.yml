@@ -67,7 +67,7 @@ jobs:
         run: |
           # IM E2E smoke tests for message reliability
           # Validates: message send idempotency, session consistency, delivery reliability
-          mvn -B -pl mallchat-service/mallchat-chat-service -am -Dtest=ChatMessageServiceImplTest#testMessageIdempotency,ChatMessageServiceImplTest#testSessionLastMessageUpdate -Dsurefire.failIfNoSpecifiedTests=false test || echo "IM E2E smoke: some tests skipped (see documentation)"
+          mvn -B -pl mallchat-service/mallchat-chat-service -am -Dtest=ChatMessageServiceImplTest#testMessageIdempotency,ChatMessageServiceImplTest#testSessionLastMessageUpdate -Dsurefire.failIfNoSpecifiedTests=false test
 
       - name: Compile backend modules
         run: mvn -B -DskipTests compile
