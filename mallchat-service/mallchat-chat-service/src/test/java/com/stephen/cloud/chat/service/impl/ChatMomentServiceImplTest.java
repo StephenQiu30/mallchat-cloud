@@ -24,6 +24,11 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
 
 class ChatMomentServiceImplTest {
 
@@ -156,6 +161,42 @@ class ChatMomentServiceImplTest {
         Assertions.assertEquals(new LinkedHashSet<>(Set.of(1L)), chatMomentService.capturedVisibleAuthorIds);
         Assertions.assertEquals(1, page.getRecords().size());
         Assertions.assertEquals(11L, page.getRecords().get(0).getId());
+    }
+
+    @Test
+    void shouldNotSeeFriendOnlyMomentWhenNotFriend() {
+        // User 1 has no friends (visibleFriendIds is empty)
+        chatMomentService.visibleFriendIds = new LinkedHashSet<>();
+        // Moments include: own moment (visibility=0, friend-only) and friend user 2's friend-only moment
+        chatMomentService.moments = List.of(
+                moment(10L, 1L, "mine"),
+                moment(11L, 2L, "friend's friend-only"));
+
+        Page<ChatMomentVO> page = chatMomentService.listVisibleMoments(1L, 1, 10);
+
+        // User 1 should only see their own moment, not user 2's friend-only moment
+        Assertions.assertEquals(new LinkedHashSet<>(Set.of(1L)), chatMomentService.capturedVisibleAuthorIds);
+        Assertions.assertEquals(1, page.getRecords().size());
+        Assertions.assertEquals(10L, page.getRecords().get(0).getId());
+        Assertions.assertEquals("mine", page.getRecords().get(0).getContent());
+    }
+
+    @Test
+    void shouldNotSeeFriendOnlyMomentWhenBlocked() {
+        // User 1 is friends with user 2 but blocked them
+        chatMomentService.visibleFriendIds = new LinkedHashSet<>(Set.of(2L));
+        chatMomentService.blockedUserIds = Set.of(2L);
+        chatMomentService.moments = List.of(
+                moment(10L, 1L, "mine"),
+                moment(11L, 2L, "blocked friend's moment"));
+
+        Page<ChatMomentVO> page = chatMomentService.listVisibleMoments(1L, 1, 10);
+
+        // User 1 should only see their own moment, not blocked user 2's moment
+        Assertions.assertEquals(new LinkedHashSet<>(Set.of(1L)), chatMomentService.capturedVisibleAuthorIds);
+        Assertions.assertEquals(1, page.getRecords().size());
+        Assertions.assertEquals(10L, page.getRecords().get(0).getId());
+        Assertions.assertEquals("mine", page.getRecords().get(0).getContent());
     }
 
     @Test
@@ -396,6 +437,97 @@ class ChatMomentServiceImplTest {
     }
 
     @Test
+    void shouldProduceOnlyOneLikeFactOnMultipleLikeRequests() {
+        chatMomentService.visibleFriendIds = new LinkedHashSet<>(Set.of(2L));
+        chatMomentService.momentById = Map.of(10L, moment(10L, 2L, "friend"));
+
+        // Simulate 5 rapid like requests (idempotency test)
+        chatMomentService.likeMoment(1L, 10L);
+        chatMomentService.likeMoment(1L, 10L);
+        chatMomentService.likeMoment(1L, 10L);
+        chatMomentService.likeMoment(1L, 10L);
+        chatMomentService.likeMoment(1L, 10L);
+
+        // Should only produce ONE like fact, not 5
+        Assertions.assertEquals(1, chatMomentService.savedLikes.size());
+        Assertions.assertEquals(1, chatMomentService.likeIncrementMomentIds.size());
+        Assertions.assertEquals(10L, chatMomentService.savedLikes.get(0).getMomentId());
+        Assertions.assertEquals(1L, chatMomentService.savedLikes.get(0).getUserId());
+    }
+
+    @Test
+    void shouldKeepLikeIdempotentUnderConcurrentRequests() throws Exception {
+        chatMomentService.visibleFriendIds = new LinkedHashSet<>(Set.of(2L));
+        chatMomentService.momentById = Map.of(10L, moment(10L, 2L, "friend"));
+
+        int n = 8;
+        ExecutorService pool = Executors.newFixedThreadPool(n);
+        CountDownLatch ready = new CountDownLatch(n);
+        CountDownLatch start = new CountDownLatch(1);
+        CountDownLatch done = new CountDownLatch(n);
+        for (int i = 0; i < n; i++) {
+            pool.submit(() -> {
+                ready.countDown();
+                start.await();
+                chatMomentService.likeMoment(1L, 10L);
+                done.countDown();
+                return null;
+            });
+        }
+        ready.await();
+        start.countDown();
+        done.await();
+        pool.shutdown();
+        Assertions.assertTrue(pool.awaitTermination(5, TimeUnit.SECONDS));
+
+        Assertions.assertEquals(1, chatMomentService.savedLikes.size());
+        Assertions.assertEquals(1, chatMomentService.likeIncrementMomentIds.size());
+        Assertions.assertEquals(1, chatMomentService.sentNotifications.size());
+        Assertions.assertEquals(10L, chatMomentService.savedLikes.get(0).getMomentId());
+        Assertions.assertEquals(1L, chatMomentService.savedLikes.get(0).getUserId());
+    }
+
+    @Test
+    void shouldWriteCommentToIndependentFactTable() {
+        chatMomentService.visibleFriendIds = new LinkedHashSet<>(Set.of(2L));
+        chatMomentService.momentById = Map.of(10L, moment(10L, 2L, "friend"));
+
+        Long commentId = chatMomentService.commentMoment(1L, commentRequest(10L, "great post!"));
+
+        // Verify comment was saved
+        Assertions.assertNotNull(commentId);
+        Assertions.assertEquals(200L, commentId);
+        Assertions.assertEquals(1, chatMomentService.savedComments.size());
+        ChatMomentComment savedComment = chatMomentService.savedComments.get(0);
+        // Verify it's written to comment table, not reused from chat_message
+        Assertions.assertEquals(10L, savedComment.getMomentId());
+        Assertions.assertEquals(1L, savedComment.getUserId());
+        Assertions.assertEquals("great post!", savedComment.getContent());
+        Assertions.assertEquals(0, savedComment.getIsDelete());
+        Assertions.assertNotNull(savedComment.getId()); // ID should be set by mapper
+    }
+
+    @Test
+    void shouldEnforceVisibilityBoundaryForLike() {
+        chatMomentService.visibleFriendIds = new LinkedHashSet<>(); // No friends
+        chatMomentService.momentById = Map.of(10L, moment(10L, 2L, "private")); // Private moment from stranger
+
+        // Should reject like on invisible moment
+        Assertions.assertThrows(RuntimeException.class, () -> chatMomentService.likeMoment(1L, 10L));
+        Assertions.assertTrue(chatMomentService.savedLikes.isEmpty());
+    }
+
+    @Test
+    void shouldEnforceVisibilityBoundaryForComment() {
+        chatMomentService.visibleFriendIds = new LinkedHashSet<>(); // No friends
+        chatMomentService.momentById = Map.of(10L, moment(10L, 2L, "private")); // Private moment from stranger
+
+        // Should reject comment on invisible moment
+        Assertions.assertThrows(RuntimeException.class, () -> chatMomentService.commentMoment(1L, commentRequest(10L, "hi")));
+        Assertions.assertTrue(chatMomentService.savedComments.isEmpty());
+    }
+
+    @Test
     void shouldFilterDeletedCommentsInList() {
         ChatMomentComment deletedComment = comment(102L, 10L, 3L, "deleted");
         deletedComment.setIsDelete(1);
@@ -529,6 +661,8 @@ class ChatMomentServiceImplTest {
         private final List<String> sentNotifications = new ArrayList<>();
         private boolean failNotification;
         private boolean duplicateLikeOnSave;
+        // Track saved like keys for idempotency simulation
+        private final Set<String> savedLikeKeys = new LinkedHashSet<>();
 
         @Override
         protected boolean saveMoment(ChatMoment moment) {
@@ -546,7 +680,10 @@ class ChatMomentServiceImplTest {
 
         @Override
         protected Set<Long> listMutualFriendIds(Long userId) {
-            return new LinkedHashSet<>(visibleFriendIds);
+            // Match real service behavior: filter out blocked users from visible friends
+            return visibleFriendIds.stream()
+                    .filter(id -> !blockedUserIds.contains(id))
+                    .collect(Collectors.toCollection(LinkedHashSet::new));
         }
 
         @Override
@@ -621,6 +758,14 @@ class ChatMomentServiceImplTest {
         protected boolean saveMomentLike(ChatMomentLike like) {
             if (duplicateLikeOnSave) {
                 throw new DuplicateKeyException("duplicate moment like");
+            }
+            // Simulate idempotency with synchronization (mirrors DB unique constraint)
+            String likeKey = like.getMomentId() + ":" + like.getUserId();
+            synchronized (savedLikeKeys) {
+                if (savedLikeKeys.contains(likeKey)) {
+                    return false; // Already saved, idempotent
+                }
+                savedLikeKeys.add(likeKey);
             }
             savedLikes.add(like);
             return true;

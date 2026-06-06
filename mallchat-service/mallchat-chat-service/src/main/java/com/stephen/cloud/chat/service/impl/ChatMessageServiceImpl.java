@@ -168,6 +168,7 @@ public class ChatMessageServiceImpl extends ServiceImpl<ChatMessageMapper, ChatM
         ChatMessage existing = this.getOne(new LambdaQueryWrapper<ChatMessage>()
                 .eq(ChatMessage::getFromUserId, userId)
                 .eq(ChatMessage::getClientMsgId, chatMessage.getClientMsgId())
+                .eq(ChatMessage::getRoomId, chatMessage.getRoomId())
                 .last("LIMIT 1"));
         if (existing != null) {
             businessMetricsRecorder.record("message_send", "duplicate");
@@ -191,7 +192,7 @@ public class ChatMessageServiceImpl extends ServiceImpl<ChatMessageMapper, ChatM
         try {
             result = this.save(chatMessage);
         } catch (DuplicateKeyException e) {
-            ChatMessage duplicate = getExistingMessageByClientMsgId(userId, chatMessage.getClientMsgId());
+            ChatMessage duplicate = getExistingMessageByClientMsgId(userId, chatMessage.getClientMsgId(), chatMessage.getRoomId());
             ThrowUtils.throwIf(duplicate == null, ErrorCode.OPERATION_ERROR, "发送消息失败");
             businessMetricsRecorder.record("message_send", "duplicate");
             return getChatMessageVO(duplicate, null);
@@ -441,10 +442,11 @@ public class ChatMessageServiceImpl extends ServiceImpl<ChatMessageMapper, ChatM
         return true;
     }
 
-    private ChatMessage getExistingMessageByClientMsgId(Long userId, String clientMsgId) {
+    private ChatMessage getExistingMessageByClientMsgId(Long userId, String clientMsgId, Long roomId) {
         return this.getOne(new LambdaQueryWrapper<ChatMessage>()
                 .eq(ChatMessage::getFromUserId, userId)
                 .eq(ChatMessage::getClientMsgId, clientMsgId)
+                .eq(ChatMessage::getRoomId, roomId)
                 .last("LIMIT 1"));
     }
 

@@ -1,81 +1,61 @@
----
-tracker:
-  kind: linear
-  project_slug: "$SYMPHONY_LINEAR_PROJECT_SLUG"
-  active_states:
-    - Todo
-    - In Progress
-    - Merging
-    - Rework
-  terminal_states:
-    - Closed
-    - Cancelled
-    - Canceled
-    - Duplicate
-    - Blocked
-    - Done
-polling:
-  interval_ms: 5000
-server:
-  host: "0.0.0.0"
-workspace:
-  root: "$SYMPHONY_WORKSPACE_ROOT"
-hooks:
-  after_create: |
-    target_branch="${SYMPHONY_TARGET_BRANCH:-main}"
-    git clone --depth 1 --branch "$target_branch" "$SOURCE_REPO_URL" .
-    mvn -v >/dev/null 2>&1 || true
-  before_remove: |
-    git status --short || true
-agent:
-  default_runtime: gemini
-  max_concurrent_agents: 4
-  max_turns: 20
-  runtime_by_label:
-    agent:codex: codex
-    agent:claude: claude
-    agent:cursor: cursor
-    agent:gemini: gemini
-codex:
-  command: codex --config shell_environment_policy.inherit=all --config 'model="gpt-5.5"' --config model_reasoning_effort=xhigh app-server
-  approval_policy: never
-  thread_sandbox: danger-full-access
-  turn_sandbox_policy:
-    type: dangerFullAccess
-claude:
-  command: claude -p --dangerously-skip-permissions --permission-mode bypassPermissions
-  prompt_mode: stdin
-cursor:
-  command: cursor-agent -p --force --sandbox disabled --output-format stream-json --stream-partial-output --approve-mcps
-  prompt_mode: argument
-gemini:
-  command: gemini
----
+You are working on a Linear ticket `STE-220`
 
-You are working on a Linear ticket `{{ issue.identifier }}`
 
-{% if attempt %}
-Continuation context:
-
-- This is retry attempt #{{ attempt }} because the ticket is still in an active state.
-- Resume from the current workspace state instead of restarting from scratch.
-- Do not repeat already-completed investigation or validation unless needed for new code changes.
-- Do not end the turn while the issue remains in an active state unless a true external blocker has been recorded and the issue has been moved to `Blocked`.
-  {% endif %}
 
 Issue context:
-Identifier: {{ issue.identifier }}
-Title: {{ issue.title }}
-Current status: {{ issue.state }}
-Labels: {{ issue.labels }}
-URL: {{ issue.url }}
+Identifier: STE-220
+Title: moment-like-comment-idempotency：朋友圈点赞评论幂等
+Current status: Todo
+Labels: agent:claudearea:apiphase:p1type:task
+URL: https://linear.app/stephenqiu/issue/STE-220/moment-like-comment-idempotency朋友圈点赞评论幂等
 
 Description:
-{% if issue.description %}
-{{ issue.description }}
-{% else %}
-No description provided.
-{% endif %}
+
+## Parent Epic
+
+* `STE-206` IM 系统生产化增强（SRD 总 Epic）
+
+## SRD 来源
+
+* SRD: `docs/prd/001-im-system-srd.md#44-p0p1-朋友圈`
+* Plan: `docs/plans/001-im-production-task-orchestration-plan.md#7-阶段-4朋友圈-p0p1`
+* Acceptance: `docs/acceptance/001-im-e2e-rag-acceptance.md#44-朋友圈`
+
+## 背景
+
+朋友圈点赞和评论必须使用独立事实表。重复点赞、重复请求和评论写入需要明确幂等与权限边界。
+
+## 目标
+
+1. 点赞重复请求只产生一条事实。
+2. 评论写入独立事实表。
+3. 评论不得复用 `chat_message`。
+4. 互动权限遵循动态可见性。
+
+## 非目标
+
+* 不实现复杂评论楼中楼。
+* 不实现推荐排序。
+
+## TDD 验收
+
+* RED：重复点赞产生重复事实，或评论事实边界不清。
+* GREEN：点赞幂等、评论写入、权限边界 focused tests 通过。
+
+## E2E 场景
+
+用户对可见动态重复点赞，只产生一条点赞事实；评论进入 `chat_moment_comment`。
+
+## RAG
+
+* 初始状态：Amber。
+* 目标状态：Green。
+
+## 代码风格一致性
+
+* 复用 `ChatMomentLike`、`ChatMomentComment`、相关 Mapper 和 Service。
+* 不混用动态和消息事实表。
+
 
 Instructions:
 
@@ -85,11 +65,9 @@ Instructions:
 
 Work only in the provided repository copy. Do not touch any other path.
 
-This Gemini-default template routes to Gemini by default. Use the `gemini:`
-configuration key, `.claude/` paths (shared across runtimes), and the
-`## Claude Workpad` marker throughout this workflow. The template keeps
-"Claude" naming for backward compatibility while runtime routing uses Gemini
-(`agent.default_runtime: gemini`; enforced by `scripts/validate-repository.sh`).
+This Claude template runs Claude by default. Use the `claude:` configuration
+key, `.claude/` paths, and the `## Claude Workpad` marker throughout this
+workflow.
 
 ## Prerequisite: Linear access is available
 

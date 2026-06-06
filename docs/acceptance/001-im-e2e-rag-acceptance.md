@@ -10,7 +10,7 @@ feature_area: im-system
 purpose: "定义 MallChat IM 生产化增强的 TDD、E2E、RAG 验收门禁和长期回归边界。"
 canonical_path: "docs/acceptance/001-im-e2e-rag-acceptance.md"
 status: draft
-version: "0.1.0"
+version: "0.2.0"
 owner: "StephenQiu30"
 inputs:
   - "docs/prd/001-im-system-srd.md"
@@ -33,6 +33,8 @@ downstream:
 ## 1. 背景
 
 IM 生产化不能只用编译通过作为验收。消息、好友、群聊、朋友圈和实时投递都需要先用测试定义行为，再用 E2E 或等价可执行脚本验证真实业务链路。
+
+本文档是 IM RAG 验收看板，用于维护 feature RAG 状态、红绿测试、E2E 场景和残余风险。每个 P0 feature 必须关联至少一个 E2E 或等价验收场景。
 
 ## 2. RAG 定义
 
@@ -93,17 +95,20 @@ IM 生产化不能只用编译通过作为验收。消息、好友、群聊、�
 
 ## 5. Feature RAG 表
 
-| Feature | 当前状态 | 目标状态 | 必需证据 |
-| --- | --- | --- | --- |
-| `im-e2e-test-harness` | Red | Green | E2E smoke 可执行 |
-| `message-send-idempotency` | Red | Green | 重复发送红绿测试 + 私聊 E2E |
-| `message-delivery-reliability` | Red | Green | MQ/WebSocket 失败测试 + 历史可查 E2E |
-| `session-consistency` | Red | Green | 未读/lastMessage 重复乱序测试 + 会话 E2E |
-| `message-recovery-observability` | Amber | Green | 恢复脚本 + focused tests + 日志指标 |
-| `friend-apply-lifecycle` | Amber | Green | 好友申请生命周期 E2E |
-| `friend-message-permission` | Amber | Green | 非好友/拉黑权限测试 |
-| `group-message-permission` | Amber | Green | 非成员/退出后权限测试 |
-| `moment-like-comment-idempotency` | Amber | Green | 点赞评论幂等测试 |
+每个 P0 feature 必须关联至少一个 E2E 场景（见第 4 节）。
+
+| Feature | 当前状态 | 目标状态 | 必需证据 | E2E 场景引用 |
+| --- | --- | --- | --- | --- |
+| `im-e2e-test-harness` | Red | Green | E2E smoke 可执行 | N/A（基础设施） |
+| `message-send-idempotency` | Red | Green | 重复发送红绿测试 + 私聊 E2E | 4.1 私聊消息可靠性 |
+| `message-delivery-reliability` | Red | Green | MQ/WebSocket 失败测试 + 历史可查 E2E | 4.1 私聊消息可靠性 |
+| `session-consistency` | Red | Green | 未读/lastMessage 重复乱序测试 + 会话 E2E | 4.1 私聊消息可靠性 |
+| `message-recovery-observability` | Amber | Green | 恢复脚本 + focused tests + 日志指标 | 4.1 私聊消息可靠性 |
+| `friend-apply-lifecycle` | Amber | Green | 好友申请生命周期 E2E | 4.2 好友权限 |
+| `friend-message-permission` | Amber | Green | 非好友/拉黑权限测试 | 4.2 好友权限 |
+| `group-message-permission` | Amber | Green | 非成员/退出后权限测试 | 4.3 群聊权限 |
+| `moment-like-comment-idempotency` | Amber | Green | 点赞评论幂等测试 | 4.4 朋友圈 |
+| `moment-permission-boundary` | Green | Green | 好友可见权限边界测试 + 拉黑收敛测试 | 4.4 朋友圈 |
 
 ## 6. 通用验证命令
 
@@ -151,3 +156,4 @@ mvn -B -DskipTests compile
 | 日期 | 作者 | 版本 | 变更说明 |
 | --- | --- | --- | --- |
 | 2026-06-05 | StephenQiu30 | 0.1.0 | 初始化 IM E2E 与 RAG 验收文档 |
+| 2026-06-06 | StephenQiu30 | 0.2.0 | Rework: RAG 表增加 E2E 场景引用列，明确每个 feature 关联的 E2E 场景 |
