@@ -983,10 +983,15 @@ class ChatMessageServiceImplTest {
                     com.baomidou.mybatisplus.core.conditions.AbstractWrapper<?, ?, ?> abstractWrapper =
                             (com.baomidou.mybatisplus.core.conditions.AbstractWrapper<?, ?, ?>) queryWrapper;
                     Map<String, Object> params = abstractWrapper.getParamNameValuePairs();
-                    boolean roomIdMatch = params.values().stream()
-                            .anyMatch(v -> v != null && v.equals(existingByClientRoomId));
-                    if (!roomIdMatch) {
-                        return null;
+                    java.util.regex.Matcher matcher = java.util.regex.Pattern
+                            .compile("room_id = #\\{ew\\.paramNameValuePairs\\.(MPGENVAL\\d+)}")
+                            .matcher(sql);
+                    if (matcher.find()) {
+                        String roomIdParamKey = matcher.group(1);
+                        Object roomIdValue = params.get(roomIdParamKey);
+                        if (!existingByClientRoomId.equals(roomIdValue)) {
+                            return null;
+                        }
                     }
                 }
                 return existingByClient;
