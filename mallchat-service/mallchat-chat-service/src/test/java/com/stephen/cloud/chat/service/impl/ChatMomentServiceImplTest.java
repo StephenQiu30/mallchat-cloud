@@ -28,6 +28,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
 
 class ChatMomentServiceImplTest {
 
@@ -160,6 +161,42 @@ class ChatMomentServiceImplTest {
         Assertions.assertEquals(new LinkedHashSet<>(Set.of(1L)), chatMomentService.capturedVisibleAuthorIds);
         Assertions.assertEquals(1, page.getRecords().size());
         Assertions.assertEquals(11L, page.getRecords().get(0).getId());
+    }
+
+    @Test
+    void shouldNotSeeFriendOnlyMomentWhenNotFriend() {
+        // User 1 has no friends (visibleFriendIds is empty)
+        chatMomentService.visibleFriendIds = new LinkedHashSet<>();
+        // Moments include: own moment (visibility=0, friend-only) and friend user 2's friend-only moment
+        chatMomentService.moments = List.of(
+                moment(10L, 1L, "mine"),
+                moment(11L, 2L, "friend's friend-only"));
+
+        Page<ChatMomentVO> page = chatMomentService.listVisibleMoments(1L, 1, 10);
+
+        // User 1 should only see their own moment, not user 2's friend-only moment
+        Assertions.assertEquals(new LinkedHashSet<>(Set.of(1L)), chatMomentService.capturedVisibleAuthorIds);
+        Assertions.assertEquals(1, page.getRecords().size());
+        Assertions.assertEquals(10L, page.getRecords().get(0).getId());
+        Assertions.assertEquals("mine", page.getRecords().get(0).getContent());
+    }
+
+    @Test
+    void shouldNotSeeFriendOnlyMomentWhenBlocked() {
+        // User 1 is friends with user 2 but blocked them
+        chatMomentService.visibleFriendIds = new LinkedHashSet<>(Set.of(2L));
+        chatMomentService.blockedUserIds = Set.of(2L);
+        chatMomentService.moments = List.of(
+                moment(10L, 1L, "mine"),
+                moment(11L, 2L, "blocked friend's moment"));
+
+        Page<ChatMomentVO> page = chatMomentService.listVisibleMoments(1L, 1, 10);
+
+        // User 1 should only see their own moment, not blocked user 2's moment
+        Assertions.assertEquals(new LinkedHashSet<>(Set.of(1L)), chatMomentService.capturedVisibleAuthorIds);
+        Assertions.assertEquals(1, page.getRecords().size());
+        Assertions.assertEquals(10L, page.getRecords().get(0).getId());
+        Assertions.assertEquals("mine", page.getRecords().get(0).getContent());
     }
 
     @Test
@@ -643,7 +680,10 @@ class ChatMomentServiceImplTest {
 
         @Override
         protected Set<Long> listMutualFriendIds(Long userId) {
-            return new LinkedHashSet<>(visibleFriendIds);
+            // Match real service behavior: filter out blocked users from visible friends
+            return visibleFriendIds.stream()
+                    .filter(id -> !blockedUserIds.contains(id))
+                    .collect(Collectors.toCollection(LinkedHashSet::new));
         }
 
         @Override

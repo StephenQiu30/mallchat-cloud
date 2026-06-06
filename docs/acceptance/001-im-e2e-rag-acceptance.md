@@ -108,6 +108,7 @@ IM 生产化不能只用编译通过作为验收。消息、好友、群聊、�
 | `friend-message-permission` | Amber | Green | 非好友/拉黑权限测试 | 4.2 好友权限 |
 | `group-message-permission` | Amber | Green | 非成员/退出后权限测试 | 4.3 群聊权限 |
 | `moment-like-comment-idempotency` | Amber | Green | 点赞评论幂等测试 | 4.4 朋友圈 |
+| `moment-permission-boundary` | Green | Green | 好友可见权限边界测试 + 拉黑收敛测试 | 4.4 朋友圈 |
 
 ## 6. 通用验证命令
 
