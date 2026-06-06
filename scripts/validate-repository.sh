@@ -120,4 +120,15 @@ require_text .github/workflows/ci.yml "GatewayAuthWhitelistConfigTest" "CI 缺�
 require_text .github/workflows/ci.yml "RateLimitConfigTest" "CI 缺少 gateway 限流守护测试"
 require_text .github/workflows/ci.yml "RabbitMqSenderTest" "CI 缺少 RabbitMQ 公共组件守护测试"
 
+# IM focused tests CI gates (STE-223)
+require_text .github/workflows/ci.yml "Run backend focused tests" "CI 缺少 IM focused tests 入口"
+require_text .github/workflows/ci.yml "ChatMessageServiceImplTest" "CI 缺少 IM focused test: ChatMessageServiceImplTest"
+require_text .github/workflows/ci.yml "ChatRoomServiceImplTest" "CI 缺少 IM focused test: ChatRoomServiceImplTest"
+require_text .github/workflows/ci.yml "ChatSessionServiceImplTest" "CI 缺少 IM focused test: ChatSessionServiceImplTest"
+require_text .github/workflows/ci.yml "ChatMomentServiceImplTest" "CI 缺少 IM focused test: ChatMomentServiceImplTest"
+require_text .github/workflows/ci.yml "ChatMessagePushHandlerTest" "CI 缺少 IM focused test: ChatMessagePushHandlerTest"
+require_text .github/workflows/ci.yml "ChatMqProducerTest" "CI 缺少 IM focused test: ChatMqProducerTest"
+require_text .github/workflows/ci.yml "ChatSessionListenerTest" "CI 缺少 IM focused test: ChatSessionListenerTest"
+require_text .github/workflows/ci.yml "Run IM E2E smoke tests" "CI 缺少 IM E2E smoke 入口"
+
 git diff --check
