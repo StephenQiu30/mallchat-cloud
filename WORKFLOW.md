@@ -43,9 +43,11 @@ codex:
   turn_sandbox_policy:
     type: dangerFullAccess
 claude:
-  command: claude -p --dangerously-skip-permissions --output-format stream-json --include-partial-messages --verbose
+  command: claude -p --dangerously-skip-permissions --permission-mode bypassPermissions
+  prompt_mode: stdin
 cursor:
-  command: cursor-agent -p --force --sandbox disabled
+  command: cursor-agent -p --force --sandbox disabled --output-format stream-json --stream-partial-output --approve-mcps
+  prompt_mode: argument
 gemini:
   command: gemini
 ---
