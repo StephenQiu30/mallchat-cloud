@@ -152,6 +152,63 @@ class ChatMessageServiceImplTest {
     }
 
     @Test
+    void shouldNotPersistMessageWhenNonFriendSendIsRejected() {
+        mutualFriend = false;
+        ChatMessage message = createTextMessage(1L, "no-persist-1", "hello");
+
+        Assertions.assertThrows(BusinessException.class,
+                () -> chatMessageService.sendMessage(message, 1L));
+
+        // 权限失败不写入 chat_message
+        Assertions.assertNull(chatMessageService.messageById);
+        Assertions.assertNull(chatMqProducer.lastGroupPushRoomId);
+    }
+
+    @Test
+    void shouldNotPersistMessageWhenBlockedSendIsRejected() {
+        blockedBetween = true;
+        ChatMessage message = createTextMessage(1L, "no-persist-2", "hello");
+
+        Assertions.assertThrows(BusinessException.class,
+                () -> chatMessageService.sendMessage(message, 1L));
+
+        // 权限失败不写入 chat_message
+        Assertions.assertNull(chatMessageService.messageById);
+        Assertions.assertNull(chatMqProducer.lastGroupPushRoomId);
+    }
+
+    @Test
+    void shouldRejectPrivateMessageFromNonFriendEvenWhenCacheIsCold() {
+        // 缓存降级场景：缓存为空，isMutualFriend 回退到数据库查询
+        // 模拟 UserFriendService 在缓存冷启动时返回 false（数据库无好友记录）
+        mutualFriend = false;
+        ChatMessage message = createTextMessage(1L, "cache-cold-1", "hello");
+
+        BusinessException exception = Assertions.assertThrows(BusinessException.class,
+                () -> chatMessageService.sendMessage(message, 1L));
+
+        Assertions.assertEquals(ErrorCode.NO_AUTH_ERROR.getCode(), exception.getCode());
+        Assertions.assertNull(chatMessageService.messageById);
+    }
+
+    @Test
+    void shouldPreserveHistoricalMessagesAfterBlocking() {
+        // 好友发送消息成功
+        ChatMessageVO sent = chatMessageService.sendMessage(createTextMessage(1L, "hist-1", "before block"), 1L);
+        Assertions.assertNotNull(sent);
+        Long savedMessageId = chatMessageService.messageById.getId();
+
+        // 拉黑后发送失败
+        blockedBetween = true;
+        Assertions.assertThrows(BusinessException.class,
+                () -> chatMessageService.sendMessage(createTextMessage(1L, "hist-2", "after block"), 1L));
+
+        // 历史消息不因后续拉黑被删除
+        Assertions.assertNotNull(chatMessageService.messageById);
+        Assertions.assertEquals(savedMessageId, chatMessageService.messageById.getId());
+    }
+
+    @Test
     void shouldReturnHistoryMessagesInChronologicalOrder() {
         chatMessageService.listResult = List.of(createStoredMessage(5L, 1L), createStoredMessage(4L, 1L));
 
@@ -487,6 +544,33 @@ class ChatMessageServiceImplTest {
 
         Assertions.assertEquals(88L, result.getId());
         Assertions.assertNull(chatMqProducer.lastGroupPushRoomId);
+        Assertions.assertEquals(1.0, businessCounter("message_send", "duplicate"));
+    }
+
+    @Test
+    void shouldAllowSameClientMsgIdInDifferentRooms() {
+        room.setType(ChatRoomTypeEnum.GROUP.getCode());
+        roomsById.put(2L, createRoom(2L, ChatRoomTypeEnum.GROUP.getCode()));
+        roomMembership.put(2L, true);
+        chatMessageService.existingByClient = createStoredMessage(88L, 1L);
+        chatMessageService.existingByClient.setClientMsgId("msg-1");
+        chatMessageService.existingByClientRoomId = 1L;
+
+        ChatMessageVO result = chatMessageService.sendMessage(createTextMessage(2L, "msg-1", "hello"), 1L);
+
+        Assertions.assertNotEquals(88L, result.getId());
+    }
+
+    @Test
+    void shouldReturnExistingMessageForSameClientMsgIdAndRoom() {
+        room.setType(ChatRoomTypeEnum.GROUP.getCode());
+        chatMessageService.existingByClient = createStoredMessage(88L, 1L);
+        chatMessageService.existingByClient.setClientMsgId("msg-1");
+        chatMessageService.existingByClientRoomId = 1L;
+
+        ChatMessageVO result = chatMessageService.sendMessage(createTextMessage(1L, "msg-1", "hello"), 1L);
+
+        Assertions.assertEquals(88L, result.getId());
         Assertions.assertEquals(1.0, businessCounter("message_send", "duplicate"));
     }
 
@@ -991,6 +1075,7 @@ class ChatMessageServiceImplTest {
 
     private class TestableChatMessageServiceImpl extends ChatMessageServiceImpl {
         private ChatMessage existingByClient;
+        private Long existingByClientRoomId;
         private ChatMessage messageById;
         private ChatMessage messageByRoomQuery;
         private List<ChatMessage> listResult = new ArrayList<>();
@@ -1003,10 +1088,27 @@ class ChatMessageServiceImplTest {
         private Long updatedLastReadMessageId;
         private Page<ChatMessage> searchPageResult = new Page<>(1, 20, 0);
         private String searchSqlSegment;
+        private long nextId = 100L;
 
         @Override
         public ChatMessage getOne(Wrapper<ChatMessage> queryWrapper) {
             if (existingByClient != null) {
+                String sql = queryWrapper.getSqlSegment();
+                if (sql.contains("room_id") && existingByClientRoomId != null) {
+                    com.baomidou.mybatisplus.core.conditions.AbstractWrapper<?, ?, ?> abstractWrapper =
+                            (com.baomidou.mybatisplus.core.conditions.AbstractWrapper<?, ?, ?>) queryWrapper;
+                    Map<String, Object> params = abstractWrapper.getParamNameValuePairs();
+                    java.util.regex.Matcher matcher = java.util.regex.Pattern
+                            .compile("room_id = #\\{ew\\.paramNameValuePairs\\.(MPGENVAL\\d+)}")
+                            .matcher(sql);
+                    if (matcher.find()) {
+                        String roomIdParamKey = matcher.group(1);
+                        Object roomIdValue = params.get(roomIdParamKey);
+                        if (!existingByClientRoomId.equals(roomIdValue)) {
+                            return null;
+                        }
+                    }
+                }
                 return existingByClient;
             }
             return messageByRoomQuery;
@@ -1024,7 +1126,7 @@ class ChatMessageServiceImplTest {
                 throw new org.springframework.dao.DuplicateKeyException("duplicate client msg id");
             }
             if (saveResult && entity.getId() == null) {
-                entity.setId(100L);
+                entity.setId(nextId++);
                 entity.setCreateTime(new Date());
             }
             this.messageById = entity;

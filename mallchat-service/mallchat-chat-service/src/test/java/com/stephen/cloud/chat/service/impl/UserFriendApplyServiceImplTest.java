@@ -408,6 +408,66 @@ class UserFriendApplyServiceImplTest {
         Assertions.assertEquals("friend_approve:10", notifications.get(0).getBizId());
     }
 
+    @Test
+    void shouldRejectApplyToSelf() {
+        UserFriendApply apply = new UserFriendApply();
+        apply.setTargetId(1L);
+        apply.setMsg("hello");
+
+        BusinessException exception = Assertions.assertThrows(BusinessException.class,
+                () -> userFriendApplyService.applyFriend(apply, 1L));
+
+        Assertions.assertEquals(ErrorCode.PARAMS_ERROR.getCode(), exception.getCode());
+        Assertions.assertNull(chatMqProducer.lastApplyUserId);
+        Assertions.assertTrue(notifications.isEmpty());
+    }
+
+    @Test
+    void shouldRejectApplyToExistingFriend() {
+        UserVO targetUser = new UserVO();
+        targetUser.setId(2L);
+        users.put(2L, targetUser);
+        userFriendService.mutualFriend = true;
+
+        UserFriendApply apply = new UserFriendApply();
+        apply.setTargetId(2L);
+        apply.setMsg("hello");
+
+        BusinessException exception = Assertions.assertThrows(BusinessException.class,
+                () -> userFriendApplyService.applyFriend(apply, 1L));
+
+        Assertions.assertEquals(ErrorCode.OPERATION_ERROR.getCode(), exception.getCode());
+        Assertions.assertNull(chatMqProducer.lastApplyUserId);
+        Assertions.assertTrue(notifications.isEmpty());
+    }
+
+    @Test
+    void shouldBeIdempotentForRepeatedApproval() {
+        UserVO applyUser = new UserVO();
+        applyUser.setId(1L);
+        applyUser.setUserName("u1");
+        users.put(1L, applyUser);
+
+        ChatFriendApproveRequest request = new ChatFriendApproveRequest();
+        request.setApplyId(10L);
+        request.setStatus(2);
+
+        UserFriendApply apply = new UserFriendApply();
+        apply.setId(10L);
+        apply.setUserId(1L);
+        apply.setTargetId(2L);
+        apply.setStatus(2); // already approved
+        userFriendApplyService.applyById = apply;
+        userFriendApplyService.updateResult = true;
+
+        BusinessException exception = Assertions.assertThrows(BusinessException.class,
+                () -> userFriendApplyService.approveFriend(request, 2L));
+
+        Assertions.assertEquals(ErrorCode.PARAMS_ERROR.getCode(), exception.getCode());
+        Assertions.assertNull(userFriendService.lastAddUserId);
+        Assertions.assertNull(chatRoomService.lastPeerUserId);
+    }
+
     private UserFeignClient createUserFeignClient() {
         return (UserFeignClient) Proxy.newProxyInstance(
                 UserFeignClient.class.getClassLoader(),

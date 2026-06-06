@@ -345,6 +345,23 @@ public class CacheUtils {
     }
 
     /**
+     * 尝试设置幂等去重键（SET NX 语义）
+     * <p>
+     * 用于防止重复投递：同一 bizId + userId 组合只处理一次。
+     * 如果键已存在，返回 false；否则设置并返回 true。
+     * </p>
+     *
+     * @param bizId  业务幂等键
+     * @param userId 用户ID
+     * @return true 如果成功设置（新的），false 如果已存在（重复）
+     */
+    public boolean trySetDedupKey(String bizId, String userId) {
+        String dedupKey = prefixedKey("dedup:" + bizId + ":" + userId);
+        RBucket<String> bucket = redissonClient.getBucket(dedupKey);
+        return bucket.setIfAbsent("1", Duration.ofMinutes(30));
+    }
+
+    /**
      * 为键添加 Redis 前缀
      *
      * @param key 原始缓存键
