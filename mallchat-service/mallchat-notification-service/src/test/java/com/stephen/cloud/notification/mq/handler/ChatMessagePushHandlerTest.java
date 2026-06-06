@@ -314,5 +314,10 @@ class ChatMessagePushHandlerTest {
             dedupKeys.put(dedupKey, true);
             return true; // new key, can process
         }
+
+        @Override
+        public void remove(String key) {
+            dedupKeys.remove(key);
+        }
     }
 }
