@@ -125,17 +125,15 @@ class GroupSessionConsistencyTest {
     /**
      * 目标 4：成员变化不得破坏历史消息事实
      *
-     * 场景：成员 B 退出后，历史消息仍然存在且可查。
-     * 成员变化只影响 ChatRoomMember 表，不影响 ChatMessage 表。
-     * 此测试验证 updateSessionBatch 不会修改或删除任何消息记录。
+     * 场景：成员 B 退出后，新消息到达时 listener 只更新会话，
+     * 不查询或修改 ChatMessage 表。
+     * 验证方式：ChatSessionService proxy 只捕获 updateSessionBatch 调用，
+     * 不捕获任何消息相关调用（因为 listener 不使用消息服务）。
      */
     @Test
     void shouldNotDestroyHistoricalMessagesWhenMemberChanges() {
         // Arrange: active members after B left
         activeMembers = List.of(buildMember(1L), buildMember(3L));
-
-        // Track if any message-related service methods are called
-        List<Long> messageIdsQueried = new ArrayList<>();
 
         ChatMessage message = new ChatMessage();
         message.setId(100L);
@@ -144,12 +142,13 @@ class GroupSessionConsistencyTest {
         // Act
         listener.onChatMessageSent(new ChatMessageSentEvent(this, message, 1L));
 
-        // Assert: the listener should NOT query or modify messages
-        // It only reads the event's message and passes the ID to updateSessionBatch
-        Assertions.assertTrue(messageIdsQueried.isEmpty(),
-                "Listener should not query messages directly");
-        // The batch update only touches ChatSession, not ChatMessage
-        Assertions.assertEquals(List.of(1L, 3L), capturedBatchUserIds);
+        // Assert: only updateSessionBatch was called (no message queries)
+        // The proxy will throw UnsupportedOperationException for unexpected calls,
+        // so reaching this point proves the listener doesn't touch message services.
+        Assertions.assertEquals(List.of(1L, 3L), capturedBatchUserIds,
+                "Only active members should be in session update");
+        Assertions.assertEquals(100L, capturedMessageId,
+                "Message ID should be passed correctly");
     }
 
     /**
@@ -236,7 +235,7 @@ class GroupSessionConsistencyTest {
                     if ("listByRoomId".equals(method.getName())) {
                         return new ArrayList<>(activeMembers);
                     }
-                    return defaultValue(method.getReturnType());
+                    throw new UnsupportedOperationException("Unexpected ChatRoomMemberService call: " + method.getName());
                 }
         );
     }
@@ -258,7 +257,7 @@ class GroupSessionConsistencyTest {
                     if ("getSessionVO".equals(method.getName())) {
                         return new com.stephen.cloud.api.chat.model.vo.ChatSessionVO();
                     }
-                    return defaultValue(method.getReturnType());
+                    throw new UnsupportedOperationException("Unexpected ChatSessionService call: " + method.getName());
                 }
         );
     }
@@ -289,12 +288,5 @@ class GroupSessionConsistencyTest {
         public void sendSessionUpdate(Long userId, Long roomId, Object data, String bizId) {
             // no-op
         }
-    }
-
-    private static Object defaultValue(Class<?> returnType) {
-        if (returnType == boolean.class) return false;
-        if (returnType == int.class) return 0;
-        if (returnType == long.class) return 0L;
-        return null;
     }
 }
