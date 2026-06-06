@@ -40,6 +40,9 @@ jobs:
             exit 1
           fi
 
+      - name: Validate recovery script assertions
+        run: bash tests/test-recovery-script-assertions.sh
+
       - name: Run engineering contract guards
         run: |
           mvn -B -pl mallchat-service/mallchat-chat-service -am -Dtest=ChatApiContractConsistencyTest -Dsurefire.failIfNoSpecifiedTests=false test
