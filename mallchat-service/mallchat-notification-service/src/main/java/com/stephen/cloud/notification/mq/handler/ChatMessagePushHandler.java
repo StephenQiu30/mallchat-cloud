@@ -100,10 +100,18 @@ public class ChatMessagePushHandler implements RabbitMqHandler<WebSocketMessage>
     private void pushToMultipleUsers(WebSocketMessage wsMessage) {
         List<Long> userIds = wsMessage.getUserIds();
         String messageJson = JSONUtil.toJsonStr(wsMessage.getData() != null ? wsMessage.getData() : wsMessage);
+        String bizId = resolveBizId(wsMessage);
         int successCount = 0;
         int offlineCount = 0;
+        int dedupSkippedCount = 0;
 
         for (Long userId : userIds) {
+            // 幂等去重：同一 bizId + userId 只处理一次
+            if (bizId != null && !cacheUtils.trySetDedupKey(bizId, String.valueOf(userId))) {
+                log.debug("[ChatMessagePushHandler] 幂等跳过, bizId={}, userId={}", bizId, userId);
+                dedupSkippedCount++;
+                continue;
+            }
             try {
                 int writeCount = channelManager.writeToUser(String.valueOf(userId), messageJson);
                 if (writeCount > 0) {
@@ -124,6 +132,9 @@ public class ChatMessagePushHandler implements RabbitMqHandler<WebSocketMessage>
         if (offlineCount > 0) {
             metricsRecorder.record(getBizType(), resolveEventType(wsMessage), "offline", offlineCount);
         }
+        if (dedupSkippedCount > 0) {
+            metricsRecorder.record(getBizType(), resolveEventType(wsMessage), "dedup", dedupSkippedCount);
+        }
     }
 
     /**
@@ -135,6 +146,7 @@ public class ChatMessagePushHandler implements RabbitMqHandler<WebSocketMessage>
     private void pushToRoomMembers(WebSocketMessage wsMessage) {
         Long roomId = wsMessage.getRoomId();
         String messageJson = JSONUtil.toJsonStr(wsMessage.getData() != null ? wsMessage.getData() : wsMessage);
+        String bizId = resolveBizId(wsMessage);
 
         String key = ChatCacheConstant.getRoomMemberKey(roomId);
         Set<String> memberIds = cacheUtils.sMembers(key);
@@ -161,7 +173,14 @@ public class ChatMessagePushHandler implements RabbitMqHandler<WebSocketMessage>
 
         int successCount = 0;
         int offlineCount = 0;
+        int dedupSkippedCount = 0;
         for (String userIdStr : memberIds) {
+            // 幂等去重：同一 bizId + userId 只处理一次
+            if (bizId != null && !cacheUtils.trySetDedupKey(bizId, userIdStr)) {
+                log.debug("[ChatMessagePushHandler] 幂等跳过, bizId={}, userId={}", bizId, userIdStr);
+                dedupSkippedCount++;
+                continue;
+            }
             try {
                 int writeCount = channelManager.writeToUser(userIdStr, messageJson);
                 if (writeCount > 0) {
@@ -181,6 +200,9 @@ public class ChatMessagePushHandler implements RabbitMqHandler<WebSocketMessage>
         }
         if (offlineCount > 0) {
             metricsRecorder.record(getBizType(), resolveEventType(wsMessage), "offline", offlineCount);
+        }
+        if (dedupSkippedCount > 0) {
+            metricsRecorder.record(getBizType(), resolveEventType(wsMessage), "dedup", dedupSkippedCount);
         }
     }
 
@@ -202,6 +224,29 @@ public class ChatMessagePushHandler implements RabbitMqHandler<WebSocketMessage>
         }
         WebSocketMessageTypeEnum typeEnum = WebSocketMessageTypeEnum.getEnumByCode(wsMessage.getType());
         return typeEnum == null ? String.valueOf(wsMessage.getType()) : typeEnum.name();
+    }
+
+    /**
+     * 解析业务幂等键
+     * <p>
+     * 优先使用 WebSocketMessage.bizId，其次使用 ImWebSocketEvent.bizId。
+     * bizId 用于幂等去重，确保同一消息不会重复投递。
+     * </p>
+     *
+     * @param wsMessage WebSocket 包装消息
+     * @return 业务幂等键，或 null 如果无法解析
+     */
+    private String resolveBizId(WebSocketMessage wsMessage) {
+        // 优先使用外层 bizId
+        if (wsMessage.getBizId() != null) {
+            return wsMessage.getBizId();
+        }
+        // 降级使用内层 ImWebSocketEvent.bizId
+        Object data = wsMessage.getData();
+        if (data instanceof ImWebSocketEvent event) {
+            return event.getBizId();
+        }
+        return null;
     }
 
     /**
