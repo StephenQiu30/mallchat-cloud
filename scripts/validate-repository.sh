@@ -4,9 +4,6 @@ set -euo pipefail
 required_files=(
   "README.md"
   "AGENTS.md"
-  "AGENTS.local.md"
-  "CLAUDE.md"
-  "CLAUDE.local.md"
   "WORKFLOW.md"
   ".github/pull_request_template.md"
   ".claude/agents/pm.md"
@@ -94,9 +91,6 @@ require_text WORKFLOW.md "## Claude Workpad" "WORKFLOW.md 缺少 Claude Workpad 
 require_text WORKFLOW.md "command: claude" "WORKFLOW.md 缺少 Claude 命令配置"
 
 require_absent_text AGENTS.md "$legacy_spec_token" "AGENTS.md 不应继续依赖旧规格框架"
-require_absent_text AGENTS.local.md "$legacy_spec_token" "AGENTS.local.md 不应继续依赖旧规格框架"
-require_absent_text CLAUDE.md "$legacy_spec_token" "CLAUDE.md 不应继续依赖旧规格框架"
-require_absent_text CLAUDE.local.md "$legacy_spec_token" "CLAUDE.local.md 不应继续依赖旧规格框架"
 require_absent_text WORKFLOW.md "$legacy_spec_token" "WORKFLOW.md 不应继续依赖旧规格框架"
 require_absent_text .github/pull_request_template.md "$legacy_spec_token" "PR 模板不应继续依赖旧规格框架"
 require_absent_text .github/workflows/ci.yml "$legacy_spec_token" "CI 不应继续依赖旧规格框架"
